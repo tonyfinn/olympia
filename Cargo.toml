@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "olympia_engine",
+    "olympia_piston"
+]
