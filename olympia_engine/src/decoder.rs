@@ -108,6 +108,8 @@ impl Decoder {
         use instructions::Increment as inc;
         use instructions::Condition as cond;
         use registers::WordRegister as w;
+        use registers::StackRegister as sw;
+        use registers::AccRegister as aw;
         use registers::ByteRegister as b;
 
         let mut instruction_decoders: Vec<InstructionDecoder> = Vec::with_capacity(0xff);
@@ -119,16 +121,16 @@ impl Decoder {
         instruction_decoders[0x00] = Basic(Instruction::NOP);
         instruction_decoders[0x01] = ThreeByteData(Box::new(idecoders::LoadConstant16));
         instruction_decoders[0x02] = Basic(instructions::Load::MemoryRegister(w::BC, b::A).into());
-        instruction_decoders[0x03] = Basic(instructions::RegisterAL::Increment16(w::BC).into());
+        instruction_decoders[0x03] = Basic(instructions::RegisterAL::Increment16(sw::BC).into());
         instruction_decoders[0x04] = Basic(instructions::RegisterAL::Increment(b::B).into());
         instruction_decoders[0x05] = Basic(instructions::RegisterAL::Decrement(b::B).into());
         instruction_decoders[0x06] = TwoByteData(Box::new(idecoders::LoadConstant));
         instruction_decoders[0x07] = Basic(Instruction::Rotate(rotdir::Left, carry::Carry));
 
         instruction_decoders[0x08] = ThreeByteAddress(Box::new(idecoders::StoreSP));
-        instruction_decoders[0x09] = Basic(instructions::RegisterAL::Add16(w::BC).into());
+        instruction_decoders[0x09] = Basic(instructions::RegisterAL::Add16(sw::BC).into());
         instruction_decoders[0x0A] = Basic(instructions::Load::RegisterMemory(b::A, w::BC).into());
-        instruction_decoders[0x0B] = Basic(instructions::RegisterAL::Decrement16(w::BC).into());
+        instruction_decoders[0x0B] = Basic(instructions::RegisterAL::Decrement16(sw::BC).into());
         instruction_decoders[0x0C] = Basic(instructions::RegisterAL::Increment(b::C).into());
         instruction_decoders[0x0D] = Basic(instructions::RegisterAL::Decrement(b::C).into());
         instruction_decoders[0x0E] = TwoByteData(Box::new(idecoders::LoadConstant));
@@ -138,16 +140,16 @@ impl Decoder {
         instruction_decoders[0x10] = TwoByteData(Box::new(idecoders::Stop));
         instruction_decoders[0x11] = ThreeByteData(Box::new(idecoders::LoadConstant16));
         instruction_decoders[0x12] = Basic(instructions::Load::MemoryRegister(w::DE, b::A).into());
-        instruction_decoders[0x13] = Basic(instructions::RegisterAL::Increment16(w::DE).into());
+        instruction_decoders[0x13] = Basic(instructions::RegisterAL::Increment16(sw::SP).into());
         instruction_decoders[0x14] = Basic(instructions::RegisterAL::Increment(b::D).into());
         instruction_decoders[0x15] = Basic(instructions::RegisterAL::Decrement(b::D).into());
         instruction_decoders[0x16] = TwoByteData(Box::new(idecoders::LoadConstant));
         instruction_decoders[0x17] = Basic(Instruction::Rotate(rotdir::Left, carry::NoCarry));
 
         instruction_decoders[0x18] = TwoByteOffset(Box::new(idecoders::RelativeJump));
-        instruction_decoders[0x19] = Basic(instructions::RegisterAL::Add16(w::DE).into());
+        instruction_decoders[0x19] = Basic(instructions::RegisterAL::Add16(sw::DE).into());
         instruction_decoders[0x1A] = Basic(instructions::Load::RegisterMemory(b::A, w::BC).into());
-        instruction_decoders[0x1B] = Basic(instructions::RegisterAL::Decrement16(w::DE).into());
+        instruction_decoders[0x1B] = Basic(instructions::RegisterAL::Decrement16(sw::DE).into());
         instruction_decoders[0x1C] = Basic(instructions::RegisterAL::Increment(b::E).into());
         instruction_decoders[0x1D] = Basic(instructions::RegisterAL::Decrement(b::E).into());
         instruction_decoders[0x1E] = TwoByteData(Box::new(idecoders::LoadConstant));
@@ -157,16 +159,16 @@ impl Decoder {
         instruction_decoders[0x20] = TwoByteOffset(Box::new(idecoders::ConditionalRelativeJump));
         instruction_decoders[0x21] = ThreeByteData(Box::new(idecoders::LoadConstant16));
         instruction_decoders[0x22] = Basic(instructions::Load::Increment16A(inc::Increment).into());
-        instruction_decoders[0x23] = Basic(instructions::RegisterAL::Increment16(w::HL).into());
+        instruction_decoders[0x23] = Basic(instructions::RegisterAL::Increment16(sw::HL).into());
         instruction_decoders[0x24] = Basic(instructions::RegisterAL::Increment(b::H).into());
         instruction_decoders[0x25] = Basic(instructions::RegisterAL::Decrement(b::H).into());
         instruction_decoders[0x26] = TwoByteData(Box::new(idecoders::LoadConstant));
         instruction_decoders[0x27] = Basic(Instruction::AToBCD);
 
         instruction_decoders[0x28] = TwoByteOffset(Box::new(idecoders::ConditionalRelativeJump));
-        instruction_decoders[0x29] = Basic(instructions::RegisterAL::Add16(w::HL).into());
+        instruction_decoders[0x29] = Basic(instructions::RegisterAL::Add16(sw::HL).into());
         instruction_decoders[0x2A] = Basic(instructions::Load::AIncrement16(inc::Increment).into());
-        instruction_decoders[0x2B] = Basic(instructions::RegisterAL::Decrement16(w::HL).into());
+        instruction_decoders[0x2B] = Basic(instructions::RegisterAL::Decrement16(sw::HL).into());
         instruction_decoders[0x2C] = Basic(instructions::RegisterAL::Increment(b::L).into());
         instruction_decoders[0x2D] = Basic(instructions::RegisterAL::Decrement(b::L).into());
         instruction_decoders[0x2E] = TwoByteData(Box::new(idecoders::LoadConstant));
@@ -176,16 +178,16 @@ impl Decoder {
         instruction_decoders[0x30] = TwoByteOffset(Box::new(idecoders::ConditionalRelativeJump));
         instruction_decoders[0x31] = ThreeByteData(Box::new(idecoders::LoadConstant16));
         instruction_decoders[0x32] = Basic(instructions::Load::Increment16A(inc::Decrement).into());
-        instruction_decoders[0x33] = Basic(instructions::RegisterAL::Increment16(w::SP).into());
+        instruction_decoders[0x33] = Basic(instructions::RegisterAL::Increment16(sw::HL).into());
         instruction_decoders[0x34] = Basic(Instruction::MemoryIncrement(inc::Increment));
         instruction_decoders[0x35] = Basic(Instruction::MemoryIncrement(inc::Decrement));
         instruction_decoders[0x36] = TwoByteData(Box::new(idecoders::LoadConstant));
         instruction_decoders[0x37] = Basic(Instruction::SetCarry);
 
         instruction_decoders[0x38] = TwoByteOffset(Box::new(idecoders::ConditionalRelativeJump));
-        instruction_decoders[0x39] = Basic(instructions::RegisterAL::Add16(w::SP).into());
+        instruction_decoders[0x39] = Basic(instructions::RegisterAL::Add16(sw::HL).into());
         instruction_decoders[0x3A] = Basic(instructions::Load::AIncrement16(inc::Decrement).into());
-        instruction_decoders[0x3B] = Basic(instructions::RegisterAL::Decrement16(w::SP).into());
+        instruction_decoders[0x3B] = Basic(instructions::RegisterAL::Decrement16(sw::HL).into());
         instruction_decoders[0x3C] = Basic(instructions::RegisterAL::Increment(b::A).into());
         instruction_decoders[0x3D] = Basic(instructions::RegisterAL::Decrement(b::A).into());
         instruction_decoders[0x3E] = TwoByteData(Box::new(idecoders::LoadConstant));
@@ -345,11 +347,11 @@ impl Decoder {
 
         // Cx
         instruction_decoders[0xC0] = Basic(instructions::Jump::ReturnIf(cond::NonZero).into());
-        instruction_decoders[0xC1] = Basic(instructions::Stack::Pop(w::BC).into());
+        instruction_decoders[0xC1] = Basic(instructions::Stack::Pop(aw::BC).into());
         instruction_decoders[0xC2] = ThreeByteAddress(Box::new(idecoders::ConditionalJump));
         instruction_decoders[0xC3] = ThreeByteAddress(Box::new(idecoders::Jump));
         instruction_decoders[0xC4] = ThreeByteAddress(Box::new(idecoders::ConditionalCall));
-        instruction_decoders[0xC5] = Basic(instructions::Stack::Push(w::BC).into());
+        instruction_decoders[0xC5] = Basic(instructions::Stack::Push(aw::BC).into());
         instruction_decoders[0xC6] = TwoByteData(Box::new(idecoders::ConstantAL));
         instruction_decoders[0xC7] = Basic(instructions::Jump::CallSystem(0x00.into()).into());
 
@@ -364,11 +366,11 @@ impl Decoder {
 
         // Dx
         instruction_decoders[0xD0] = Basic(instructions::Jump::ReturnIf(cond::NoCarry).into());
-        instruction_decoders[0xD1] = Basic(instructions::Stack::Pop(w::DE).into());
+        instruction_decoders[0xD1] = Basic(instructions::Stack::Pop(aw::DE).into());
         instruction_decoders[0xD2] = ThreeByteAddress(Box::new(idecoders::ConditionalJump));
         instruction_decoders[0xD3] = OneByte(Box::new(idecoders::Literal));
         instruction_decoders[0xD4] = ThreeByteAddress(Box::new(idecoders::ConditionalCall));
-        instruction_decoders[0xD5] = Basic(instructions::Stack::Push(w::DE).into());
+        instruction_decoders[0xD5] = Basic(instructions::Stack::Push(aw::DE).into());
         instruction_decoders[0xD6] = TwoByteData(Box::new(idecoders::ConstantAL));
         instruction_decoders[0xD7] = Basic(instructions::Jump::CallSystem(0x10.into()).into());
 
@@ -382,12 +384,12 @@ impl Decoder {
         instruction_decoders[0xDF] = Basic(instructions::Jump::CallSystem(0x18.into()).into());
 
         // Ex
-        instruction_decoders[0xE0] = TwoByteAddress(Box::new(idecoders::StoreHighOffset));
-        instruction_decoders[0xE1] = Basic(instructions::Stack::Pop(w::HL).into());
-        instruction_decoders[0xE2] = Basic(instructions::Load::MemoryOffsetA(b::C).into());
+        instruction_decoders[0xE0] = TwoByteAddress(Box::new(idecoders::LoadHighOffset));
+        instruction_decoders[0xE1] = Basic(instructions::Stack::Pop(aw::HL).into());
+        instruction_decoders[0xE2] = Basic(instructions::Load::MemoryOffsetA.into());
         instruction_decoders[0xE3] = OneByte(Box::new(idecoders::Literal));
         instruction_decoders[0xE4] = OneByte(Box::new(idecoders::Literal));
-        instruction_decoders[0xE5] = Basic(instructions::Stack::Push(w::HL).into());
+        instruction_decoders[0xE5] = Basic(instructions::Stack::Push(aw::HL).into());
         instruction_decoders[0xE6] = TwoByteData(Box::new(idecoders::ConstantAL));
         instruction_decoders[0xE7] = Basic(instructions::Jump::CallSystem(0x20.into()).into());
 
@@ -401,12 +403,12 @@ impl Decoder {
         instruction_decoders[0xEF] = Basic(instructions::Jump::CallSystem(0x28.into()).into());
 
         // Fx
-        instruction_decoders[0xF0] = TwoByteAddress(Box::new(idecoders::LoadHighOffset));
-        instruction_decoders[0xF1] = Basic(instructions::Stack::Pop(w::AF).into());
-        instruction_decoders[0xF2] = Basic(instructions::Load::AMemoryOffset(b::C).into());
+        instruction_decoders[0xF0] = TwoByteAddress(Box::new(idecoders::StoreHighOffset));
+        instruction_decoders[0xF1] = Basic(instructions::Stack::Pop(aw::AF).into());
+        instruction_decoders[0xF2] = Basic(instructions::Load::AMemoryOffset.into());
         instruction_decoders[0xF3] = Basic(Instruction::DisableInterrupts);
         instruction_decoders[0xF4] = OneByte(Box::new(idecoders::Literal));
-        instruction_decoders[0xF5] = Basic(instructions::Stack::Push(w::HL).into());
+        instruction_decoders[0xF5] = Basic(instructions::Stack::Push(aw::HL).into());
         instruction_decoders[0xF6] = TwoByteData(Box::new(idecoders::ConstantAL));
         instruction_decoders[0xF7] = Basic(instructions::Jump::CallSystem(0x30.into()).into());
 
@@ -450,14 +452,14 @@ mod tests {
 
     #[test]
     pub fn test_decode_basic() {
-        use registers::WordRegister as w;
+        use registers::StackRegister as sw;
         let data = [0x00, 0x23];
 
         let decoded = decode(&data);
         
         let expected = vec![
             Instruction::NOP,
-            instructions::RegisterAL::Increment16(w::HL).into()
+            instructions::RegisterAL::Increment16(sw::HL).into()
         ];
         assert_eq!(decoded, Ok(expected));
     }
@@ -541,7 +543,7 @@ mod tests {
         let decoded = decode(&data);
 
         let expected = vec![
-            instructions::Load::Constant16(registers::WordRegister::DE, 0x2513).into(),
+            instructions::Load::Constant16(registers::StackRegister::DE, 0x2513).into(),
             Instruction::NOP
         ];
         assert_eq!(decoded, Ok(expected));

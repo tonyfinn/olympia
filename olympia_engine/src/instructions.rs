@@ -68,11 +68,11 @@ impl From<Jump> for Instruction {
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum RegisterAL {
     ByteOp(ALOp, registers::ByteRegister), // <op> A, <reg>
-    Add16(registers::WordRegister), // ADD HL, <reg>
+    Add16(registers::StackRegister), // ADD HL, <reg>
     Increment(registers::ByteRegister), // INC <reg>
     Decrement(registers::ByteRegister), // DEC <reg>
-    Increment16(registers::WordRegister), // INC <reg>
-    Decrement16(registers::WordRegister), // DEC <reg>
+    Increment16(registers::StackRegister), // INC <reg>
+    Decrement16(registers::StackRegister), // DEC <reg>
 }
 
 impl From<RegisterAL> for Instruction {
@@ -83,8 +83,8 @@ impl From<RegisterAL> for Instruction {
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Stack {
-    Push(registers::WordRegister), // PUSH <reg>
-    Pop(registers::WordRegister), // POP <reg>
+    Push(registers::AccRegister), // PUSH <reg>
+    Pop(registers::AccRegister), // POP <reg>
     AddStackPointer(types::PCOffset), // ADD SP, r8
     LoadStackOffset(types::PCOffset), // LD HL, SP+r8
     LoadStackPointer, // LD SP, HL
@@ -99,15 +99,14 @@ impl From<Stack> for Instruction {
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Load {
-    Literal(types::MemoryAddress), // LD (a16), SP
     Constant(registers::ByteRegister, u8), // LD <reg>, d8
-    ConstantMemory(u8),
-    Constant16(registers::WordRegister, u16), // LD <reg>, d16
+    ConstantMemory(u8), // LD (HL), d8
+    Constant16(registers::StackRegister, u16), // LD <reg>, d16
     RegisterRegister(registers::ByteRegister, registers::ByteRegister), // LD <dest>, <src>
     RegisterMemory(registers::ByteRegister, registers::WordRegister), // LD <dest>, (<src>)
     MemoryRegister(registers::WordRegister, registers::ByteRegister), // LD (<dest>), <src>
-    AMemoryOffset(registers::ByteRegister), // LD A, (C)
-    MemoryOffsetA(registers::ByteRegister), // LD (C), A
+    AMemoryOffset, // LD A, (C)
+    MemoryOffsetA, // LD (C), A
     AIndirect(types::MemoryAddress), // LD A, (a16)
     IndirectA(types::MemoryAddress), // LD (a16), A
     AHighOffset(types::HighAddress), // LDH A, (a8)
@@ -133,11 +132,11 @@ pub enum Extended {
     ShiftRightZero(registers::ByteRegister), // SRL <reg>
     ShiftMemoryRightZero, // SRL (HL)
     TestBit(u8, registers::ByteRegister), // BIT <bit>, <reg>
-    TestMemoryBit(u8),
+    TestMemoryBit(u8), // BIT <bit>, (HL)
     ResetBit(u8, registers::ByteRegister), // RES <bit>, <reg>
-    ResetMemoryBit(u8),
+    ResetMemoryBit(u8), // RES <bit>, (HL)
     SetBit(u8, registers::ByteRegister), // SET <bit>, <reg>
-    SetMemoryBit(u8)
+    SetMemoryBit(u8) // SET <bit>, (HL)
 }
 
 impl From<Extended> for Instruction {
@@ -152,11 +151,11 @@ pub enum Instruction {
     RegisterAL(RegisterAL),
     MemoryAL(ALOp), // <op> A, (HL)
     ConstantAL(ALOp, u8), // <op> A, d8
-    MemoryIncrement(Increment),
+    MemoryIncrement(Increment), // INC (HL) / DEC (HL)
     Stack(Stack),
     Load(Load),
     Extended(Extended),
-    Literal(u8), // DAT r8
+    Literal(u8), // DAT d8
     NOP, // NOP
     Stop, // STOP 0
     Halt, // HALT

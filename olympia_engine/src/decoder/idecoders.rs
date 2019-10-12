@@ -33,12 +33,12 @@ fn byte_register_lookup(register_index: u8) -> Option<ByteRegisterLookupResult> 
 }
 
 
-fn word_register_lookup_stack(register_index: u8) -> Option<registers::WordRegister> {
+fn stack_register_lookup(register_index: u8) -> Option<registers::StackRegister> {
     match register_index {
-        0b00 => Some(registers::WordRegister::BC),
-        0b01 => Some(registers::WordRegister::DE),
-        0b10 => Some(registers::WordRegister::HL),
-        0b11 => Some(registers::WordRegister::SP),
+        0b00 => Some(registers::StackRegister::BC),
+        0b01 => Some(registers::StackRegister::DE),
+        0b10 => Some(registers::StackRegister::HL),
+        0b11 => Some(registers::StackRegister::SP),
         _ => None
     }
 }
@@ -103,7 +103,7 @@ impl ThreeByteDataDecoder for LoadConstant16 {
     fn decode(&self, opcode: u8, value: u16) -> DecodeResult<Instruction> {
         let register_bits = 0b0011_0000;
         let register_value = (opcode & register_bits) >> 4;
-        let register = word_register_lookup_stack(register_value)
+        let register = stack_register_lookup(register_value)
             .ok_or(DecodeError::UnknownWordRegister(register_value))?;
         Ok(instructions::Load::Constant16(register, value).into())
     }
@@ -298,7 +298,7 @@ mod test {
     #[test]
     fn test_load_constant_16() {
         use instructions::Load;
-        use crate::registers::WordRegister as w;
+        use crate::registers::StackRegister as w;
 
         let idecoder = LoadConstant16 {};
         assert_eq!(idecoder.decode(0x01, 0x2310), Ok(Load::Constant16(w::BC, 0x2310).into()));

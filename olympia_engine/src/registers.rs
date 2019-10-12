@@ -21,6 +21,44 @@ pub enum WordRegister {
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum AccRegister {
+    BC,
+    DE,
+    HL,
+    AF
+}
+
+impl From<AccRegister> for WordRegister {
+    fn from(reg: AccRegister) -> WordRegister {
+        match reg {
+            AccRegister::AF => WordRegister::AF,
+            AccRegister::BC => WordRegister::BC,
+            AccRegister::DE => WordRegister::DE,
+            AccRegister::HL => WordRegister::HL
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum StackRegister {
+    BC,
+    DE,
+    HL,
+    SP
+}
+
+impl From<StackRegister> for WordRegister {
+    fn from(reg: StackRegister) -> WordRegister {
+        match reg {
+            StackRegister::SP => WordRegister::SP,
+            StackRegister::BC => WordRegister::BC,
+            StackRegister::DE => WordRegister::DE,
+            StackRegister::HL => WordRegister::HL
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub(crate) enum WordByte {
     High,
     Low,

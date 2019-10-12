@@ -1,6 +1,6 @@
 pub mod cpu;
 pub mod decoder;
-pub mod types;
+mod types;
 mod instructions;
 mod registers;
 
