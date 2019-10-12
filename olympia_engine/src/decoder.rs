@@ -1,5 +1,7 @@
 mod idecoders;
 
+use alloc::boxed::Box;
+use alloc::vec::Vec;
 
 use crate::{
     instructions,
@@ -449,6 +451,7 @@ pub fn decode(data: &[u8]) -> DecodeResult<Vec<instructions::Instruction>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     pub fn test_decode_basic() {
