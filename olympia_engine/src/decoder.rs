@@ -16,7 +16,8 @@ pub enum DecodeError {
     UnknownByteRegister(u8),
     UnknownWordRegister(u8),
     UnknownALOperation(u8),
-    UnknownExtendedInstruction(u8)
+    UnknownExtendedInstruction(u8),
+    UnknownOpcode(u8)
 }
 
 
@@ -425,7 +426,7 @@ impl Decoder {
 
     pub fn decode(&self, opcode: u8, iter: &mut dyn Iterator<Item=u8>) -> DecodeResult<Instruction> {
         let idecoder = self.instruction_decoders.get(opcode as usize)
-            .expect(&format!("Unknown opcode: {}", opcode));
+            .ok_or(DecodeError::UnknownOpcode(opcode))?;
         idecoder.decode(opcode, iter)
     }
 }
