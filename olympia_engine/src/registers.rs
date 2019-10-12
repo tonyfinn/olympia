@@ -27,7 +27,7 @@ pub(crate) enum WordByte {
 }
 
 impl ByteRegister {
-    pub(crate) fn lookup_byte(&self) -> WordByte {
+    pub(crate) fn lookup_byte(self) -> WordByte {
         match self {
             ByteRegister::A => WordByte::High,
             ByteRegister::F => WordByte::Low,
@@ -40,7 +40,7 @@ impl ByteRegister {
         }
     }
 
-    pub(crate) fn lookup_word_register(&self) -> WordRegister {
+    pub(crate) fn lookup_word_register(self) -> WordRegister {
         match self {
             ByteRegister::A => WordRegister::AF,
             ByteRegister::F => WordRegister::AF,

@@ -22,7 +22,7 @@ pub enum DecodeError {
 
 pub type DecodeResult<T> = Result<T, DecodeError>;
 
-
+#[derive(Default)]
 pub struct Decoder {
     instruction_decoders: Vec<InstructionDecoder>
 }

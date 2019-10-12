@@ -241,7 +241,7 @@ impl TwoByteDataDecoder for Extended {
             let bit = (data & 0b0011_1000) >> 3;
             let extended = match (reglookup, high_bits) {
                 (Register(reg), 0b01) => Extended::TestBit(bit, reg),
-                (Memory, 0b01) => Extended::TestMemoryBit(bit).into(),
+                (Memory, 0b01) => Extended::TestMemoryBit(bit),
                 (Register(reg), 0b10) => Extended::ResetBit(bit, reg),
                 (Memory, 0b10) => Extended::ResetMemoryBit(bit),
                 (Register(reg), 0b11) => Extended::SetBit(bit, reg),
