@@ -46,17 +46,17 @@ pub enum ALOp {
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Jump {
+    RegisterJump, // JP (HL)
+    Jump(types::MemoryAddress), // JP a16
+    JumpIf(Condition, types::MemoryAddress), // JP <condition>, a16
     RelativeJump(types::PCOffset), // JR r8
     RelativeJumpIf(Condition, types::PCOffset), // JR <condition>, r8
-    JumpIf(Condition, types::MemoryAddress), // JP <condition>, a16
-    CallIf(Condition, types::MemoryAddress), // CALL <condition>, a16
-    ReturnIf(Condition), // RET <condition>
-    Jump(types::MemoryAddress), // JP a16
-    RegisterJump, // JP (HL)
     Call(types::MemoryAddress), // CALL a16
+    CallIf(Condition, types::MemoryAddress), // CALL <condition>, a16
+    CallSystem(types::MemoryAddress), // RST a16
     Return, // RET
+    ReturnIf(Condition), // RET <condition>
     ReturnInterrupt, // RETI
-    CallSystem(types::MemoryAddress) // RST a16
 }
 
 impl From<Jump> for Instruction {
@@ -87,8 +87,8 @@ pub enum Stack {
     Pop(registers::AccRegister), // POP <reg>
     AddStackPointer(types::PCOffset), // ADD SP, r8
     LoadStackOffset(types::PCOffset), // LD HL, SP+r8
-    LoadStackPointer, // LD SP, HL
-    StoreStackPointerMemory(types::MemoryAddress)
+    SetStackPointer, // LD SP, HL
+    StoreStackPointerMemory(types::MemoryAddress) // LD (a16), SP
 }
 
 impl From<Stack> for Instruction {

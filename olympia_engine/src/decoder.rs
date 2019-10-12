@@ -415,7 +415,7 @@ impl Decoder {
         instruction_decoders[0xF7] = Basic(instructions::Jump::CallSystem(0x30.into()).into());
 
         instruction_decoders[0xF8] = TwoByteOffset(Box::new(idecoders::CalcStackOffset));
-        instruction_decoders[0xF9] = Basic(instructions::Stack::LoadStackPointer.into());
+        instruction_decoders[0xF9] = Basic(instructions::Stack::SetStackPointer.into());
         instruction_decoders[0xFA] = ThreeByteAddress(Box::new(idecoders::LoadAddress));
         instruction_decoders[0xFB] = Basic(Instruction::EnableInterrupts);
         instruction_decoders[0xFC] = OneByte(Box::new(idecoders::Literal));
@@ -504,7 +504,7 @@ mod tests {
         let decoded = decode(&data);
 
         let expected = vec![
-            instructions::Load::HighOffsetA(0x12.into()).into(),
+            instructions::Load::AHighOffset(0x12.into()).into(),
             Instruction::NOP
         ];
         assert_eq!(decoded, Ok(expected));
