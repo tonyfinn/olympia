@@ -2,6 +2,8 @@ mod idecoders;
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
+#[cfg(feature="disassembler")]
+use alloc::string::String;
 
 use crate::{
     instructions,
@@ -41,6 +43,14 @@ enum InstructionDecoder {
     ThreeByteAddress(Box<dyn ThreeByteAddressDecoder>)
 }
 
+
+#[cfg(feature="disassembler")]
+#[derive(PartialEq, Eq, Debug)]
+pub enum DisassembledInstruction {
+    OneByte(u8, String),
+    TwoByte(u16, String),
+    ThreeByte(u32, String)
+}
 
 trait OneByteDecoder {
     fn decode(&self, opcode: u8) -> DecodeResult<Instruction>;
@@ -96,6 +106,44 @@ impl InstructionDecoder {
             TwoByteOffset(decoder) => decoder.decode(opcode, read_byte(iter)?.into()),
             ThreeByteData(decoder) => decoder.decode(opcode, read_word(iter)?),
             ThreeByteAddress(decoder) => decoder.decode(opcode, read_word(iter)?.into())
+        }
+    }
+
+    #[cfg(feature="disassembler")]
+    pub fn disassemble(&self, opcode: u8, iter: &mut dyn Iterator<Item=u8>) -> DecodeResult<DisassembledInstruction> {
+        use InstructionDecoder::*;
+        use DisassembledInstruction as dis;
+        use crate::disassembler::Disassemble;
+        match self {
+            Basic(instr) => Ok(dis::OneByte(opcode, Disassemble::disassemble(instr))),
+            OneByte(decoder) => Ok(dis::OneByte(opcode, Disassemble::disassemble(&decoder.decode(opcode)?))),
+            TwoByteAddress(decoder) => {
+                let byte = read_byte(iter)?;
+                let instr = decoder.decode(opcode, byte.into())?;
+                Ok(dis::TwoByte(u16::from_le_bytes([byte, opcode]), Disassemble::disassemble(&instr)))
+            },
+            TwoByteData(decoder) => {
+                let byte = read_byte(iter)?;
+                let instr = decoder.decode(opcode, byte)?;
+                Ok(dis::TwoByte(u16::from_le_bytes([byte, opcode]), Disassemble::disassemble(&instr)))
+            },
+            TwoByteOffset(decoder) => {
+                let byte = read_byte(iter)?;
+                let instr = decoder.decode(opcode, byte.into())?;
+                Ok(dis::TwoByte(u16::from_le_bytes([byte, opcode]), Disassemble::disassemble(&instr)))
+            },
+            ThreeByteData(decoder) => {
+                let word = read_word(iter)?;
+                let instr = decoder.decode(opcode, word)?;
+                let [first, second] = word.to_le_bytes();
+                Ok(dis::ThreeByte(u32::from_be_bytes([0, opcode, first, second]), Disassemble::disassemble(&instr)))
+            },
+            ThreeByteAddress(decoder) => {
+                let word = read_word(iter)?;
+                let instr = decoder.decode(opcode, word.into())?;
+                let [first, second] = word.to_le_bytes();
+                Ok(dis::ThreeByte(u32::from_be_bytes([0, opcode, first, second]), Disassemble::disassemble(&instr)))
+            }
         }
     }
 }
@@ -433,6 +481,14 @@ impl Decoder {
             .ok_or(DecodeError::UnknownOpcode(opcode))?;
         idecoder.decode(opcode, iter)
     }
+
+    #[cfg(feature="disassembler")]
+    pub fn disassemble(&self, opcode: u8, iter: &mut dyn Iterator<Item=u8>) -> DecodeResult<DisassembledInstruction> {
+        let idecoder = self.instruction_decoders.get(opcode as usize)
+            .ok_or(DecodeError::UnknownOpcode(opcode))?;
+        idecoder.disassemble(opcode, iter)
+    }
+
 }
 
 
@@ -442,6 +498,18 @@ pub fn decode(data: &[u8]) -> DecodeResult<Vec<instructions::Instruction>> {
     let mut iter = data.iter().copied();
     while let Some(byte) = iter.next() {
         let instruction = decoder.decode(byte, &mut iter)?;
+        output.push(instruction);
+    };
+    Ok(output)
+}
+
+
+pub fn disassemble(data: &[u8]) -> DecodeResult<Vec<DisassembledInstruction>> {
+    let decoder = Decoder::new();
+    let mut output = Vec::new();
+    let mut iter = data.iter().copied();
+    while let Some(byte) = iter.next() {
+        let instruction = decoder.disassemble(byte, &mut iter)?;
         output.push(instruction);
     };
     Ok(output)
@@ -548,6 +616,112 @@ mod tests {
         let expected = vec![
             instructions::Load::Constant16(registers::StackRegister::DE, 0x2513).into(),
             Instruction::NOP
+        ];
+        assert_eq!(decoded, Ok(expected));
+    }
+
+}
+
+#[cfg(all(feature="disassembler", test))]
+mod disassember_tests {
+    use super::*;
+    use alloc::vec;
+    use DisassembledInstruction as dis;
+
+    #[test]
+    pub fn test_decode_basic() {
+        let data = [0x00, 0x23];
+
+        let decoded = disassemble(&data);
+        
+        let expected = vec![
+            dis::OneByte(0x00, "NOP".into()),
+            dis::OneByte(0x23, "INC HL".into()),
+        ];
+        assert_eq!(decoded, Ok(expected));
+    }
+
+
+    #[test]
+    pub fn test_decode_one_byte() {
+        let data = [0xE4, 0xD3, 0xE3, 0xE4];
+
+        let decoded = disassemble(&data);
+        
+        let expected = vec![
+            dis::OneByte(0xE4, "DAT E4h".into()),
+            dis::OneByte(0xD3, "DAT D3h".into()),
+            dis::OneByte(0xE3, "DAT E3h".into()),
+            dis::OneByte(0xE4, "DAT E4h".into()),
+        ];
+        assert_eq!(decoded, Ok(expected));
+    }
+
+    #[test]
+    pub fn test_decode_two_byte_offset() {
+        let data = [0x18, 0x20, 0x00];
+
+        let decoded = disassemble(&data);
+
+        let expected = vec![
+            dis::TwoByte(0x1820, "JR PC+20h".into()),
+            dis::OneByte(0x00, "NOP".into()),
+        ];
+        assert_eq!(decoded, Ok(expected));
+    }
+
+
+    #[test]
+    pub fn test_decode_two_byte_address() {
+        let data = [0xF0, 0x12, 0x00];
+
+        let decoded = disassemble(&data);
+
+        let expected = vec![
+            dis::TwoByte(0xF012, "LD A, $FF12h".into()),
+            dis::OneByte(0x00, "NOP".into()),
+        ];
+        assert_eq!(decoded, Ok(expected));
+    }
+
+
+    #[test]
+    pub fn test_decode_two_byte_data() {
+        let data = [0x10, 0x00, 0x00];
+
+        let decoded = disassemble(&data);
+
+        let expected = vec![
+            dis::TwoByte(0x1000, "STOP 0".into()),
+            dis::OneByte(0x00, "NOP".into()),
+        ];
+        assert_eq!(decoded, Ok(expected));
+    }
+
+
+    #[test]
+    pub fn test_decode_three_byte_address() {
+        let data = [0x08, 0x20, 0x10, 0x00];
+
+        let decoded = disassemble(&data);
+
+        let expected = vec![
+            dis::ThreeByte(0x082010, "LD $1020h, SP".into()),
+            dis::OneByte(0x00, "NOP".into()),
+        ];
+        assert_eq!(decoded, Ok(expected));
+    }
+
+
+    #[test]
+    pub fn test_decode_three_byte_data() {
+        let data = [0x11, 0x13, 0x25, 0x00];
+
+        let decoded = disassemble(&data);
+
+        let expected = vec![
+            dis::ThreeByte(0x111325, "LD DE, 2513h".into()),
+            dis::OneByte(0x00, "NOP".into()),
         ];
         assert_eq!(decoded, Ok(expected));
     }

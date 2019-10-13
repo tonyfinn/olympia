@@ -9,6 +9,9 @@ mod types;
 mod instructions;
 mod registers;
 
+#[cfg(feature="disassembler")]
+mod disassembler;
+
 #[cfg(test)]
 mod tests {
     #[test]
