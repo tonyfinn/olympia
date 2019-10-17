@@ -7,7 +7,6 @@ pub(crate) trait Disassemble {
     fn disassemble(&self) -> String;
 }
 
-
 impl Disassemble for ALOp {
     fn disassemble(&self) -> String {
         match self {
