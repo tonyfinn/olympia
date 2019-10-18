@@ -3,6 +3,7 @@ name = "olympia_disassembler"
 version = "0.1.0"
 authors = ["Tony Finn <tony@tonyfinn.com>"]
 edition = "2018"
+autotests = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,3 +11,7 @@ edition = "2018"
 clap = "2.33.0"
 structopt = "0.3.3"
 olympia_engine = { path = "../olympia_engine", features = ["disassembler"] }
+
+[[test]]
+name = "integration"
+path = "tests/tests.rs"
