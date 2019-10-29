@@ -8,6 +8,7 @@ pub mod decoder;
 mod types;
 mod instructions;
 mod registers;
+pub mod rom;
 
 #[cfg(feature="disassembler")]
 mod disassembler;
