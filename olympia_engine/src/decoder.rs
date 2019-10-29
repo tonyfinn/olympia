@@ -1,17 +1,11 @@
 mod idecoders;
 
 use alloc::boxed::Box;
-use alloc::vec::Vec;
-#[cfg(feature="disassembler")]
+#[cfg(feature = "disassembler")]
 use alloc::string::String;
+use alloc::vec::Vec;
 
-use crate::{
-    instructions,
-    instructions::{Instruction},
-    registers,
-    types
-};
-
+use crate::{instructions, instructions::Instruction, registers, types};
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum DecodeError {
@@ -21,17 +15,15 @@ pub enum DecodeError {
     UnknownWordRegister(u8),
     UnknownALOperation(u8),
     UnknownExtendedInstruction(u8),
-    UnknownOpcode(u8)
+    UnknownOpcode(u8),
 }
-
 
 pub type DecodeResult<T> = Result<T, DecodeError>;
 
 #[derive(Default)]
 pub struct Decoder {
-    instruction_decoders: Vec<InstructionDecoder>
+    instruction_decoders: Vec<InstructionDecoder>,
 }
-
 
 enum InstructionDecoder {
     Basic(Instruction),
@@ -40,63 +32,58 @@ enum InstructionDecoder {
     TwoByteOffset(Box<dyn TwoByteOffsetDecoder>),
     TwoByteAddress(Box<dyn TwoByteAddressDecoder>),
     ThreeByteData(Box<dyn ThreeByteDataDecoder>),
-    ThreeByteAddress(Box<dyn ThreeByteAddressDecoder>)
+    ThreeByteAddress(Box<dyn ThreeByteAddressDecoder>),
 }
 
-
-#[cfg(feature="disassembler")]
+#[cfg(feature = "disassembler")]
 #[derive(PartialEq, Eq, Debug)]
 pub enum DisassembledInstruction {
     OneByte(u8, String),
     TwoByte(u16, String),
-    ThreeByte(u32, String)
+    ThreeByte(u32, String),
 }
 
 trait OneByteDecoder {
     fn decode(&self, opcode: u8) -> DecodeResult<Instruction>;
 }
 
-
 trait TwoByteDataDecoder {
     fn decode(&self, opcode: u8, data: u8) -> DecodeResult<Instruction>;
 }
-
 
 trait TwoByteOffsetDecoder {
     fn decode(&self, opcode: u8, data: types::PCOffset) -> DecodeResult<Instruction>;
 }
 
-
 trait TwoByteAddressDecoder {
     fn decode(&self, opcode: u8, data: types::HighAddress) -> DecodeResult<Instruction>;
 }
-
 
 trait ThreeByteAddressDecoder {
     fn decode(&self, opcode: u8, data: types::MemoryAddress) -> DecodeResult<Instruction>;
 }
 
-
 trait ThreeByteDataDecoder {
     fn decode(&self, opcode: u8, data: u16) -> DecodeResult<Instruction>;
 }
 
-
-fn read_byte(iter: &mut dyn Iterator<Item=u8>) -> DecodeResult<u8> {
+fn read_byte(iter: &mut dyn Iterator<Item = u8>) -> DecodeResult<u8> {
     iter.next().ok_or(DecodeError::IncompleteInstruction)
 }
 
-
-fn read_word(iter: &mut dyn Iterator<Item=u8>) -> DecodeResult<u16> {
+fn read_word(iter: &mut dyn Iterator<Item = u8>) -> DecodeResult<u16> {
     let low_byte = read_byte(iter)?;
     let high_byte = read_byte(iter)?;
 
     Ok(u16::from_le_bytes([low_byte, high_byte]))
 }
 
-
 impl InstructionDecoder {
-    pub fn decode(&self, opcode: u8, iter: &mut dyn Iterator<Item=u8>) -> DecodeResult<Instruction> {
+    pub fn decode(
+        &self,
+        opcode: u8,
+        iter: &mut dyn Iterator<Item = u8>,
+    ) -> DecodeResult<Instruction> {
         use InstructionDecoder::*;
         match self {
             Basic(instr) => Ok(instr.clone()),
@@ -105,65 +92,87 @@ impl InstructionDecoder {
             TwoByteData(decoder) => decoder.decode(opcode, read_byte(iter)?),
             TwoByteOffset(decoder) => decoder.decode(opcode, read_byte(iter)?.into()),
             ThreeByteData(decoder) => decoder.decode(opcode, read_word(iter)?),
-            ThreeByteAddress(decoder) => decoder.decode(opcode, read_word(iter)?.into())
+            ThreeByteAddress(decoder) => decoder.decode(opcode, read_word(iter)?.into()),
         }
     }
 
-    #[cfg(feature="disassembler")]
-    pub fn disassemble(&self, opcode: u8, iter: &mut dyn Iterator<Item=u8>) -> DecodeResult<DisassembledInstruction> {
-        use InstructionDecoder::*;
-        use DisassembledInstruction as dis;
+    #[cfg(feature = "disassembler")]
+    pub fn disassemble(
+        &self,
+        opcode: u8,
+        iter: &mut dyn Iterator<Item = u8>,
+    ) -> DecodeResult<DisassembledInstruction> {
         use crate::disassembler::Disassemble;
+        use DisassembledInstruction as dis;
+        use InstructionDecoder::*;
         match self {
             Basic(instr) => Ok(dis::OneByte(opcode, Disassemble::disassemble(instr))),
-            OneByte(decoder) => Ok(dis::OneByte(opcode, Disassemble::disassemble(&decoder.decode(opcode)?))),
+            OneByte(decoder) => Ok(dis::OneByte(
+                opcode,
+                Disassemble::disassemble(&decoder.decode(opcode)?),
+            )),
             TwoByteAddress(decoder) => {
                 let byte = read_byte(iter)?;
                 let instr = decoder.decode(opcode, byte.into())?;
-                Ok(dis::TwoByte(u16::from_le_bytes([byte, opcode]), Disassemble::disassemble(&instr)))
-            },
+                Ok(dis::TwoByte(
+                    u16::from_le_bytes([byte, opcode]),
+                    Disassemble::disassemble(&instr),
+                ))
+            }
             TwoByteData(decoder) => {
                 let byte = read_byte(iter)?;
                 let instr = decoder.decode(opcode, byte)?;
-                Ok(dis::TwoByte(u16::from_le_bytes([byte, opcode]), Disassemble::disassemble(&instr)))
-            },
+                Ok(dis::TwoByte(
+                    u16::from_le_bytes([byte, opcode]),
+                    Disassemble::disassemble(&instr),
+                ))
+            }
             TwoByteOffset(decoder) => {
                 let byte = read_byte(iter)?;
                 let instr = decoder.decode(opcode, byte.into())?;
-                Ok(dis::TwoByte(u16::from_le_bytes([byte, opcode]), Disassemble::disassemble(&instr)))
-            },
+                Ok(dis::TwoByte(
+                    u16::from_le_bytes([byte, opcode]),
+                    Disassemble::disassemble(&instr),
+                ))
+            }
             ThreeByteData(decoder) => {
                 let word = read_word(iter)?;
                 let instr = decoder.decode(opcode, word)?;
                 let [first, second] = word.to_le_bytes();
-                Ok(dis::ThreeByte(u32::from_be_bytes([0, opcode, first, second]), Disassemble::disassemble(&instr)))
-            },
+                Ok(dis::ThreeByte(
+                    u32::from_be_bytes([0, opcode, first, second]),
+                    Disassemble::disassemble(&instr),
+                ))
+            }
             ThreeByteAddress(decoder) => {
                 let word = read_word(iter)?;
                 let instr = decoder.decode(opcode, word.into())?;
                 let [first, second] = word.to_le_bytes();
-                Ok(dis::ThreeByte(u32::from_be_bytes([0, opcode, first, second]), Disassemble::disassemble(&instr)))
+                Ok(dis::ThreeByte(
+                    u32::from_be_bytes([0, opcode, first, second]),
+                    Disassemble::disassemble(&instr),
+                ))
             }
         }
     }
 }
 
-
 impl Decoder {
     pub fn new() -> Decoder {
-        use InstructionDecoder::*;
         use instructions::ALOp as al;
-        use instructions::RotateDirection as rotdir;
         use instructions::Carry as carry;
-        use instructions::Increment as inc;
         use instructions::Condition as cond;
-        use registers::WordRegister as w;
-        use registers::StackRegister as sw;
+        use instructions::Increment as inc;
+        use instructions::RotateDirection as rotdir;
         use registers::AccRegister as aw;
         use registers::ByteRegister as b;
+        use registers::StackRegister as sw;
+        use registers::WordRegister as w;
+        use InstructionDecoder::*;
 
         let mut instruction_decoders: Vec<InstructionDecoder> = Vec::with_capacity(0xff);
-        for _ in 0..=0xff { // Default to literal
+        for _ in 0..=0xff {
+            // Default to literal
             instruction_decoders.push(OneByte(Box::new(idecoders::Literal)));
         }
 
@@ -280,7 +289,7 @@ impl Decoder {
         instruction_decoders[0x5D] = Basic(instructions::Load::RegisterRegister(b::E, b::L).into());
         instruction_decoders[0x5E] = Basic(instructions::Load::RegisterMemory(b::E, w::HL).into());
         instruction_decoders[0x5F] = Basic(instructions::Load::RegisterRegister(b::E, b::A).into());
-        
+
         // 6x
         instruction_decoders[0x60] = Basic(instructions::Load::RegisterRegister(b::H, b::B).into());
         instruction_decoders[0x61] = Basic(instructions::Load::RegisterRegister(b::H, b::C).into());
@@ -329,14 +338,21 @@ impl Decoder {
         instruction_decoders[0x86] = Basic(Instruction::MemoryAL(al::Add));
         instruction_decoders[0x87] = Basic(instructions::RegisterAL::ByteOp(al::Add, b::A).into());
 
-        instruction_decoders[0x88] = Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::B).into());
-        instruction_decoders[0x89] = Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::C).into());
-        instruction_decoders[0x8A] = Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::D).into());
-        instruction_decoders[0x8B] = Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::E).into());
-        instruction_decoders[0x8C] = Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::H).into());
-        instruction_decoders[0x8D] = Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::L).into());
+        instruction_decoders[0x88] =
+            Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::B).into());
+        instruction_decoders[0x89] =
+            Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::C).into());
+        instruction_decoders[0x8A] =
+            Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::D).into());
+        instruction_decoders[0x8B] =
+            Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::E).into());
+        instruction_decoders[0x8C] =
+            Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::H).into());
+        instruction_decoders[0x8D] =
+            Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::L).into());
         instruction_decoders[0x8E] = Basic(Instruction::MemoryAL(al::AddCarry));
-        instruction_decoders[0x8F] = Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::A).into());
+        instruction_decoders[0x8F] =
+            Basic(instructions::RegisterAL::ByteOp(al::AddCarry, b::A).into());
 
         // 9x
         instruction_decoders[0x90] = Basic(instructions::RegisterAL::ByteOp(al::Sub, b::B).into());
@@ -348,14 +364,21 @@ impl Decoder {
         instruction_decoders[0x96] = Basic(Instruction::MemoryAL(al::Sub));
         instruction_decoders[0x97] = Basic(instructions::RegisterAL::ByteOp(al::Sub, b::A).into());
 
-        instruction_decoders[0x98] = Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::B).into());
-        instruction_decoders[0x99] = Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::C).into());
-        instruction_decoders[0x9A] = Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::D).into());
-        instruction_decoders[0x9B] = Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::E).into());
-        instruction_decoders[0x9C] = Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::H).into());
-        instruction_decoders[0x9D] = Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::L).into());
+        instruction_decoders[0x98] =
+            Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::B).into());
+        instruction_decoders[0x99] =
+            Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::C).into());
+        instruction_decoders[0x9A] =
+            Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::D).into());
+        instruction_decoders[0x9B] =
+            Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::E).into());
+        instruction_decoders[0x9C] =
+            Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::H).into());
+        instruction_decoders[0x9D] =
+            Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::L).into());
         instruction_decoders[0x9E] = Basic(Instruction::MemoryAL(al::SubCarry));
-        instruction_decoders[0x9F] = Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::A).into());
+        instruction_decoders[0x9F] =
+            Basic(instructions::RegisterAL::ByteOp(al::SubCarry, b::A).into());
 
         // Ax
         instruction_decoders[0xA0] = Basic(instructions::RegisterAL::ByteOp(al::And, b::B).into());
@@ -386,14 +409,21 @@ impl Decoder {
         instruction_decoders[0xB6] = Basic(Instruction::MemoryAL(al::Or));
         instruction_decoders[0xB7] = Basic(instructions::RegisterAL::ByteOp(al::Or, b::A).into());
 
-        instruction_decoders[0xB8] = Basic(instructions::RegisterAL::ByteOp(al::Compare, b::B).into());
-        instruction_decoders[0xB9] = Basic(instructions::RegisterAL::ByteOp(al::Compare, b::C).into());
-        instruction_decoders[0xBA] = Basic(instructions::RegisterAL::ByteOp(al::Compare, b::D).into());
-        instruction_decoders[0xBB] = Basic(instructions::RegisterAL::ByteOp(al::Compare, b::E).into());
-        instruction_decoders[0xBC] = Basic(instructions::RegisterAL::ByteOp(al::Compare, b::H).into());
-        instruction_decoders[0xBD] = Basic(instructions::RegisterAL::ByteOp(al::Compare, b::L).into());
+        instruction_decoders[0xB8] =
+            Basic(instructions::RegisterAL::ByteOp(al::Compare, b::B).into());
+        instruction_decoders[0xB9] =
+            Basic(instructions::RegisterAL::ByteOp(al::Compare, b::C).into());
+        instruction_decoders[0xBA] =
+            Basic(instructions::RegisterAL::ByteOp(al::Compare, b::D).into());
+        instruction_decoders[0xBB] =
+            Basic(instructions::RegisterAL::ByteOp(al::Compare, b::E).into());
+        instruction_decoders[0xBC] =
+            Basic(instructions::RegisterAL::ByteOp(al::Compare, b::H).into());
+        instruction_decoders[0xBD] =
+            Basic(instructions::RegisterAL::ByteOp(al::Compare, b::L).into());
         instruction_decoders[0xBE] = Basic(Instruction::MemoryAL(al::Compare));
-        instruction_decoders[0xBF] = Basic(instructions::RegisterAL::ByteOp(al::Compare, b::A).into());
+        instruction_decoders[0xBF] =
+            Basic(instructions::RegisterAL::ByteOp(al::Compare, b::A).into());
 
         // Cx
         instruction_decoders[0xC0] = Basic(instructions::Jump::ReturnIf(cond::NonZero).into());
@@ -472,25 +502,35 @@ impl Decoder {
         instruction_decoders[0xFF] = Basic(instructions::Jump::CallSystem(0x38.into()).into());
 
         Decoder {
-            instruction_decoders
+            instruction_decoders,
         }
     }
 
-    pub fn decode(&self, opcode: u8, iter: &mut dyn Iterator<Item=u8>) -> DecodeResult<Instruction> {
-        let idecoder = self.instruction_decoders.get(opcode as usize)
+    pub fn decode(
+        &self,
+        opcode: u8,
+        iter: &mut dyn Iterator<Item = u8>,
+    ) -> DecodeResult<Instruction> {
+        let idecoder = self
+            .instruction_decoders
+            .get(opcode as usize)
             .ok_or(DecodeError::UnknownOpcode(opcode))?;
         idecoder.decode(opcode, iter)
     }
 
-    #[cfg(feature="disassembler")]
-    pub fn disassemble(&self, opcode: u8, iter: &mut dyn Iterator<Item=u8>) -> DecodeResult<DisassembledInstruction> {
-        let idecoder = self.instruction_decoders.get(opcode as usize)
+    #[cfg(feature = "disassembler")]
+    pub fn disassemble(
+        &self,
+        opcode: u8,
+        iter: &mut dyn Iterator<Item = u8>,
+    ) -> DecodeResult<DisassembledInstruction> {
+        let idecoder = self
+            .instruction_decoders
+            .get(opcode as usize)
             .ok_or(DecodeError::UnknownOpcode(opcode))?;
         idecoder.disassemble(opcode, iter)
     }
-
 }
-
 
 pub fn decode(data: &[u8]) -> DecodeResult<Vec<instructions::Instruction>> {
     let decoder = Decoder::new();
@@ -499,10 +539,9 @@ pub fn decode(data: &[u8]) -> DecodeResult<Vec<instructions::Instruction>> {
     while let Some(byte) = iter.next() {
         let instruction = decoder.decode(byte, &mut iter)?;
         output.push(instruction);
-    };
+    }
     Ok(output)
 }
-
 
 pub fn disassemble(data: &[u8]) -> DecodeResult<Vec<DisassembledInstruction>> {
     let decoder = Decoder::new();
@@ -511,10 +550,9 @@ pub fn disassemble(data: &[u8]) -> DecodeResult<Vec<DisassembledInstruction>> {
     while let Some(byte) = iter.next() {
         let instruction = decoder.disassemble(byte, &mut iter)?;
         output.push(instruction);
-    };
+    }
     Ok(output)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -527,26 +565,25 @@ mod tests {
         let data = [0x00, 0x23];
 
         let decoded = decode(&data);
-        
+
         let expected = vec![
             Instruction::NOP,
-            instructions::RegisterAL::Increment16(sw::HL).into()
+            instructions::RegisterAL::Increment16(sw::HL).into(),
         ];
         assert_eq!(decoded, Ok(expected));
     }
-
 
     #[test]
     pub fn test_decode_one_byte() {
         let data = [0xE4, 0xD3, 0xE3, 0xE4];
 
         let decoded = decode(&data);
-        
+
         let expected = vec![
             Instruction::Literal(0xE4),
             Instruction::Literal(0xD3),
             Instruction::Literal(0xE3),
-            Instruction::Literal(0xE4)
+            Instruction::Literal(0xE4),
         ];
         assert_eq!(decoded, Ok(expected));
     }
@@ -559,11 +596,10 @@ mod tests {
 
         let expected = vec![
             instructions::Jump::RelativeJump(0x20.into()).into(),
-            Instruction::NOP
+            Instruction::NOP,
         ];
         assert_eq!(decoded, Ok(expected));
     }
-
 
     #[test]
     pub fn test_decode_two_byte_address() {
@@ -573,11 +609,10 @@ mod tests {
 
         let expected = vec![
             instructions::Load::AHighOffset(0x12.into()).into(),
-            Instruction::NOP
+            Instruction::NOP,
         ];
         assert_eq!(decoded, Ok(expected));
     }
-
 
     #[test]
     pub fn test_decode_two_byte_data() {
@@ -585,13 +620,9 @@ mod tests {
 
         let decoded = decode(&data);
 
-        let expected = vec![
-            Instruction::Stop,
-            Instruction::NOP
-        ];
+        let expected = vec![Instruction::Stop, Instruction::NOP];
         assert_eq!(decoded, Ok(expected));
     }
-
 
     #[test]
     pub fn test_decode_three_byte_address() {
@@ -601,11 +632,10 @@ mod tests {
 
         let expected = vec![
             instructions::Stack::StoreStackPointerMemory(0x1020.into()).into(),
-            Instruction::NOP
+            Instruction::NOP,
         ];
         assert_eq!(decoded, Ok(expected));
     }
-
 
     #[test]
     pub fn test_decode_three_byte_data() {
@@ -615,14 +645,13 @@ mod tests {
 
         let expected = vec![
             instructions::Load::Constant16(registers::StackRegister::DE, 0x2513).into(),
-            Instruction::NOP
+            Instruction::NOP,
         ];
         assert_eq!(decoded, Ok(expected));
     }
-
 }
 
-#[cfg(all(feature="disassembler", test))]
+#[cfg(all(feature = "disassembler", test))]
 mod disassember_tests {
     use super::*;
     use alloc::vec;
@@ -633,7 +662,7 @@ mod disassember_tests {
         let data = [0x00, 0x23];
 
         let decoded = disassemble(&data);
-        
+
         let expected = vec![
             dis::OneByte(0x00, "NOP".into()),
             dis::OneByte(0x23, "INC HL".into()),
@@ -641,13 +670,12 @@ mod disassember_tests {
         assert_eq!(decoded, Ok(expected));
     }
 
-
     #[test]
     pub fn test_decode_one_byte() {
         let data = [0xE4, 0xD3, 0xE3, 0xE4];
 
         let decoded = disassemble(&data);
-        
+
         let expected = vec![
             dis::OneByte(0xE4, "DAT E4h".into()),
             dis::OneByte(0xD3, "DAT D3h".into()),
@@ -670,7 +698,6 @@ mod disassember_tests {
         assert_eq!(decoded, Ok(expected));
     }
 
-
     #[test]
     pub fn test_decode_two_byte_address() {
         let data = [0xF0, 0x12, 0x00];
@@ -683,7 +710,6 @@ mod disassember_tests {
         ];
         assert_eq!(decoded, Ok(expected));
     }
-
 
     #[test]
     pub fn test_decode_two_byte_data() {
@@ -698,7 +724,6 @@ mod disassember_tests {
         assert_eq!(decoded, Ok(expected));
     }
 
-
     #[test]
     pub fn test_decode_three_byte_address() {
         let data = [0x08, 0x20, 0x10, 0x00];
@@ -711,7 +736,6 @@ mod disassember_tests {
         ];
         assert_eq!(decoded, Ok(expected));
     }
-
 
     #[test]
     pub fn test_decode_three_byte_data() {

@@ -1,7 +1,6 @@
 use std::env;
 use std::path::PathBuf;
 
-
 pub(crate) fn get_data_path() -> PathBuf {
     // Why not use CARGO_MANIFEST_DIR?
     // cargo-tarpaulin doesn't pass it through to tests

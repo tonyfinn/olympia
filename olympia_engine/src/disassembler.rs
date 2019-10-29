@@ -1,7 +1,7 @@
 use alloc::string::{String, ToString};
 
 use crate::instructions::{ALOp, Condition};
-use crate::{instructions,registers,types};
+use crate::{instructions, registers, types};
 
 pub(crate) trait Disassemble {
     fn disassemble(&self) -> String;
@@ -17,11 +17,11 @@ impl Disassemble for ALOp {
             ALOp::And => "AND",
             ALOp::Xor => "XOR",
             ALOp::Or => "OR",
-            ALOp::Compare => "CP"
-        }.to_string()
+            ALOp::Compare => "CP",
+        }
+        .to_string()
     }
 }
-
 
 impl Disassemble for Condition {
     fn disassemble(&self) -> String {
@@ -29,11 +29,11 @@ impl Disassemble for Condition {
             Condition::NonZero => "NZ",
             Condition::Zero => "Z",
             Condition::NoCarry => "NC",
-            Condition::Carry => "C"
-        }.to_string()
+            Condition::Carry => "C",
+        }
+        .to_string()
     }
 }
-
 
 impl Disassemble for types::MemoryAddress {
     fn disassemble(&self) -> String {
@@ -41,7 +41,6 @@ impl Disassemble for types::MemoryAddress {
         format!("${:X}h", raw_addr)
     }
 }
-
 
 impl Disassemble for types::HighAddress {
     fn disassemble(&self) -> String {
@@ -58,7 +57,6 @@ impl Disassemble for types::HighAddress {
     }
 }
 
-
 impl Disassemble for types::PCOffset {
     fn disassemble(&self) -> String {
         let types::PCOffset(raw_addr) = self;
@@ -66,21 +64,20 @@ impl Disassemble for types::PCOffset {
     }
 }
 
-
 impl<T> Disassemble for T
-    where T: Copy + Into<registers::WordRegister> {
+where
+    T: Copy + Into<registers::WordRegister>,
+{
     fn disassemble(&self) -> String {
         format!("{:?}", self.clone().into())
     }
 }
-
 
 impl Disassemble for registers::ByteRegister {
     fn disassemble(&self) -> String {
         format!("{:?}", self)
     }
 }
-
 
 impl Disassemble for instructions::Stack {
     fn disassemble(&self) -> String {
@@ -91,11 +88,10 @@ impl Disassemble for instructions::Stack {
             Stack::AddStackPointer(offset) => format!("ADD SP, {}", offset.disassemble()),
             Stack::LoadStackOffset(offset) => format!("LD HL, (SP+{})", offset.disassemble()),
             Stack::SetStackPointer => "LD SP, HL".into(),
-            Stack::StoreStackPointerMemory(addr) => format!("LD {}, SP", addr.disassemble())
+            Stack::StoreStackPointerMemory(addr) => format!("LD {}, SP", addr.disassemble()),
         }
     }
 }
-
 
 impl Disassemble for instructions::RegisterAL {
     fn disassemble(&self) -> String {
@@ -106,11 +102,10 @@ impl Disassemble for instructions::RegisterAL {
             RegisterAL::Increment(reg) => format!("INC {}", reg.disassemble()),
             RegisterAL::Decrement(reg) => format!("DEC {}", reg.disassemble()),
             RegisterAL::Increment16(reg) => format!("INC {}", reg.disassemble()),
-            RegisterAL::Decrement16(reg) => format!("DEC {}", reg.disassemble())
+            RegisterAL::Decrement16(reg) => format!("DEC {}", reg.disassemble()),
         }
     }
 }
-
 
 impl Disassemble for instructions::Jump {
     fn disassemble(&self) -> String {
@@ -118,31 +113,42 @@ impl Disassemble for instructions::Jump {
         match self {
             Jump::RegisterJump => "JP (HL)".into(),
             Jump::Jump(addr) => format!("JP {}", addr.disassemble()),
-            Jump::JumpIf(cond, addr) => format!("JP {}, {}", cond.disassemble(), addr.disassemble()),
+            Jump::JumpIf(cond, addr) => {
+                format!("JP {}, {}", cond.disassemble(), addr.disassemble())
+            }
             Jump::RelativeJump(offset) => format!("JR {}", offset.disassemble()),
-            Jump::RelativeJumpIf(cond, offset) => format!("JR {}, {}", cond.disassemble(), offset.disassemble()),
+            Jump::RelativeJumpIf(cond, offset) => {
+                format!("JR {}, {}", cond.disassemble(), offset.disassemble())
+            }
             Jump::Call(addr) => format!("CALL {}", addr.disassemble()),
-            Jump::CallIf(cond, addr) => format!("CALL {}, {}", cond.disassemble(), addr.disassemble()),
+            Jump::CallIf(cond, addr) => {
+                format!("CALL {}, {}", cond.disassemble(), addr.disassemble())
+            }
             Jump::CallSystem(addr) => format!("RST {}", addr.disassemble()),
             Jump::Return => "RET".into(),
             Jump::ReturnInterrupt => "RETI".into(),
-            Jump::ReturnIf(cond) => format!("RET {}", cond.disassemble())
+            Jump::ReturnIf(cond) => format!("RET {}", cond.disassemble()),
         }
     }
 }
 
-
 impl Disassemble for instructions::Load {
     fn disassemble(&self) -> String {
+        use instructions::Increment::{Decrement, Increment};
         use instructions::Load;
-        use instructions::Increment::{Increment, Decrement};
         match self {
             Load::Constant(reg, val) => format!("LD {}, {:X}h", reg.disassemble(), val),
             Load::ConstantMemory(val) => format!("LD (HL), {:X}h", val),
             Load::Constant16(reg, val) => format!("LD {}, {:X}h", reg.disassemble(), val),
-            Load::RegisterRegister(dest, src) => format!("LD {}, {}", dest.disassemble(), src.disassemble()),
-            Load::RegisterMemory(dest, src) => format!("LD {}, ({})", dest.disassemble(), src.disassemble()),
-            Load::MemoryRegister(dest, src) => format!("LD ({}), {}", dest.disassemble(), src.disassemble()),
+            Load::RegisterRegister(dest, src) => {
+                format!("LD {}, {}", dest.disassemble(), src.disassemble())
+            }
+            Load::RegisterMemory(dest, src) => {
+                format!("LD {}, ({})", dest.disassemble(), src.disassemble())
+            }
+            Load::MemoryRegister(dest, src) => {
+                format!("LD ({}), {}", dest.disassemble(), src.disassemble())
+            }
             Load::AMemoryOffset => "LD A, (C)".into(),
             Load::MemoryOffsetA => "LD (C), A".into(),
             Load::AIndirect(addr) => format!("LD A, {}", addr.disassemble()),
@@ -157,12 +163,11 @@ impl Disassemble for instructions::Load {
     }
 }
 
-
 impl Disassemble for instructions::Extended {
     fn disassemble(&self) -> String {
+        use instructions::Carry::{Carry, NoCarry};
         use instructions::Extended as ext;
         use instructions::RotateDirection::{Left, Right};
-        use instructions::Carry::{Carry, NoCarry};
 
         match self {
             ext::Rotate(Left, Carry, reg) => format!("RLC {}", reg.disassemble()),
@@ -191,12 +196,11 @@ impl Disassemble for instructions::Extended {
     }
 }
 
-
 impl Disassemble for instructions::Instruction {
     fn disassemble(&self) -> String {
-        use instructions::Instruction;
-        use instructions::Increment;
         use instructions::Carry::{Carry, NoCarry};
+        use instructions::Increment;
+        use instructions::Instruction;
         use instructions::RotateDirection::{Left, Right};
 
         match self {
@@ -227,7 +231,6 @@ impl Disassemble for instructions::Instruction {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -253,9 +256,9 @@ mod test {
 
     #[test]
     fn test_basic_al() {
-        use instructions::Instruction;
         use instructions::ALOp;
-        use instructions::Increment::{Increment, Decrement};
+        use instructions::Increment::{Decrement, Increment};
+        use instructions::Instruction;
 
         assert_dissembly(Instruction::MemoryAL(ALOp::Add), "ADD (HL)");
         assert_dissembly(Instruction::ConstantAL(ALOp::Add, 0x20), "ADD A, 20h");
@@ -265,9 +268,9 @@ mod test {
 
     #[test]
     fn test_rotate_a() {
+        use instructions::Carry::{Carry, NoCarry};
         use instructions::Instruction;
         use instructions::RotateDirection::{Left, Right};
-        use instructions::Carry::{Carry, NoCarry};
 
         assert_dissembly(Instruction::Rotate(Left, Carry), "RLCA");
         assert_dissembly(Instruction::Rotate(Right, Carry), "RRCA");
@@ -291,7 +294,10 @@ mod test {
 
     #[test]
     fn test_disassemble_add_stack_pointer() {
-        assert_dissembly(instructions::Stack::AddStackPointer(0x12.into()), "ADD SP, PC+12h");
+        assert_dissembly(
+            instructions::Stack::AddStackPointer(0x12.into()),
+            "ADD SP, PC+12h",
+        );
     }
 
     #[test]
@@ -317,9 +323,9 @@ mod test {
 
     #[test]
     fn test_disassemble_register_al_byte_op() {
+        use instructions::ALOp as op;
         use instructions::RegisterAL;
         use registers::ByteRegister as b;
-        use instructions::ALOp as op;
 
         assert_dissembly(RegisterAL::ByteOp(op::Add, b::A), "ADD A");
         assert_dissembly(RegisterAL::ByteOp(op::AddCarry, b::B), "ADC B");
@@ -371,13 +377,16 @@ mod test {
 
     #[test]
     fn test_jump_cond() {
-        use instructions::Jump;
         use instructions::Condition as cond;
+        use instructions::Jump;
 
         assert_dissembly(Jump::JumpIf(cond::Zero, 0x12.into()), "JP Z, $12h");
         assert_dissembly(Jump::CallIf(cond::NonZero, 0x24.into()), "CALL NZ, $24h");
         assert_dissembly(Jump::ReturnIf(cond::Carry), "RET C");
-        assert_dissembly(Jump::RelativeJumpIf(cond::NoCarry, 0x15.into()), "JR NC, PC+15h");
+        assert_dissembly(
+            Jump::RelativeJumpIf(cond::NoCarry, 0x15.into()),
+            "JR NC, PC+15h",
+        );
     }
 
     #[test]
@@ -413,12 +422,12 @@ mod test {
         assert_dissembly(Load::HighOffsetA(offset.into()), "LD $FEF0h, A");
         assert_dissembly(Load::AIndirect(0x23.into()), "LD A, $23h");
         assert_dissembly(Load::IndirectA(0x23.into()), "LD $23h, A");
-    } 
+    }
 
     #[test]
     fn test_load_increment() {
+        use instructions::Increment::{Decrement, Increment};
         use instructions::Load;
-        use instructions::Increment::{Increment, Decrement};
 
         assert_dissembly(Load::Increment16A(Increment), "LD (HL+), A");
         assert_dissembly(Load::Increment16A(Decrement), "LD (HL-), A");
@@ -428,9 +437,9 @@ mod test {
 
     #[test]
     fn test_extended_rotate() {
+        use instructions::Carry as c;
         use instructions::Extended as ext;
         use instructions::RotateDirection as r;
-        use instructions::Carry as c;
         use registers::ByteRegister as b;
 
         assert_dissembly(ext::Rotate(r::Left, c::Carry, b::C), "RLC C");
@@ -441,9 +450,9 @@ mod test {
 
     #[test]
     fn test_extended_rotate_mem() {
+        use instructions::Carry as c;
         use instructions::Extended as ext;
         use instructions::RotateDirection as r;
-        use instructions::Carry as c;
 
         assert_dissembly(ext::RotateMemory(r::Left, c::Carry), "RLC (HL)");
         assert_dissembly(ext::RotateMemory(r::Left, c::NoCarry), "RL (HL)");

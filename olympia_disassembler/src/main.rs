@@ -7,34 +7,33 @@ use structopt::StructOpt;
 use olympia_engine::decoder;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name="olympia-disasm", about="Disassemble a GB rom")]
+#[structopt(name = "olympia-disasm", about = "Disassemble a GB rom")]
 struct Opt {
-    #[structopt(short="v", long="verbose")]
+    #[structopt(short = "v", long = "verbose")]
     verbose: bool,
     #[structopt(parse(from_os_str))]
     input: PathBuf,
 }
 
-
-struct FormattingIterator<T: Iterator<Item=decoder::DisassembledInstruction>> {
+struct FormattingIterator<T: Iterator<Item = decoder::DisassembledInstruction>> {
     verbose: bool,
     next_addr: usize,
     addr: usize,
-    source_iterator: T
+    source_iterator: T,
 }
 
-impl<T: Iterator<Item=decoder::DisassembledInstruction>> FormattingIterator<T> {
+impl<T: Iterator<Item = decoder::DisassembledInstruction>> FormattingIterator<T> {
     fn new(verbose: bool, source_iterator: T) -> Self {
         FormattingIterator {
             verbose,
             source_iterator,
             next_addr: 0,
-            addr: 0
+            addr: 0,
         }
     }
 }
 
-impl<T: Iterator<Item=decoder::DisassembledInstruction>> Iterator for FormattingIterator<T> {
+impl<T: Iterator<Item = decoder::DisassembledInstruction>> Iterator for FormattingIterator<T> {
     type Item = String;
     fn next(&mut self) -> Option<Self::Item> {
         use olympia_engine::decoder::DisassembledInstruction as dis;
@@ -47,7 +46,10 @@ impl<T: Iterator<Item=decoder::DisassembledInstruction>> Iterator for Formatting
         let current_addr = self.addr;
         self.addr += size;
         if self.verbose {
-            Some(format!("{:>6X}:\t\t{:>6}\t\t{}", current_addr, numeric, text))
+            Some(format!(
+                "{:>6X}:\t\t{:>6}\t\t{}",
+                current_addr, numeric, text
+            ))
         } else {
             let addr_to_print = if current_addr >= self.next_addr {
                 self.next_addr += 0x10;
@@ -61,8 +63,7 @@ impl<T: Iterator<Item=decoder::DisassembledInstruction>> Iterator for Formatting
 }
 
 fn do_disassemble<O: io::Write>(args: Opt, data: Vec<u8>, output: &mut O) -> io::Result<()> {
-    let disassembled = decoder::disassemble(&data)
-        .expect("Failed decoding ROM");
+    let disassembled = decoder::disassemble(&data).expect("Failed decoding ROM");
     let formatting_iterator = FormattingIterator::new(args.verbose, disassembled.into_iter());
 
     for disassembled_instruction in formatting_iterator {
@@ -74,8 +75,7 @@ fn do_disassemble<O: io::Write>(args: Opt, data: Vec<u8>, output: &mut O) -> io:
 fn main() -> io::Result<()> {
     let args = Opt::from_args();
 
-    let data = fs::read(args.input.clone())
-        .expect("Failed reading ROM");
+    let data = fs::read(args.input.clone()).expect("Failed reading ROM");
 
     do_disassemble(args, data, &mut io::stdout())
 }
@@ -89,17 +89,17 @@ pub mod test {
     fn test_disassembly_non_verbose() {
         let args = Opt {
             verbose: false,
-            input: PathBuf::new()
+            input: PathBuf::new(),
         };
 
         let data = vec![
-            0x26, 0x20,
-            0x0E, 0x44,
-            0x11, 0x23, 0x25,
-            0xC3, 0x22, 0x11,
-            0xF3, 0x00, 0xFB,
-            0xF3, 0x00, 0xFB,
-            0xF3, 0x00, 0xFB,
+            0x26, 0x20, // LD H, 20h
+            0x0E, 0x44, // LD C, 44h
+            0x11, 0x23, 0x25, // LD DE 2523h
+            0xC3, 0x22, 0x11, // JP $1122h
+            0xF3, 0x00, 0xFB, // DI, NOP, EI
+            0xF3, 0x00, 0xFB, // DI, NOP, EI
+            0xF3, 0x00, 0xFB, // DI, NOP, EI
         ];
 
         let mut output: Vec<u8> = Vec::new();
@@ -121,24 +121,27 @@ pub mod test {
             "       \t\tNOP\n",
             "       \t\tEI\n",
         );
-        assert_eq!(String::from_utf8_lossy(&output), String::from(expected_result));
+        assert_eq!(
+            String::from_utf8_lossy(&output),
+            String::from(expected_result)
+        );
     }
 
     #[test]
     fn test_disassembly_verbose() {
         let args = Opt {
             verbose: true,
-            input: PathBuf::new()
+            input: PathBuf::new(),
         };
 
         let data = vec![
-            0x26, 0x20,
-            0x0E, 0x44,
-            0x11, 0x23, 0x25,
-            0xC3, 0x22, 0x11,
-            0xF3, 0x00, 0xFB,
-            0xF3, 0x00, 0xFB,
-            0xF3, 0x00, 0xFB,
+            0x26, 0x20, // LD H, 20h
+            0x0E, 0x44, // LD C, 44h
+            0x11, 0x23, 0x25, // LD DE, 2523h
+            0xC3, 0x22, 0x11, // JP $1122h
+            0xF3, 0x00, 0xFB, // DI, NOP, EI
+            0xF3, 0x00, 0xFB, // DI, NOP, EI
+            0xF3, 0x00, 0xFB, // DI, NOP, EI
         ];
 
         let mut output: Vec<u8> = Vec::new();
@@ -160,6 +163,9 @@ pub mod test {
             "    11:\t\t    00\t\tNOP\n",
             "    12:\t\t    FB\t\tEI\n",
         );
-        assert_eq!(String::from_utf8_lossy(&output), String::from(expected_result));
+        assert_eq!(
+            String::from_utf8_lossy(&output),
+            String::from(expected_result)
+        );
     }
 }

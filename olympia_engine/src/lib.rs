@@ -5,12 +5,12 @@ extern crate alloc;
 
 pub mod cpu;
 pub mod decoder;
-mod types;
 mod instructions;
 mod registers;
 pub mod rom;
+mod types;
 
-#[cfg(feature="disassembler")]
+#[cfg(feature = "disassembler")]
 mod disassembler;
 
 #[cfg(test)]

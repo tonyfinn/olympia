@@ -17,9 +17,11 @@ fn test_default() {
         .output()
         .unwrap();
 
-    assert_eq!(String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&expected_output));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&expected_output)
+    );
 }
-
 
 #[test]
 fn test_verbose() {
@@ -36,5 +38,8 @@ fn test_verbose() {
         .output()
         .unwrap();
 
-    assert_eq!(String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&expected_output));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&expected_output)
+    );
 }

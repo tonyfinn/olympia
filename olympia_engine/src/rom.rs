@@ -10,23 +10,20 @@ const SWITCHABLE_RAM: Range<u16> = 0xA000..0xBFFF;
 const ROM_BANK_SIZE: u16 = 0x4000;
 const RAM_BANK_SIZE: u16 = 0x2000;
 
-
 #[derive(PartialEq, Eq, Debug)]
 pub enum CartridgeError {
     NonRomAddress,
     InvalidBank,
     NoDataInRom,
     NoCartridgeRam,
-    UnsupportedCartridgeType
+    UnsupportedCartridgeType,
 }
-
 
 pub type CartridgeResult<T> = Result<T, CartridgeError>;
 
-
 pub struct Cartridge {
     data: Vec<u8>,
-    controller: CartridgeEnum
+    controller: CartridgeEnum,
 }
 
 impl Cartridge {
@@ -52,25 +49,24 @@ impl Cartridge {
         match cartridge_type_id {
             0 => Ok(Cartridge {
                 controller: StaticRom.into(),
-                data
+                data,
             }),
             1 => Ok(Cartridge {
                 controller: MBC1::new(ram_size).into(),
-                data
+                data,
             }),
             2 | 3 => Ok(Cartridge {
                 controller: MBC1::new(ram_size).into(),
-                data
+                data,
             }),
             5 | 6 => Ok(Cartridge {
                 controller: MBC2::default().into(),
-                data
+                data,
             }),
-            _ => Err(CartridgeError::UnsupportedCartridgeType)
+            _ => Err(CartridgeError::UnsupportedCartridgeType),
         }
     }
 }
-
 
 #[enum_dispatch]
 pub enum CartridgeEnum {
@@ -79,7 +75,6 @@ pub enum CartridgeEnum {
     Type2(MBC2),
     //Type3(MBC3)
 }
-
 
 #[enum_dispatch(CartridgeEnum)]
 trait CartridgeAccess {
@@ -92,13 +87,12 @@ trait CartridgeAccess {
 pub struct StaticRom;
 
 impl CartridgeAccess for StaticRom {
-
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         rom.get(usize::from(loc))
             .copied()
             .ok_or(CartridgeError::NonRomAddress)
-    }    
-    
+    }
+
     fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         self.read_static_rom(loc, rom)
     }
@@ -112,20 +106,18 @@ impl CartridgeAccess for StaticRom {
     }
 }
 
-
 #[derive(PartialEq, Eq, Debug)]
 enum MBC1PageMode {
     LargeRom,
-    LargeRam
+    LargeRam,
 }
-
 
 pub struct MBC1 {
     page_mode: MBC1PageMode,
     selected_rom: u8,
     selected_high: u8,
     ram_enabled: bool,
-    ram: Vec<u8>
+    ram: Vec<u8>,
 }
 
 impl MBC1 {
@@ -136,7 +128,7 @@ impl MBC1 {
             selected_rom: 1,
             selected_high: 0,
             ram_enabled: false,
-            ram: vec![0x00; ram_size]
+            ram: vec![0x00; ram_size],
         }
     }
 
@@ -181,17 +173,15 @@ impl MBC1 {
     }
 }
 
-
 impl CartridgeAccess for MBC1 {
-
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         let bank = u32::from(self.selected_static_rom_bank());
         let rom_addr = (bank * u32::from(ROM_BANK_SIZE)) + u32::from(loc);
         rom.get(usize::try_from(rom_addr).expect("ROM too large for host platform"))
             .copied()
             .ok_or(CartridgeError::NoDataInRom)
-    }    
-    
+    }
+
     fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         let bank_addr = loc - SWITCHABLE_ROM.start;
         let bank = u32::from(self.selected_rom_bank());
@@ -243,11 +233,10 @@ impl CartridgeAccess for MBC1 {
     }
 }
 
-
 pub struct MBC2 {
     selected_rom: u8,
     ram_enabled: bool,
-    ram: Vec<u8>
+    ram: Vec<u8>,
 }
 
 impl Default for MBC2 {
@@ -255,26 +244,27 @@ impl Default for MBC2 {
         MBC2 {
             selected_rom: 1,
             ram_enabled: false,
-            ram: vec![0x00; 512]
+            ram: vec![0x00; 512],
         }
     }
 }
 
-
 impl MBC2 {
     fn selected_rom_bank(&self) -> u8 {
         let bank_id = self.selected_rom & 0xF;
-        if bank_id == 0 { 1 } else { bank_id }
+        if bank_id == 0 {
+            1
+        } else {
+            bank_id
+        }
     }
 }
 
-
 impl CartridgeAccess for MBC2 {
-
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         Ok(rom[usize::from(loc)])
-    }    
-    
+    }
+
     fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         let bank_addr = loc - SWITCHABLE_ROM.start;
         let bank = u16::from(self.selected_rom_bank());
@@ -312,11 +302,9 @@ impl CartridgeAccess for MBC2 {
     }
 }
 
-
 /*pub struct MBC3 {
     selected_rom_bank: u8
 }*/
-
 
 #[cfg(test)]
 mod tests {
@@ -328,7 +316,7 @@ mod tests {
         rom_data[0x5500] = 0x23;
         let mut cartridge = Cartridge {
             data: rom_data,
-            controller: StaticRom.into()
+            controller: StaticRom.into(),
         };
 
         assert_eq!(cartridge.read(0x1234).unwrap(), 0x12);
@@ -345,7 +333,7 @@ mod tests {
         rom_data[0x5500] = 0x23;
         let cartridge = Cartridge {
             data: rom_data,
-            controller: MBC1::new(0).into()
+            controller: MBC1::new(0).into(),
         };
 
         assert_eq!(cartridge.read(0x1234).unwrap(), 0x12);
@@ -353,13 +341,13 @@ mod tests {
         assert_eq!(cartridge.read(0x9222), Err(CartridgeError::NonRomAddress));
         assert_eq!(cartridge.read(0xA111), Err(CartridgeError::NoCartridgeRam));
     }
-    
+
     #[test]
     fn test_mbc1_large_rom_basic_ram() -> CartridgeResult<()> {
         let rom_data = vec![0x12; 96 * 1024];
         let mut cartridge = Cartridge {
             data: rom_data,
-            controller: MBC1::new(0).into()
+            controller: MBC1::new(0).into(),
         };
 
         cartridge.write(0x00ff, 0b1010)?;
@@ -370,7 +358,7 @@ mod tests {
         assert_eq!(cartridge.read(0xA111), Err(CartridgeError::NoCartridgeRam));
         Ok(())
     }
-    
+
     #[test]
     fn test_mbc1_largerom_rom_bank_switch() -> CartridgeResult<()> {
         let mut rom_data = vec![0x12; 1024 * 1024];
@@ -380,7 +368,7 @@ mod tests {
         rom_data[0x88001] = 0x66;
         let mut cartridge = Cartridge {
             data: rom_data,
-            controller: MBC1::new(0).into()
+            controller: MBC1::new(0).into(),
         };
 
         assert_eq!(cartridge.read(0x4001)?, 0x33, "Default to bank 1");
@@ -391,13 +379,25 @@ mod tests {
         cartridge.write(0x2001, 1)?;
         assert_eq!(cartridge.read(0x4001)?, 0x33, "Bank 1 mapped to bank 1");
         cartridge.write(0x2001, 0x82)?;
-        assert_eq!(cartridge.read(0x4001)?, 0x99, "Only bottom 5 bits of ROM select used to select bank (2)");
+        assert_eq!(
+            cartridge.read(0x4001)?,
+            0x99,
+            "Only bottom 5 bits of ROM select used to select bank (2)"
+        );
         cartridge.write(0x4001, 0x1)?;
-        assert_eq!(cartridge.read(0x4001)?, 0x66, "High select bits used to load ROM > 512 KiB (bank 18)");
-        assert_eq!(cartridge.read(0x1)?, 0x34, "High select bits used to load static ROM (bank 17)");
+        assert_eq!(
+            cartridge.read(0x4001)?,
+            0x66,
+            "High select bits used to load ROM > 512 KiB (bank 18)"
+        );
+        assert_eq!(
+            cartridge.read(0x1)?,
+            0x34,
+            "High select bits used to load static ROM (bank 17)"
+        );
         Ok(())
     }
-    
+
     #[test]
     fn test_mbc1_largeram_rom_bank_switch() -> CartridgeResult<()> {
         let mut rom_data = vec![0x12; 512 * 1024];
@@ -405,7 +405,7 @@ mod tests {
         rom_data[0x8001] = 0x99;
         let mut cartridge = Cartridge {
             data: rom_data,
-            controller: MBC1::new(3).into()
+            controller: MBC1::new(3).into(),
         };
         cartridge.write(0x6001, 1)?;
 
@@ -417,19 +417,31 @@ mod tests {
         cartridge.write(0x2001, 1)?;
         assert_eq!(cartridge.read(0x4001)?, 0x33, "Bank 1 mapped to bank 1");
         cartridge.write(0x2001, 0x82)?;
-        assert_eq!(cartridge.read(0x4001)?, 0x99, "Only bottom 5 bits of ROM select used to select bank (2)");
+        assert_eq!(
+            cartridge.read(0x4001)?,
+            0x99,
+            "Only bottom 5 bits of ROM select used to select bank (2)"
+        );
         cartridge.write(0x4001, 0x1)?;
-        assert_eq!(cartridge.read(0x4001)?, 0x99, "High select bits not used to load ROM > 512 KiB (bank 18)");
-        assert_eq!(cartridge.read(0x1)?, 0x12, "High select bits not used to load static ROM (bank 17)");
+        assert_eq!(
+            cartridge.read(0x4001)?,
+            0x99,
+            "High select bits not used to load ROM > 512 KiB (bank 18)"
+        );
+        assert_eq!(
+            cartridge.read(0x1)?,
+            0x12,
+            "High select bits not used to load static ROM (bank 17)"
+        );
         Ok(())
     }
-    
+
     #[test]
     fn test_mbc1_largeram_ram_bank_switch() -> CartridgeResult<()> {
         let rom_data = vec![0x12; 512 * 1024];
         let mut cartridge = Cartridge {
             data: rom_data,
-            controller: MBC1::new(3).into()
+            controller: MBC1::new(3).into(),
         };
         cartridge.write(0x6001, 1)?;
         cartridge.write(0x00ff, 0b1010)?;
@@ -449,7 +461,7 @@ mod tests {
         rom_data[0x5500] = 0x23;
         let mut cartridge = Cartridge {
             data: rom_data,
-            controller: MBC2::default().into()
+            controller: MBC2::default().into(),
         };
 
         assert_eq!(cartridge.read(0x1234).unwrap(), 0x12);
@@ -464,13 +476,17 @@ mod tests {
         let rom_data = vec![0x12; 96 * 1024];
         let mut cartridge = Cartridge {
             data: rom_data,
-            controller: MBC2::default().into()
+            controller: MBC2::default().into(),
         };
         cartridge.write(0x00, 0b1010)?;
 
         cartridge.write(0xA123, 0xF1)?;
         assert_eq!(cartridge.read(0xA123), Ok(0x1), "Bottom nibble only stored");
-        assert_eq!(cartridge.read(0xA323), Ok(0x1), "RAM repeats through address space");
+        assert_eq!(
+            cartridge.read(0xA323),
+            Ok(0x1),
+            "RAM repeats through address space"
+        );
         cartridge.write(0x00, 0b1000)?;
         assert_eq!(cartridge.read(0xA111), Err(CartridgeError::NoCartridgeRam));
         Ok(())
@@ -483,9 +499,8 @@ mod tests {
         rom_data[0x8001] = 0x99;
         let mut cartridge = Cartridge {
             data: rom_data,
-            controller: MBC2::default().into()
+            controller: MBC2::default().into(),
         };
-
 
         assert_eq!(cartridge.read(0x4001).unwrap(), 0x33);
         cartridge.write(0x100, 0b10)?;

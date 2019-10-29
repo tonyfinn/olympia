@@ -25,7 +25,7 @@ pub enum AccRegister {
     BC,
     DE,
     HL,
-    AF
+    AF,
 }
 
 impl From<AccRegister> for WordRegister {
@@ -34,7 +34,7 @@ impl From<AccRegister> for WordRegister {
             AccRegister::AF => WordRegister::AF,
             AccRegister::BC => WordRegister::BC,
             AccRegister::DE => WordRegister::DE,
-            AccRegister::HL => WordRegister::HL
+            AccRegister::HL => WordRegister::HL,
         }
     }
 }
@@ -44,7 +44,7 @@ pub enum StackRegister {
     BC,
     DE,
     HL,
-    SP
+    SP,
 }
 
 impl From<StackRegister> for WordRegister {
@@ -53,7 +53,7 @@ impl From<StackRegister> for WordRegister {
             StackRegister::SP => WordRegister::SP,
             StackRegister::BC => WordRegister::BC,
             StackRegister::DE => WordRegister::DE,
-            StackRegister::HL => WordRegister::HL
+            StackRegister::HL => WordRegister::HL,
         }
     }
 }
@@ -91,7 +91,6 @@ impl ByteRegister {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

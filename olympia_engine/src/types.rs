@@ -1,5 +1,4 @@
-#[derive(PartialEq, Eq, Debug)]
-#[derive(Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub struct MemoryAddress(pub u16);
 
 impl From<u16> for MemoryAddress {
@@ -8,8 +7,7 @@ impl From<u16> for MemoryAddress {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
-#[derive(Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub struct HighAddress(pub u8);
 
 impl From<u8> for HighAddress {
@@ -18,9 +16,7 @@ impl From<u8> for HighAddress {
     }
 }
 
-
-#[derive(PartialEq, Eq, Debug)]
-#[derive(Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub struct PCOffset(pub i8);
 
 impl From<u8> for PCOffset {

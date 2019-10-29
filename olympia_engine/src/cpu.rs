@@ -57,7 +57,11 @@ impl GameBoyCPU {
         }
     }
 
-    fn write_high_register_byte(&mut self, full_register: registers::WordRegister, value_to_write: u8) {
+    fn write_high_register_byte(
+        &mut self,
+        full_register: registers::WordRegister,
+        value_to_write: u8,
+    ) {
         let register_value = self.read_register_u16(full_register);
         let u16_value = u16::from(value_to_write);
         let masked_register_value = register_value & 0x00ff;
@@ -65,7 +69,11 @@ impl GameBoyCPU {
         self.write_register_raw(full_register, masked_register_value + shifted_value);
     }
 
-    fn write_low_register_byte(&mut self, full_register: registers::WordRegister, value_to_write: u8) {
+    fn write_low_register_byte(
+        &mut self,
+        full_register: registers::WordRegister,
+        value_to_write: u8,
+    ) {
         let register_value = self.read_register_u16(full_register);
         let u16_value = u16::from(value_to_write);
         let masked_register_value = register_value & 0xff00;
@@ -183,28 +191,32 @@ mod tests {
         cpu.write_register_u8(registers::ByteRegister::A, 0x15);
         cpu.write_register_u8(registers::ByteRegister::F, 0x12);
         assert_eq!(
-            cpu.read_register_u16(registers::WordRegister::AF).to_be_bytes(),
+            cpu.read_register_u16(registers::WordRegister::AF)
+                .to_be_bytes(),
             [0x15, 0x12]
         );
 
         cpu.write_register_u8(registers::ByteRegister::B, 0x25);
         cpu.write_register_u8(registers::ByteRegister::C, 0x22);
         assert_eq!(
-            cpu.read_register_u16(registers::WordRegister::BC).to_be_bytes(),
+            cpu.read_register_u16(registers::WordRegister::BC)
+                .to_be_bytes(),
             [0x25, 0x22]
         );
 
         cpu.write_register_u8(registers::ByteRegister::D, 0x35);
         cpu.write_register_u8(registers::ByteRegister::E, 0x32);
         assert_eq!(
-            cpu.read_register_u16(registers::WordRegister::DE).to_be_bytes(),
+            cpu.read_register_u16(registers::WordRegister::DE)
+                .to_be_bytes(),
             [0x35, 0x32]
         );
 
         cpu.write_register_u8(registers::ByteRegister::H, 0x45);
         cpu.write_register_u8(registers::ByteRegister::L, 0x42);
         assert_eq!(
-            cpu.read_register_u16(registers::WordRegister::HL).to_be_bytes(),
+            cpu.read_register_u16(registers::WordRegister::HL)
+                .to_be_bytes(),
             [0x45, 0x42]
         );
     }
