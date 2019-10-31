@@ -42,13 +42,13 @@ pub enum ALOp {
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Jump {
     RegisterJump,                               // JP (HL)
-    Jump(types::MemoryAddress),                 // JP a16
-    JumpIf(Condition, types::MemoryAddress),    // JP <condition>, a16
+    Jump(types::LiteralAddress),                 // JP a16
+    JumpIf(Condition, types::LiteralAddress),    // JP <condition>, a16
     RelativeJump(types::PCOffset),              // JR r8
     RelativeJumpIf(Condition, types::PCOffset), // JR <condition>, r8
-    Call(types::MemoryAddress),                 // CALL a16
-    CallIf(Condition, types::MemoryAddress),    // CALL <condition>, a16
-    CallSystem(types::MemoryAddress),           // RST a16
+    Call(types::LiteralAddress),                 // CALL a16
+    CallIf(Condition, types::LiteralAddress),    // CALL <condition>, a16
+    CallSystem(types::LiteralAddress),           // RST a16
     Return,                                     // RET
     ReturnIf(Condition),                        // RET <condition>
     ReturnInterrupt,                            // RETI
@@ -83,7 +83,7 @@ pub enum Stack {
     AddStackPointer(types::PCOffset),              // ADD SP, r8
     LoadStackOffset(types::PCOffset),              // LD HL, SP+r8
     SetStackPointer,                               // LD SP, HL
-    StoreStackPointerMemory(types::MemoryAddress), // LD (a16), SP
+    StoreStackPointerMemory(types::LiteralAddress), // LD (a16), SP
 }
 
 impl From<Stack> for Instruction {
@@ -102,8 +102,8 @@ pub enum Load {
     MemoryRegister(registers::WordRegister, registers::ByteRegister), // LD (<dest>), <src>
     AMemoryOffset,                             // LD A, (C)
     MemoryOffsetA,                             // LD (C), A
-    AIndirect(types::MemoryAddress),           // LD A, (a16)
-    IndirectA(types::MemoryAddress),           // LD (a16), A
+    AIndirect(types::LiteralAddress),           // LD A, (a16)
+    IndirectA(types::LiteralAddress),           // LD (a16), A
     AHighOffset(types::HighAddress),           // LDH A, (a8)
     HighOffsetA(types::HighAddress),           // LDH (a8), A
     Increment16A(Increment),                   // LD (HL+), A / LD (HL-), A

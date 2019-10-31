@@ -1,9 +1,9 @@
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub struct MemoryAddress(pub u16);
+pub struct LiteralAddress(pub u16);
 
-impl From<u16> for MemoryAddress {
+impl From<u16> for LiteralAddress {
     fn from(addr: u16) -> Self {
-        MemoryAddress(addr)
+        LiteralAddress(addr)
     }
 }
 

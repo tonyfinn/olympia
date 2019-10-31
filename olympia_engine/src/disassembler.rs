@@ -35,9 +35,9 @@ impl Disassemble for Condition {
     }
 }
 
-impl Disassemble for types::MemoryAddress {
+impl Disassemble for types::LiteralAddress {
     fn disassemble(&self) -> String {
-        let types::MemoryAddress(raw_addr) = self;
+        let types::LiteralAddress(raw_addr) = self;
         format!("${:X}h", raw_addr)
     }
 }

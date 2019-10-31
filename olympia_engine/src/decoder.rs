@@ -60,7 +60,7 @@ trait TwoByteAddressDecoder {
 }
 
 trait ThreeByteAddressDecoder {
-    fn decode(&self, opcode: u8, data: types::MemoryAddress) -> DecodeResult<Instruction>;
+    fn decode(&self, opcode: u8, data: types::LiteralAddress) -> DecodeResult<Instruction>;
 }
 
 trait ThreeByteDataDecoder {

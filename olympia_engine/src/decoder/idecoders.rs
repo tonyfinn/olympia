@@ -95,7 +95,7 @@ impl TwoByteOffsetDecoder for RelativeJump {
 
 pub(super) struct StoreSP;
 impl ThreeByteAddressDecoder for StoreSP {
-    fn decode(&self, _opcode: u8, addr: types::MemoryAddress) -> DecodeResult<Instruction> {
+    fn decode(&self, _opcode: u8, addr: types::LiteralAddress) -> DecodeResult<Instruction> {
         Ok(instructions::Stack::StoreStackPointerMemory(addr).into())
     }
 }
@@ -138,21 +138,21 @@ impl TwoByteOffsetDecoder for ConditionalRelativeJump {
 
 pub(super) struct Jump;
 impl ThreeByteAddressDecoder for Jump {
-    fn decode(&self, _opcode: u8, addr: types::MemoryAddress) -> DecodeResult<Instruction> {
+    fn decode(&self, _opcode: u8, addr: types::LiteralAddress) -> DecodeResult<Instruction> {
         Ok(instructions::Jump::Jump(addr).into())
     }
 }
 
 pub(super) struct Call;
 impl ThreeByteAddressDecoder for Call {
-    fn decode(&self, _opcode: u8, addr: types::MemoryAddress) -> DecodeResult<Instruction> {
+    fn decode(&self, _opcode: u8, addr: types::LiteralAddress) -> DecodeResult<Instruction> {
         Ok(instructions::Jump::Call(addr).into())
     }
 }
 
 pub(super) struct ConditionalJump;
 impl ThreeByteAddressDecoder for ConditionalJump {
-    fn decode(&self, opcode: u8, addr: types::MemoryAddress) -> DecodeResult<Instruction> {
+    fn decode(&self, opcode: u8, addr: types::LiteralAddress) -> DecodeResult<Instruction> {
         let condition_bits = 0b0001_1000;
         let condition_value = (opcode & condition_bits) >> 3;
         let condition = condition_lookup(condition_value)
@@ -163,7 +163,7 @@ impl ThreeByteAddressDecoder for ConditionalJump {
 
 pub(super) struct ConditionalCall;
 impl ThreeByteAddressDecoder for ConditionalCall {
-    fn decode(&self, opcode: u8, addr: types::MemoryAddress) -> DecodeResult<Instruction> {
+    fn decode(&self, opcode: u8, addr: types::LiteralAddress) -> DecodeResult<Instruction> {
         let condition_bits = 0b0001_1000;
         let condition_value = (opcode & condition_bits) >> 3;
         let condition = condition_lookup(condition_value)
@@ -201,14 +201,14 @@ impl TwoByteDataDecoder for ConstantAL {
 
 pub(super) struct StoreAddress;
 impl ThreeByteAddressDecoder for StoreAddress {
-    fn decode(&self, _opcode: u8, addr: types::MemoryAddress) -> DecodeResult<Instruction> {
+    fn decode(&self, _opcode: u8, addr: types::LiteralAddress) -> DecodeResult<Instruction> {
         Ok(instructions::Load::IndirectA(addr).into())
     }
 }
 
 pub(super) struct LoadAddress;
 impl ThreeByteAddressDecoder for LoadAddress {
-    fn decode(&self, _opcode: u8, addr: types::MemoryAddress) -> DecodeResult<Instruction> {
+    fn decode(&self, _opcode: u8, addr: types::LiteralAddress) -> DecodeResult<Instruction> {
         Ok(instructions::Load::AIndirect(addr).into())
     }
 }
@@ -337,7 +337,7 @@ mod test {
     fn test_indirect_a() {
         let idecoder = StoreAddress {};
 
-        let addr: types::MemoryAddress = 0x1012.into();
+        let addr: types::LiteralAddress = 0x1012.into();
 
         assert_eq!(
             idecoder.decode(0xEA, addr),
@@ -349,7 +349,7 @@ mod test {
     fn test_a_indirect() {
         let idecoder = LoadAddress {};
 
-        let addr: types::MemoryAddress = 0x1012.into();
+        let addr: types::LiteralAddress = 0x1012.into();
 
         assert_eq!(
             idecoder.decode(0xFA, addr),
@@ -361,7 +361,7 @@ mod test {
     fn test_jump() {
         let idecoder = Jump {};
 
-        let addr: types::MemoryAddress = 0x1012.into();
+        let addr: types::LiteralAddress = 0x1012.into();
 
         assert_eq!(
             idecoder.decode(0xC2, addr),
@@ -373,7 +373,7 @@ mod test {
     fn test_call() {
         let idecoder = Call {};
 
-        let addr: types::MemoryAddress = 0x1012.into();
+        let addr: types::LiteralAddress = 0x1012.into();
 
         assert_eq!(
             idecoder.decode(0xC2, addr),
@@ -387,7 +387,7 @@ mod test {
         use instructions::Jump::JumpIf;
         let idecoder = ConditionalJump {};
 
-        let addr: types::MemoryAddress = 0x1012.into();
+        let addr: types::LiteralAddress = 0x1012.into();
 
         assert_eq!(
             idecoder.decode(0xC2, addr),
@@ -413,7 +413,7 @@ mod test {
         use instructions::Jump::CallIf;
         let idecoder = ConditionalCall {};
 
-        let addr: types::MemoryAddress = 0x1012.into();
+        let addr: types::LiteralAddress = 0x1012.into();
 
         assert_eq!(
             idecoder.decode(0xC4, addr),
