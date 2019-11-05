@@ -731,7 +731,7 @@ mod disassember_tests {
         let decoded = disassemble(&data);
 
         let expected = vec![
-            dis::ThreeByte(0x082010, "LD $1020h, SP".into()),
+            dis::ThreeByte(0x08_2010, "LD $1020h, SP".into()),
             dis::OneByte(0x00, "NOP".into()),
         ];
         assert_eq!(decoded, Ok(expected));
@@ -744,7 +744,7 @@ mod disassember_tests {
         let decoded = disassemble(&data);
 
         let expected = vec![
-            dis::ThreeByte(0x111325, "LD DE, 2513h".into()),
+            dis::ThreeByte(0x11_1325, "LD DE, 2513h".into()),
             dis::OneByte(0x00, "NOP".into()),
         ];
         assert_eq!(decoded, Ok(expected));

@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::ops::Range;
-use enum_dispatch::enum_dispatch;
 
 const STATIC_ROM: Range<u16> = 0x0000..0x4000;
 const SWITCHABLE_ROM: Range<u16> = 0x4000..0x8000;
@@ -68,20 +67,52 @@ impl Cartridge {
     }
 }
 
-#[enum_dispatch]
 pub enum CartridgeEnum {
-    StaticRom,
+    StaticRom(StaticRom),
     Type1(MBC1),
     Type2(MBC2),
     //Type3(MBC3)
 }
 
-#[enum_dispatch(CartridgeEnum)]
 trait CartridgeAccess {
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8>;
     fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8>;
     fn read_switchable_ram(&self, loc: u16) -> CartridgeResult<u8>;
     fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()>;
+}
+
+impl CartridgeAccess for CartridgeEnum {
+    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+        match self {
+            CartridgeEnum::StaticRom(srom) => srom.read_static_rom(loc, rom),
+            CartridgeEnum::Type1(mbc1) => mbc1.read_static_rom(loc, rom),
+            CartridgeEnum::Type2(mbc2) => mbc2.read_static_rom(loc, rom),
+        }
+    }
+
+    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+        match self {
+            CartridgeEnum::StaticRom(srom) => srom.read_switchable_rom(loc, rom),
+            CartridgeEnum::Type1(mbc1) => mbc1.read_switchable_rom(loc, rom),
+            CartridgeEnum::Type2(mbc2) => mbc2.read_switchable_rom(loc, rom),
+        }
+    }
+
+    fn read_switchable_ram(&self, loc: u16) -> CartridgeResult<u8> {
+        match self {
+            CartridgeEnum::StaticRom(srom) => srom.read_switchable_ram(loc),
+            CartridgeEnum::Type1(mbc1) => mbc1.read_switchable_ram(loc),
+            CartridgeEnum::Type2(mbc2) => mbc2.read_switchable_ram(loc),
+        }
+    }
+
+    fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()> {
+        match self {
+            CartridgeEnum::StaticRom(srom) => srom.write(loc, value),
+            CartridgeEnum::Type1(mbc1) => mbc1.write(loc, value),
+            CartridgeEnum::Type2(mbc2) => mbc2.write(loc, value),
+        }
+    }
 }
 
 pub struct StaticRom;
@@ -103,6 +134,12 @@ impl CartridgeAccess for StaticRom {
 
     fn write(&mut self, _loc: u16, _value: u8) -> CartridgeResult<()> {
         Ok(())
+    }
+}
+
+impl From<StaticRom> for CartridgeEnum {
+    fn from(srom: StaticRom) -> Self {
+        CartridgeEnum::StaticRom(srom)
     }
 }
 
@@ -233,6 +270,12 @@ impl CartridgeAccess for MBC1 {
     }
 }
 
+impl From<MBC1> for CartridgeEnum {
+    fn from(mbc: MBC1) -> Self {
+        CartridgeEnum::Type1(mbc)
+    }
+}
+
 pub struct MBC2 {
     selected_rom: u8,
     ram_enabled: bool,
@@ -299,6 +342,12 @@ impl CartridgeAccess for MBC2 {
         } else {
             Ok(())
         }
+    }
+}
+
+impl From<MBC2> for CartridgeEnum {
+    fn from(mbc: MBC2) -> Self {
+        CartridgeEnum::Type2(mbc)
     }
 }
 
