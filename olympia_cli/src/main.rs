@@ -5,7 +5,7 @@ use std::io::prelude::*;
 use std::ops;
 use std::path::PathBuf;
 
-use olympia_engine::cpu;
+use olympia_engine::gameboy::cpu;
 use olympia_engine::rom;
 use structopt::StructOpt;
 
@@ -241,7 +241,7 @@ fn print_rom_info(cartridge: rom::Cartridge, out: &mut dyn io::Write) -> Olympia
     Ok(())
 }
 
-fn print_bytes(cpu: &cpu::GameBoyCPU, range: ByteRange, out: &mut dyn io::Write) -> io::Result<()> {
+fn print_bytes(cpu: &cpu::GameBoy, range: ByteRange, out: &mut dyn io::Write) -> io::Result<()> {
     let (min, max) = range;
 
     let min_address = match min {
@@ -279,7 +279,7 @@ fn print_bytes(cpu: &cpu::GameBoyCPU, range: ByteRange, out: &mut dyn io::Write)
     writeln!(out)
 }
 
-fn print_registers(cpu: &cpu::GameBoyCPU, out: &mut dyn io::Write) -> io::Result<()> {
+fn print_registers(cpu: &cpu::GameBoy, out: &mut dyn io::Write) -> io::Result<()> {
     writeln!(
         out,
         "A: {:02X}, F: {:02X}, AF: {:04X}",
@@ -318,7 +318,7 @@ fn print_registers(cpu: &cpu::GameBoyCPU, out: &mut dyn io::Write) -> io::Result
 }
 
 fn debug(
-    gb: cpu::GameBoyCPU,
+    gb: cpu::GameBoy,
     in_: &mut dyn io::Read,
     out: &mut dyn io::Write,
     err: &mut dyn io::Write,
@@ -437,7 +437,7 @@ fn main() -> OlympiaResult<()> {
             print_rom_info(parse_cartridge(&rom)?, &mut io::stdout())?
         }
         OlympiaCommand::Debug { rom } => debug(
-            cpu::GameBoyCPU::new(parse_cartridge(&rom)?),
+            cpu::GameBoy::new(parse_cartridge(&rom)?),
             &mut io::stdin(),
             &mut io::stdout(),
             err.as_mut(),
@@ -450,12 +450,12 @@ fn main() -> OlympiaResult<()> {
 pub mod test {
     use super::*;
 
-    fn get_test_gbcpu() -> cpu::GameBoyCPU {
+    fn get_test_gbcpu() -> cpu::GameBoy {
         let cartridge = rom::Cartridge {
             data: vec![0xF1u8; 0x8000],
             controller: rom::MBC2::default().into(),
         };
-        cpu::GameBoyCPU::new(cartridge)
+        cpu::GameBoy::new(cartridge)
     }
 
     #[test]

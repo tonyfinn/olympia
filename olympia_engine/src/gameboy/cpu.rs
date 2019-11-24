@@ -3,7 +3,7 @@ use crate::rom;
 
 pub use crate::registers::{ByteRegister, WordRegister};
 
-pub struct GameBoyCPU {
+pub struct GameBoy {
     af_register: u16,
     bc_register: u16,
     de_register: u16,
@@ -24,9 +24,9 @@ pub enum MemoryError {
 
 pub type MemoryResult<T> = Result<T, MemoryError>;
 
-impl GameBoyCPU {
-    pub fn new(cartridge: rom::Cartridge) -> GameBoyCPU {
-        GameBoyCPU {
+impl GameBoy {
+    pub fn new(cartridge: rom::Cartridge) -> GameBoy {
+        GameBoy {
             af_register: 0,
             bc_register: 0,
             de_register: 0,
@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn test_reg_write_u8_read_u8() {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_register_u8(registers::ByteRegister::A, 0x01);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::A), 0x01);
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_reg_write_u16_read_u16() {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_register_u16(registers::WordRegister::AF, 0x1234);
         // F register lower 4 bytes are not writable
@@ -242,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_reg_write_u8_read_u16() {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_register_u8(registers::ByteRegister::A, 0x15);
         cpu.write_register_u8(registers::ByteRegister::F, 0x12);
@@ -280,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_reg_write_u16_read_u8() {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_register_u16(registers::WordRegister::AF, 0x9876);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::A), 0x98);
@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_mem_write_u8_read_u8_sysram() -> MemoryResult<()> {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_memory_u8(0xc100, 0x32)?;
         assert_eq!(cpu.read_memory_u8(0xc100), Ok(0x32));
@@ -311,7 +311,7 @@ mod tests {
 
     #[test]
     fn test_mem_write_u16_read_u16_sysram() -> MemoryResult<()> {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_memory_u16(0xc100, 0x1032)?;
         assert_eq!(cpu.read_memory_u16(0xc100), Ok(0x1032));
@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_mem_write_u8_read_u16_sysram() -> MemoryResult<()> {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_memory_u8(0xc100, 0x48)?;
         cpu.write_memory_u8(0xc101, 0x94)?;
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_mem_write_u16_read_u8_sysram() -> MemoryResult<()> {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_memory_u16(0xc200, 0x1345)?;
 
@@ -342,7 +342,7 @@ mod tests {
 
     #[test]
     fn test_write_u8_read_i8_sysram() -> MemoryResult<()> {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
         let signed_value = i8::from_le_bytes([0xa2]);
 
         cpu.write_memory_u8(0xc200, 0xa2)?;
@@ -353,7 +353,7 @@ mod tests {
 
     #[test]
     fn test_mem_write_u8_read_u8_vram() -> MemoryResult<()> {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_memory_u8(0x8100, 0x32)?;
         assert_eq!(cpu.read_memory_u8(0x8100), Ok(0x32));
@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_mem_write_u8_read_u8_cpuram() -> MemoryResult<()> {
-        let mut cpu = GameBoyCPU::new(make_cartridge());
+        let mut cpu = GameBoy::new(make_cartridge());
 
         cpu.write_memory_u8(0xff80, 0x32)?;
         assert_eq!(cpu.read_memory_u8(0xff80), Ok(0x32));

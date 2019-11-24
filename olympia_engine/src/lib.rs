@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate alloc;
 
-pub mod cpu;
+pub mod gameboy;
 pub mod decoder;
 mod instructions;
 mod registers;
