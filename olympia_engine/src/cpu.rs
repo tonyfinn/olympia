@@ -32,7 +32,7 @@ impl GameBoyCPU {
             de_register: 0,
             hl_register: 0,
             sp_register: 0,
-            pc_register: 0,
+            pc_register: 0x100,
             sysram: [0u8; 0x2000],
             vram: [0u8; 0x2000],
             cpuram: [0u8; 0x200],
@@ -101,7 +101,7 @@ impl GameBoyCPU {
 
     fn write_register_raw(&mut self, reg: registers::WordRegister, value: u16) {
         match reg {
-            registers::WordRegister::AF => self.af_register = value,
+            registers::WordRegister::AF => self.af_register = value & 0xfff0,
             registers::WordRegister::BC => self.bc_register = value,
             registers::WordRegister::DE => self.de_register = value,
             registers::WordRegister::HL => self.hl_register = value,
@@ -205,8 +205,9 @@ mod tests {
         cpu.write_register_u8(registers::ByteRegister::E, 0x05);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::E), 0x05);
 
-        cpu.write_register_u8(registers::ByteRegister::F, 0x06);
-        assert_eq!(cpu.read_register_u8(registers::ByteRegister::F), 0x06);
+        cpu.write_register_u8(registers::ByteRegister::F, 0x66);
+        // F register lower 4 bytes are not writable
+        assert_eq!(cpu.read_register_u8(registers::ByteRegister::F), 0x60);
 
         cpu.write_register_u8(registers::ByteRegister::H, 0x07);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::H), 0x07);
@@ -220,7 +221,8 @@ mod tests {
         let mut cpu = GameBoyCPU::new(make_cartridge());
 
         cpu.write_register_u16(registers::WordRegister::AF, 0x1234);
-        assert_eq!(cpu.read_register_u16(registers::WordRegister::AF), 0x1234);
+        // F register lower 4 bytes are not writable
+        assert_eq!(cpu.read_register_u16(registers::WordRegister::AF), 0x1230);
 
         cpu.write_register_u16(registers::WordRegister::BC, 0x1235);
         assert_eq!(cpu.read_register_u16(registers::WordRegister::BC), 0x1235);
@@ -247,7 +249,8 @@ mod tests {
         assert_eq!(
             cpu.read_register_u16(registers::WordRegister::AF)
                 .to_be_bytes(),
-            [0x15, 0x12]
+            // F register lower 4 bytes are not writable
+            [0x15, 0x10]
         );
 
         cpu.write_register_u8(registers::ByteRegister::B, 0x25);
@@ -281,7 +284,8 @@ mod tests {
 
         cpu.write_register_u16(registers::WordRegister::AF, 0x9876);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::A), 0x98);
-        assert_eq!(cpu.read_register_u8(registers::ByteRegister::F), 0x76);
+        // F register lower 4 bytes are not writable
+        assert_eq!(cpu.read_register_u8(registers::ByteRegister::F), 0x70);
 
         cpu.write_register_u16(registers::WordRegister::BC, 0x9775);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::B), 0x97);

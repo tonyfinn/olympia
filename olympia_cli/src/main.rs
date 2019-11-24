@@ -481,7 +481,8 @@ pub mod test {
         .unwrap();
 
         let expected_output = [
-            "A: 12, F: 34, AF: 1234",
+            // F register lower 4 bytes are not writable
+            "A: 12, F: 30, AF: 1230",
             "B: 22, C: 44, BC: 2244",
             "D: 32, E: 54, DE: 3254",
             "H: 42, L: 64, HL: 4264",
