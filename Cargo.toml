@@ -3,5 +3,6 @@
 members = [
     "olympia_engine",
     "olympia_piston",
-    "olympia_disassembler"
+    "olympia_disassembler",
+    "olympia_cli"
 ]

@@ -1,4 +1,7 @@
 use crate::registers;
+use crate::rom;
+
+pub use crate::registers::{ByteRegister, WordRegister};
 
 pub struct GameBoyCPU {
     af_register: u16,
@@ -7,11 +10,22 @@ pub struct GameBoyCPU {
     hl_register: u16,
     sp_register: u16,
     pc_register: u16,
-    memory: [u8; 0xffff],
+    sysram: [u8; 0x2000],
+    vram: [u8; 0x2000],
+    cpuram: [u8; 0x200],
+    cartridge: rom::Cartridge,
 }
 
+#[derive(PartialEq, Eq, Debug)]
+pub enum MemoryError {
+    InvalidRomAddress(u16),
+    InvalidRamAddress(u16),
+}
+
+pub type MemoryResult<T> = Result<T, MemoryError>;
+
 impl GameBoyCPU {
-    pub fn new() -> GameBoyCPU {
+    pub fn new(cartridge: rom::Cartridge) -> GameBoyCPU {
         GameBoyCPU {
             af_register: 0,
             bc_register: 0,
@@ -19,9 +33,14 @@ impl GameBoyCPU {
             hl_register: 0,
             sp_register: 0,
             pc_register: 0,
-            memory: [0u8; 0xffff],
+            sysram: [0u8; 0x2000],
+            vram: [0u8; 0x2000],
+            cpuram: [0u8; 0x200],
+            cartridge,
         }
     }
+
+    pub fn step(&mut self) {}
 
     pub fn read_register_u8(&self, reg: registers::ByteRegister) -> u8 {
         match reg {
@@ -95,36 +114,67 @@ impl GameBoyCPU {
         self.write_register_raw(reg, value.to_le());
     }
 
-    pub fn read_memory_u8(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
+    pub fn read_memory_u8(&self, addr: u16) -> MemoryResult<u8> {
+        if addr < 0x8000 {
+            self.cartridge
+                .read(addr)
+                .map_err(|_| MemoryError::InvalidRomAddress(addr))
+        } else if addr <= 0x9fff {
+            Ok(self.vram[(addr - 0x8000) as usize])
+        } else if addr <= 0xbfff {
+            self.cartridge
+                .read(addr)
+                .map_err(|_| MemoryError::InvalidRamAddress(addr))
+        } else if addr <= 0xdfff {
+            Ok(self.sysram[(addr - 0xc000) as usize])
+        } else if addr <= 0xfdff {
+            Ok(self.sysram[(addr - 0xe000) as usize])
+        } else {
+            Ok(self.cpuram[(addr - 0xfe00) as usize])
+        }
     }
 
-    pub fn read_memory_i8(&self, addr: u16) -> i8 {
-        i8::from_le_bytes([self.memory[addr as usize]])
+    pub fn read_memory_i8(&self, addr: u16) -> MemoryResult<i8> {
+        Ok(i8::from_le_bytes([self.read_memory_u8(addr)?]))
     }
 
-    pub fn read_memory_u16(&self, addr: u16) -> u16 {
-        u16::from_le_bytes([
-            self.memory[addr as usize],
-            self.memory[addr.wrapping_add(1) as usize],
-        ])
+    pub fn read_memory_u16(&self, addr: u16) -> MemoryResult<u16> {
+        Ok(u16::from_le_bytes([
+            self.read_memory_u8(addr)?,
+            self.read_memory_u8(addr.wrapping_add(1))?,
+        ]))
     }
 
-    pub fn write_memory_u8(&mut self, addr: u16, value: u8) {
-        self.memory[addr as usize] = value;
+    pub fn write_memory_u8(&mut self, addr: u16, value: u8) -> MemoryResult<()> {
+        if addr < 0x8000 {
+            self.cartridge
+                .write(addr, value)
+                .map_err(|_| MemoryError::InvalidRomAddress(addr))
+        } else if addr <= 0x9fff {
+            self.vram[(addr - 0x8000) as usize] = value;
+            Ok(())
+        } else if addr <= 0xbfff {
+            self.cartridge
+                .write(addr, value)
+                .map_err(|_| MemoryError::InvalidRamAddress(addr))
+        } else if addr <= 0xdfff {
+            self.sysram[(addr - 0xc000) as usize] = value;
+            Ok(())
+        } else if addr <= 0xfdff {
+            self.sysram[(addr - 0xe000) as usize] = value;
+            Ok(())
+        } else {
+            self.cpuram[(addr - 0xfe00) as usize] = value;
+            Ok(())
+        }
     }
 
-    pub fn write_memory_u16(&mut self, addr: u16, value: u16) {
+    pub fn write_memory_u16(&mut self, addr: u16, value: u16) -> MemoryResult<()> {
         let bytes = value.to_le_bytes();
 
-        self.memory[addr as usize] = bytes[0];
-        self.memory[addr.wrapping_add(1) as usize] = bytes[1];
-    }
-}
-
-impl Default for GameBoyCPU {
-    fn default() -> Self {
-        Self::new()
+        self.write_memory_u8(addr, bytes[0])?;
+        self.write_memory_u8(addr.wrapping_add(1), bytes[1])?;
+        Ok(())
     }
 }
 
@@ -132,9 +182,13 @@ impl Default for GameBoyCPU {
 mod tests {
     use super::*;
 
+    fn make_cartridge() -> rom::Cartridge {
+        rom::Cartridge::from_data(vec![0u8; 0x8000]).unwrap()
+    }
+
     #[test]
     fn test_reg_write_u8_read_u8() {
-        let mut cpu = GameBoyCPU::new();
+        let mut cpu = GameBoyCPU::new(make_cartridge());
 
         cpu.write_register_u8(registers::ByteRegister::A, 0x01);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::A), 0x01);
@@ -163,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_reg_write_u16_read_u16() {
-        let mut cpu = GameBoyCPU::new();
+        let mut cpu = GameBoyCPU::new(make_cartridge());
 
         cpu.write_register_u16(registers::WordRegister::AF, 0x1234);
         assert_eq!(cpu.read_register_u16(registers::WordRegister::AF), 0x1234);
@@ -186,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_reg_write_u8_read_u16() {
-        let mut cpu = GameBoyCPU::new();
+        let mut cpu = GameBoyCPU::new(make_cartridge());
 
         cpu.write_register_u8(registers::ByteRegister::A, 0x15);
         cpu.write_register_u8(registers::ByteRegister::F, 0x12);
@@ -223,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_reg_write_u16_read_u8() {
-        let mut cpu = GameBoyCPU::new();
+        let mut cpu = GameBoyCPU::new(make_cartridge());
 
         cpu.write_register_u16(registers::WordRegister::AF, 0x9876);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::A), 0x98);
@@ -243,48 +297,71 @@ mod tests {
     }
 
     #[test]
-    fn test_mem_write_u8_read_u8() {
-        let mut cpu = GameBoyCPU::new();
+    fn test_mem_write_u8_read_u8_sysram() -> MemoryResult<()> {
+        let mut cpu = GameBoyCPU::new(make_cartridge());
 
-        cpu.write_memory_u8(0x100, 0x32);
-        assert_eq!(cpu.read_memory_u8(0x100), 0x32);
+        cpu.write_memory_u8(0xc100, 0x32)?;
+        assert_eq!(cpu.read_memory_u8(0xc100), Ok(0x32));
+        Ok(())
     }
 
     #[test]
-    fn test_mem_write_u16_read_u16() {
-        let mut cpu = GameBoyCPU::new();
+    fn test_mem_write_u16_read_u16_sysram() -> MemoryResult<()> {
+        let mut cpu = GameBoyCPU::new(make_cartridge());
 
-        cpu.write_memory_u16(0x100, 0x1032);
-        assert_eq!(cpu.read_memory_u16(0x100), 0x1032);
+        cpu.write_memory_u16(0xc100, 0x1032)?;
+        assert_eq!(cpu.read_memory_u16(0xc100), Ok(0x1032));
+        Ok(())
     }
 
     #[test]
-    fn test_mem_write_u8_read_u16() {
-        let mut cpu = GameBoyCPU::new();
+    fn test_mem_write_u8_read_u16_sysram() -> MemoryResult<()> {
+        let mut cpu = GameBoyCPU::new(make_cartridge());
 
-        cpu.write_memory_u8(0x100, 0x48);
-        cpu.write_memory_u8(0x101, 0x94);
+        cpu.write_memory_u8(0xc100, 0x48)?;
+        cpu.write_memory_u8(0xc101, 0x94)?;
 
-        assert_eq!(cpu.read_memory_u16(0x100), 0x9448);
+        assert_eq!(cpu.read_memory_u16(0xc100), Ok(0x9448));
+        Ok(())
     }
 
     #[test]
-    fn test_mem_write_u16_read_u8() {
-        let mut cpu = GameBoyCPU::new();
+    fn test_mem_write_u16_read_u8_sysram() -> MemoryResult<()> {
+        let mut cpu = GameBoyCPU::new(make_cartridge());
 
-        cpu.write_memory_u16(0x200, 0x1345);
+        cpu.write_memory_u16(0xc200, 0x1345)?;
 
-        assert_eq!(cpu.read_memory_u8(0x200), 0x45);
-        assert_eq!(cpu.read_memory_u8(0x201), 0x13);
+        assert_eq!(cpu.read_memory_u8(0xc200), Ok(0x45));
+        assert_eq!(cpu.read_memory_u8(0xc201), Ok(0x13));
+        Ok(())
     }
 
     #[test]
-    fn test_write_u8_read_i8() {
-        let mut cpu = GameBoyCPU::new();
+    fn test_write_u8_read_i8_sysram() -> MemoryResult<()> {
+        let mut cpu = GameBoyCPU::new(make_cartridge());
         let signed_value = i8::from_le_bytes([0xa2]);
 
-        cpu.write_memory_u8(0x200, 0xa2);
+        cpu.write_memory_u8(0xc200, 0xa2)?;
 
-        assert_eq!(cpu.read_memory_i8(0x200), signed_value);
+        assert_eq!(cpu.read_memory_i8(0xc200), Ok(signed_value));
+        Ok(())
+    }
+
+    #[test]
+    fn test_mem_write_u8_read_u8_vram() -> MemoryResult<()> {
+        let mut cpu = GameBoyCPU::new(make_cartridge());
+
+        cpu.write_memory_u8(0x8100, 0x32)?;
+        assert_eq!(cpu.read_memory_u8(0x8100), Ok(0x32));
+        Ok(())
+    }
+
+    #[test]
+    fn test_mem_write_u8_read_u8_cpuram() -> MemoryResult<()> {
+        let mut cpu = GameBoyCPU::new(make_cartridge());
+
+        cpu.write_memory_u8(0xff80, 0x32)?;
+        assert_eq!(cpu.read_memory_u8(0xff80), Ok(0x32));
+        Ok(())
     }
 }
