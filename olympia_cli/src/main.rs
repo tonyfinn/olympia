@@ -403,24 +403,31 @@ fn debug(
     Ok(())
 }
 
-fn find_err_out(args: &OlympiaArgs) -> Box<dyn io::Write> {
-    if cfg!(unix) {
-        use std::os::unix::fs::FileTypeExt;
-        let pid = std::process::id();
-        let fd_path = format!("/proc/{}/fd/0", pid);
-        let metadata_result = std::fs::metadata(fd_path);
-        if let Ok(metadata) = metadata_result {
-            if !metadata.file_type().is_char_device() {
-                return Box::new(io::sink());
-            }
+#[cfg(unix)]
+fn is_tty()->  bool {
+    use std::os::unix::fs::FileTypeExt;
+    let pid = std::process::id();
+    let fd_path = format!("/proc/{}/fd/0", pid);
+    let metadata_result = std::fs::metadata(fd_path);
+    if let Ok(metadata) = metadata_result {
+        if metadata.file_type().is_char_device() {
+            return true;
         }
     }
-    let err: Box<dyn io::Write> = if args.quiet {
+    false
+}
+
+#[cfg(windows)]
+fn is_tty() -> bool {
+    false
+}
+
+fn find_err_out(args: &OlympiaArgs) -> Box<dyn io::Write> {
+    if args.quiet || !is_tty() {
         Box::new(io::sink())
     } else {
         Box::new(io::stderr())
-    };
-    err
+    }
 }
 
 fn parse_cartridge(rom_path: &PathBuf) -> OlympiaResult<rom::Cartridge> {
