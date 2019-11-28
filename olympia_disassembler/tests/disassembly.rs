@@ -18,8 +18,8 @@ fn test_default() {
         .unwrap();
 
     assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&expected_output)
+        String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n"),
+        String::from_utf8_lossy(&expected_output).replace("\r\n", "\n")
     );
 }
 
@@ -39,7 +39,7 @@ fn test_verbose() {
         .unwrap();
 
     assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&expected_output)
+        String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n"),
+        String::from_utf8_lossy(&expected_output).replace("\r\n", "\n")
     );
 }
