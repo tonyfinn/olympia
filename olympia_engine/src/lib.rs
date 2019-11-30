@@ -3,15 +3,15 @@
 #[macro_use]
 extern crate alloc;
 
-pub mod gameboy;
 pub mod decoder;
+pub mod gameboy;
 mod instructions;
 mod registers;
 pub mod rom;
 mod types;
 
 #[cfg(feature = "disassembler")]
-mod disassembler;
+pub mod disassembler;
 
 #[cfg(test)]
 mod tests {

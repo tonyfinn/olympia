@@ -10,6 +10,7 @@ const SWITCHABLE_RAM: Range<u16> = 0xA000..0xBFFF;
 const ROM_BANK_SIZE: u16 = 0x4000;
 const RAM_BANK_SIZE: u16 = 0x2000;
 
+const TARGET_CONSOLE_LOCATION: usize = 0x143;
 const CARTRIDGE_TYPE_LOCATION: usize = 0x147;
 const RAM_SIZE_LOCATION: usize = 0x149;
 
@@ -22,6 +23,13 @@ pub enum CartridgeError {
     ExceedsCartridgeRam(u16),
     UnsupportedCartridgeType(u8),
     UnsupportedRamSize(u8),
+}
+
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+pub enum TargetConsole {
+    GameBoyOnly,
+    ColorEnhanced,
+    ColorOnly,
 }
 
 impl fmt::Display for CartridgeError {
@@ -57,6 +65,7 @@ pub type CartridgeResult<T> = Result<T, CartridgeError>;
 pub struct Cartridge {
     pub data: Vec<u8>,
     pub controller: CartridgeEnum,
+    pub target: TargetConsole,
 }
 
 impl Cartridge {
@@ -79,22 +88,27 @@ impl Cartridge {
     pub fn from_data(data: Vec<u8>) -> CartridgeResult<Cartridge> {
         let cartridge_type_id = data[CARTRIDGE_TYPE_LOCATION];
         let ram_size = lookup_ram_size(data[RAM_SIZE_LOCATION])?;
+        let target = lookup_target(data[TARGET_CONSOLE_LOCATION]);
         match cartridge_type_id {
             0 => Ok(Cartridge {
                 controller: StaticRom.into(),
                 data,
+                target,
             }),
             1 => Ok(Cartridge {
                 controller: MBC1::new(0, false).into(),
                 data,
+                target,
             }),
             2 | 3 => Ok(Cartridge {
                 controller: MBC1::new(ram_size, true).into(),
                 data,
+                target,
             }),
             5 | 6 => Ok(Cartridge {
                 controller: MBC2::default().into(),
                 data,
+                target,
             }),
             _ => Err(CartridgeError::UnsupportedCartridgeType(cartridge_type_id)),
         }
@@ -442,6 +456,14 @@ fn lookup_ram_size(ram_size_id: u8) -> CartridgeResult<usize> {
     }
 }
 
+fn lookup_target(target_id: u8) -> TargetConsole {
+    match target_id {
+        0xC0 => TargetConsole::ColorOnly,
+        0x80 => TargetConsole::ColorEnhanced,
+        _ => TargetConsole::GameBoyOnly,
+    }
+}
+
 /*pub struct MBC3 {
     selected_rom_bank: u8
 }*/
@@ -458,6 +480,7 @@ mod tests {
         rom_data[0x5500] = 0x23;
         let mut cartridge = Cartridge::from_data(rom_data).unwrap();
 
+        assert_eq!(cartridge.target, TargetConsole::GameBoyOnly);
         assert_eq!(cartridge.read(0x1234).unwrap(), 0x12);
         assert_eq!(cartridge.read(0x5500).unwrap(), 0x23);
         assert_eq!(cartridge.read(0xA111), Err(CartridgeError::NoCartridgeRam));
@@ -703,5 +726,25 @@ mod tests {
         cartridge.write(0x100, 0b10)?;
         assert_eq!(cartridge.read(0x4001).unwrap(), 0x99);
         Ok(())
+    }
+
+    #[test]
+    fn test_target_detection() {
+        let mut rom_data = vec![0x12; 512 * 1024];
+        rom_data[RAM_SIZE_LOCATION] = 0;
+        rom_data[CARTRIDGE_TYPE_LOCATION] = 6;
+        let cartridge = Cartridge::from_data(rom_data.clone()).unwrap();
+
+        assert_eq!(cartridge.target, TargetConsole::GameBoyOnly);
+
+        rom_data[TARGET_CONSOLE_LOCATION] = 0xC0;
+        let cartridge = Cartridge::from_data(rom_data.clone()).unwrap();
+
+        assert_eq!(cartridge.target, TargetConsole::ColorOnly);
+
+        rom_data[TARGET_CONSOLE_LOCATION] = 0x80;
+        let cartridge = Cartridge::from_data(rom_data.clone()).unwrap();
+
+        assert_eq!(cartridge.target, TargetConsole::ColorEnhanced);
     }
 }

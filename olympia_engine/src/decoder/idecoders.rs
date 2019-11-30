@@ -227,7 +227,7 @@ impl TwoByteOffsetDecoder for CalcStackOffset {
     }
 }
 
-pub(super) struct Extended;
+pub(crate) struct Extended;
 impl TwoByteDataDecoder for Extended {
     fn decode(&self, _opcode: u8, data: u8) -> DecodeResult<Instruction> {
         use instructions::Extended;

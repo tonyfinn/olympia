@@ -92,6 +92,24 @@ impl ByteRegister {
     }
 }
 
+pub enum Flag {
+    Zero,
+    AddSubtract,
+    HalfCarry,
+    Carry,
+}
+
+impl Flag {
+    pub fn bit(&self) -> u8 {
+        match self {
+            Flag::Zero => 7,
+            Flag::AddSubtract => 6,
+            Flag::HalfCarry => 5,
+            Flag::Carry => 4,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,5 +124,13 @@ mod tests {
         assert_eq!(ByteRegister::E.lookup_word_register(), WordRegister::DE);
         assert_eq!(ByteRegister::H.lookup_word_register(), WordRegister::HL);
         assert_eq!(ByteRegister::L.lookup_word_register(), WordRegister::HL);
+    }
+
+    #[test]
+    fn test_flag_bit() {
+        assert_eq!(Flag::Zero.bit(), 7);
+        assert_eq!(Flag::AddSubtract.bit(), 6);
+        assert_eq!(Flag::HalfCarry.bit(), 5);
+        assert_eq!(Flag::Carry.bit(), 4);
     }
 }

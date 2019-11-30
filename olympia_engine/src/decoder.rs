@@ -1,4 +1,4 @@
-mod idecoders;
+pub(crate) mod idecoders;
 
 use alloc::boxed::Box;
 #[cfg(feature = "disassembler")]
@@ -47,7 +47,7 @@ trait OneByteDecoder {
     fn decode(&self, opcode: u8) -> DecodeResult<Instruction>;
 }
 
-trait TwoByteDataDecoder {
+pub(crate) trait TwoByteDataDecoder {
     fn decode(&self, opcode: u8, data: u8) -> DecodeResult<Instruction>;
 }
 

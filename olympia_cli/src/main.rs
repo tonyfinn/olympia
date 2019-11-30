@@ -5,7 +5,9 @@ use std::io::prelude::*;
 use std::ops;
 use std::path::PathBuf;
 
+use olympia_engine::disassembler::Disassemble;
 use olympia_engine::gameboy::cpu;
+use olympia_engine::gameboy::GameBoyModel;
 use olympia_engine::rom;
 use structopt::StructOpt;
 
@@ -211,9 +213,21 @@ enum DebugCommand {
         #[structopt(parse(try_from_str = parse_range))]
         range: ByteRange,
     },
+    /// Print cycles since emulator startup (alias cc)
+    #[structopt(no_version, alias = "cc")]
+    CycleCount,
     /// Prints out all registers (alias: pr)
     #[structopt(no_version, alias = "pr")]
     PrintRegisters,
+    /// Steps the CPU by a specified number of cycles (alias: s)
+    #[structopt(no_version, alias = "s")]
+    Step {
+        #[structopt(default_value = "1")]
+        steps: u16,
+    },
+    /// Print current instruction disassembly (alias ci)
+    #[structopt(no_version, alias = "ci")]
+    Current,
     /// Exit out of this debugging session.
     #[structopt(no_version)]
     Exit,
@@ -282,7 +296,7 @@ fn print_bytes(cpu: &cpu::GameBoy, range: ByteRange, out: &mut dyn io::Write) ->
 fn print_registers(cpu: &cpu::GameBoy, out: &mut dyn io::Write) -> io::Result<()> {
     writeln!(
         out,
-        "A: {:02X}, F: {:02X}, AF: {:04X}",
+        "A: {:02X}, F: {:02x}, AF: {:04X}",
         cpu.read_register_u8(cpu::ByteRegister::A),
         cpu.read_register_u8(cpu::ByteRegister::F),
         cpu.read_register_u16(cpu::WordRegister::AF)
@@ -314,11 +328,20 @@ fn print_registers(cpu: &cpu::GameBoy, out: &mut dyn io::Write) -> io::Result<()
         cpu.read_register_u16(cpu::WordRegister::SP),
         cpu.read_register_u16(cpu::WordRegister::PC)
     )?;
+    let flags_register = cpu.read_register_u8(cpu::ByteRegister::F);
+    writeln!(
+        out,
+        "Flags - Zero: {}, AddSubtract: {}, HalfCarry: {}, Carry: {}",
+        flags_register & 0x80 == 0,
+        flags_register & 0x40 == 0,
+        flags_register & 0x20 == 0,
+        flags_register & 0x10 == 0
+    )?;
     Ok(())
 }
 
 fn debug(
-    gb: cpu::GameBoy,
+    mut gb: cpu::GameBoy,
     in_: &mut dyn io::Read,
     out: &mut dyn io::Write,
     err: &mut dyn io::Write,
@@ -364,6 +387,22 @@ fn debug(
                     Err(e) => writeln!(err, "{}", e)?,
                 };
             }
+            Ok(DebugCommand::Step { steps }) => {
+                for _ in 0..steps {
+                    match gb.step() {
+                        Ok(_) => (),
+                        Err(e) => writeln!(err, "{:?}", e)?,
+                    }
+                }
+            }
+            Ok(DebugCommand::CycleCount) => {
+                let cycles = gb.clocks_elapsed();
+                writeln!(out, "Cycles: {} / M-Cycles: {}", cycles, cycles / 4)?;
+            }
+            Ok(DebugCommand::Current) => {
+                let disassembly = gb.current_instruction().unwrap().disassemble();
+                writeln!(out, "{}", disassembly)?;
+            }
             Err(clap::Error {
                 kind: clap::ErrorKind::HelpDisplayed,
                 message,
@@ -404,7 +443,7 @@ fn debug(
 }
 
 #[cfg(unix)]
-fn is_tty()->  bool {
+fn is_tty() -> bool {
     use std::os::unix::fs::FileTypeExt;
     let pid = std::process::id();
     let fd_path = format!("/proc/{}/fd/0", pid);
@@ -444,7 +483,7 @@ fn main() -> OlympiaResult<()> {
             print_rom_info(parse_cartridge(&rom)?, &mut io::stdout())?
         }
         OlympiaCommand::Debug { rom } => debug(
-            cpu::GameBoy::new(parse_cartridge(&rom)?),
+            cpu::GameBoy::new(parse_cartridge(&rom)?, GameBoyModel::GameBoy),
             &mut io::stdin(),
             &mut io::stdout(),
             err.as_mut(),
@@ -461,8 +500,9 @@ pub mod test {
         let cartridge = rom::Cartridge {
             data: vec![0xF1u8; 0x8000],
             controller: rom::MBC2::default().into(),
+            target: rom::TargetConsole::GameBoyOnly,
         };
-        cpu::GameBoy::new(cartridge)
+        cpu::GameBoy::new(cartridge, GameBoyModel::GameBoy)
     }
 
     #[test]
@@ -493,7 +533,8 @@ pub mod test {
             "B: 22, C: 44, BC: 2244",
             "D: 32, E: 54, DE: 3254",
             "H: 42, L: 64, HL: 4264",
-            "SP: 6274, PC: 5264\n",
+            "SP: 6274, PC: 5264",
+            "Flags - Zero: true, AddSubtract: true, HalfCarry: false, Carry: false\n",
         ]
         .join("\n");
 

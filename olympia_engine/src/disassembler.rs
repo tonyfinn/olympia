@@ -3,7 +3,7 @@ use alloc::string::{String, ToString};
 use crate::instructions::{ALOp, Condition};
 use crate::{instructions, registers, types};
 
-pub(crate) trait Disassemble {
+pub trait Disassemble {
     fn disassemble(&self) -> String;
 }
 
