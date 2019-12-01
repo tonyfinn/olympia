@@ -178,12 +178,12 @@ impl Disassemble for instructions::Extended {
             ext::RotateMemory(Right, Carry) => "RRC (HL)".into(),
             ext::RotateMemory(Left, NoCarry) => "RL (HL)".into(),
             ext::RotateMemory(Right, NoCarry) => "RR (HL)".into(),
-            ext::ShiftHigh(Left, reg) => format!("SLA {}", reg.disassemble()),
-            ext::ShiftHigh(Right, reg) => format!("SRA {}", reg.disassemble()),
-            ext::ShiftMemoryHigh(Left) => "SLA (HL)".into(),
-            ext::ShiftMemoryHigh(Right) => "SRA (HL)".into(),
-            ext::ShiftRightZero(reg) => format!("SRL {}", reg.disassemble()),
-            ext::ShiftMemoryRightZero => "SRL (HL)".into(),
+            ext::ShiftZero(Left, reg) => format!("SLA {}", reg.disassemble()),
+            ext::ShiftZero(Right, reg) => format!("SRL {}", reg.disassemble()),
+            ext::ShiftMemoryZero(Left) => "SLA (HL)".into(),
+            ext::ShiftMemoryZero(Right) => "SRL (HL)".into(),
+            ext::ShiftRightExtend(reg) => format!("SRA {}", reg.disassemble()),
+            ext::ShiftMemoryRightExtend => "SRA (HL)".into(),
             ext::Swap(reg) => format!("SWAP {}", reg.disassemble()),
             ext::SwapMemory => "SWAP (HL)".into(),
             ext::TestBit(bit, reg) => format!("BIT {}, {}", bit, reg.disassemble()),
@@ -466,12 +466,12 @@ mod test {
         use instructions::RotateDirection as r;
         use registers::ByteRegister as b;
 
-        assert_dissembly(ext::ShiftHigh(r::Left, b::L), "SLA L");
-        assert_dissembly(ext::ShiftHigh(r::Right, b::A), "SRA A");
-        assert_dissembly(ext::ShiftMemoryHigh(r::Left), "SLA (HL)");
-        assert_dissembly(ext::ShiftMemoryHigh(r::Right), "SRA (HL)");
-        assert_dissembly(ext::ShiftRightZero(b::B), "SRL B");
-        assert_dissembly(ext::ShiftMemoryRightZero, "SRL (HL)");
+        assert_dissembly(ext::ShiftZero(r::Left, b::L), "SLA L");
+        assert_dissembly(ext::ShiftZero(r::Right, b::A), "SRL A");
+        assert_dissembly(ext::ShiftMemoryZero(r::Left), "SLA (HL)");
+        assert_dissembly(ext::ShiftMemoryZero(r::Right), "SRL (HL)");
+        assert_dissembly(ext::ShiftRightExtend(b::B), "SRA B");
+        assert_dissembly(ext::ShiftMemoryRightExtend, "SRA (HL)");
     }
 
     #[test]

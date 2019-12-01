@@ -263,13 +263,15 @@ impl TwoByteDataDecoder for Extended {
             let extended = match (reglookup, op, direction) {
                 (Memory, 0b00, dir) => Extended::RotateMemory(dir, Carry),
                 (Memory, 0b01, dir) => Extended::RotateMemory(dir, NoCarry),
-                (Memory, 0b10, dir) => Extended::ShiftMemoryHigh(dir),
-                (Memory, 0b11, Right) => Extended::ShiftMemoryRightZero,
+                (Memory, 0b10, Left) => Extended::ShiftMemoryZero(Left),
+                (Memory, 0b10, Right) => Extended::ShiftMemoryRightExtend,
+                (Memory, 0b11, Right) => Extended::ShiftMemoryZero(Right),
                 (Memory, 0b11, Left) => Extended::SwapMemory,
                 (Register(reg), 0b00, dir) => Extended::Rotate(dir, Carry, reg),
                 (Register(reg), 0b01, dir) => Extended::Rotate(dir, NoCarry, reg),
-                (Register(reg), 0b10, dir) => Extended::ShiftHigh(dir, reg),
-                (Register(reg), 0b11, Right) => Extended::ShiftRightZero(reg),
+                (Register(reg), 0b10, Left) => Extended::ShiftZero(Left, reg),
+                (Register(reg), 0b10, Right) => Extended::ShiftRightExtend(reg),
+                (Register(reg), 0b11, Right) => Extended::ShiftZero(Right, reg),
                 (Register(reg), 0b11, Left) => Extended::Swap(reg),
                 _ => panic!("Invalid bit pattern"),
             };
@@ -603,28 +605,28 @@ mod test {
 
         assert_eq!(
             idecoder.decode(0xCB, 0x21),
-            Ok(Extended::ShiftHigh(Left, b::C).into())
+            Ok(Extended::ShiftZero(Left, b::C).into())
         );
         assert_eq!(
             idecoder.decode(0xCB, 0x2F),
-            Ok(Extended::ShiftHigh(Right, b::A).into())
+            Ok(Extended::ShiftRightExtend(b::A).into())
         );
         assert_eq!(
             idecoder.decode(0xCB, 0x3B),
-            Ok(Extended::ShiftRightZero(b::E).into())
+            Ok(Extended::ShiftZero(Right, b::E).into())
         );
 
         assert_eq!(
             idecoder.decode(0xCB, 0x26),
-            Ok(Extended::ShiftMemoryHigh(Left).into())
+            Ok(Extended::ShiftMemoryZero(Left).into())
         );
         assert_eq!(
             idecoder.decode(0xCB, 0x2E),
-            Ok(Extended::ShiftMemoryHigh(Right).into())
+            Ok(Extended::ShiftMemoryRightExtend.into())
         );
         assert_eq!(
             idecoder.decode(0xCB, 0x3E),
-            Ok(Extended::ShiftMemoryRightZero.into())
+            Ok(Extended::ShiftMemoryZero(Right).into())
         );
     }
 

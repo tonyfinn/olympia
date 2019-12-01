@@ -319,6 +319,13 @@ impl GameBoy {
                 self.write_register_u8(dest, value);
                 self.cycle();
             }
+            Load::ConstantMemory(_) => {
+                let val = self.exec_read_inc_pc()?;
+                let addr = self.hl_register;
+                self.write_memory_u8(addr, val)?;
+                self.cycle();
+                self.cycle();
+            }
             _ => return Err(StepError::Unimplemented(instr.into())),
         }
 
@@ -456,7 +463,8 @@ impl GameBoy {
                 self.set_flag_to(registers::Flag::Zero, new == 0);
                 self.set_flag_to(registers::Flag::Carry, carry);
                 self.reset_flag(registers::Flag::AddSubtract);
-                let has_half_carry = (((current_value & 0x0FFF) + (value_to_add & 0x0FFF)) & 0xF000) != 0;
+                let has_half_carry =
+                    (((current_value & 0x0FFF) + (value_to_add & 0x0FFF)) & 0xF000) != 0;
                 self.set_flag_to(registers::Flag::HalfCarry, has_half_carry);
                 self.write_register_u16(registers::WordRegister::HL, new);
                 self.cycle();
@@ -594,9 +602,12 @@ impl GameBoy {
         }
     }
 
-    fn exec_extended(&mut self, instr: instructions::Extended) -> StepResult<()> {
+    fn exec_extended(&mut self, _instr: instructions::Extended) -> StepResult<()> {
         use decoder::{idecoders, TwoByteDataDecoder};
+        use instructions::Carry::Carry;
         use instructions::Extended;
+        use instructions::RotateDirection::{Left, Right};
+        use registers::WordRegister as wr;
         let data_byte = self.exec_read_inc_pc()?;
         let actual_instruction = idecoders::Extended.decode(0xCB, data_byte).unwrap();
         let ext = match actual_instruction {
@@ -611,7 +622,174 @@ impl GameBoy {
                 self.cycle();
                 Ok(())
             }
-            _ => Err(StepError::Unimplemented(instr.into())),
+            Extended::SetMemoryBit(bit) => {
+                let addr = self.read_register_u16(wr::HL);
+                self.cycle();
+                let val = self.read_memory_u8(addr)?;
+                self.cycle();
+                let new_val = val | (1 << bit);
+                self.write_memory_u8(addr, new_val)?;
+                self.cycle();
+                Ok(())
+            }
+            Extended::ResetBit(bit, reg) => {
+                let val = self.read_register_u8(reg);
+                let new_val = val & !(1 << bit);
+                self.write_register_u8(reg, new_val);
+                self.cycle();
+                Ok(())
+            }
+            Extended::ResetMemoryBit(bit) => {
+                let addr = self.read_register_u16(wr::HL);
+                self.cycle();
+                let val = self.read_memory_u8(addr)?;
+                self.cycle();
+                let new_val = val & !(1 << bit);
+                self.write_memory_u8(addr, new_val)?;
+                self.cycle();
+                Ok(())
+            }
+            Extended::TestBit(bit, reg) => {
+                let val = self.read_register_u8(reg);
+                let bit_test = val & (1 << bit);
+                self.set_flag_to(registers::Flag::Zero, bit_test == 0);
+                self.set_flag(registers::Flag::HalfCarry);
+                self.set_flag_to(registers::Flag::AddSubtract, false);
+                self.cycle();
+                Ok(())
+            }
+            Extended::TestMemoryBit(bit) => {
+                let addr = self.read_register_u16(wr::HL);
+                self.cycle();
+                let val = self.read_memory_u8(addr)?;
+                self.cycle();
+                let bit_test = val & (1 << bit);
+                self.set_flag_to(registers::Flag::Zero, bit_test == 0);
+                self.set_flag(registers::Flag::HalfCarry);
+                self.set_flag_to(registers::Flag::AddSubtract, false);
+
+                Ok(())
+            }
+            Extended::Rotate(dir, carry, reg) => {
+                let current_value = self.read_register_u8(reg);
+                let high_byte = if carry != Carry {
+                    if self.read_flag(registers::Flag::Carry) {
+                        0x81
+                    } else {
+                        0x00
+                    }
+                } else {
+                    current_value
+                };
+                let value_to_rotate = u16::from_le_bytes([current_value, high_byte]);
+                let (rotated, carry) = if dir == Left {
+                    let rotated = value_to_rotate.rotate_left(1);
+                    (rotated.to_le_bytes()[0], (rotated & 0x0100) != 0)
+                } else {
+                    let rotated = value_to_rotate.rotate_right(1);
+                    (rotated.to_le_bytes()[0], (rotated & 0x8000) != 0)
+                };
+                self.write_register_u8(reg, rotated);
+                self.set_flag_to(registers::Flag::Carry, carry);
+                self.cycle();
+                Ok(())
+            }
+            Extended::RotateMemory(dir, carry) => {
+                let addr = self.read_register_u16(wr::HL);
+                self.cycle();
+                let current_value = self.read_memory_u8(addr)?;
+                self.cycle();
+                let high_byte = if carry != Carry {
+                    if self.read_flag(registers::Flag::Carry) {
+                        0x81
+                    } else {
+                        0x00
+                    }
+                } else {
+                    current_value
+                };
+                let value_to_rotate = u16::from_le_bytes([current_value, high_byte]);
+                let (rotated, carry) = if dir == Left {
+                    let rotated = value_to_rotate.rotate_left(1);
+                    (rotated.to_le_bytes()[0], (rotated & 0x0100) != 0)
+                } else {
+                    let rotated = value_to_rotate.rotate_right(1);
+                    (rotated.to_le_bytes()[0], (rotated & 0x8000) != 0)
+                };
+                self.write_memory_u8(addr, rotated)?;
+                self.set_flag_to(registers::Flag::Carry, carry);
+                self.cycle();
+                Ok(())
+            }
+            Extended::Swap(reg) => {
+                let value = self.read_register_u8(reg);
+                let low_nibble = value & 0x0F;
+                let high_nibble = value & 0xF0;
+                let new_value = (low_nibble.rotate_left(4)) + (high_nibble.rotate_right(4));
+                self.write_register_u8(reg, new_value);
+                self.cycle();
+                Ok(())
+            }
+            Extended::SwapMemory => {
+                let addr = self.read_register_u16(registers::WordRegister::HL);
+                self.cycle();
+                let value = self.read_memory_u8(addr)?;
+                let low_nibble = value & 0x0F;
+                let high_nibble = value & 0xF0;
+                let new_value = (low_nibble.rotate_left(4)) + (high_nibble.rotate_right(4));
+                self.cycle();
+                self.write_memory_u8(addr, new_value)?;
+                self.cycle();
+                Ok(())
+            }
+            Extended::ShiftZero(dir, reg) => {
+                let value = self.read_register_u8(reg);
+                let (shifted_value, carry) = match dir {
+                    Left => (value << 1, value & 0x80 != 0),
+                    Right => (value >> 1, value & 0x01 != 0),
+                };
+                self.set_flag_to(registers::Flag::Carry, carry);
+                self.write_register_u8(reg, shifted_value);
+                self.cycle();
+                Ok(())
+            }
+            Extended::ShiftRightExtend(reg) => {
+                let value = self.read_register_u8(reg);
+                let value16 = u16::from(value);
+                let extra_bit = (value16 << 1) & 0xff00;
+                let shifted_value = (extra_bit + value16) >> 1;
+                let actual_byte = shifted_value.to_le_bytes()[0];
+                self.write_register_u8(reg, actual_byte);
+                self.cycle();
+                Ok(())
+            }
+            Extended::ShiftMemoryRightExtend => {
+                let addr = self.read_register_u16(registers::WordRegister::HL);
+                self.cycle();
+                let value = self.read_memory_u8(addr)?;
+                self.cycle();
+                let value16 = u16::from(value);
+                let extra_bit = (value16 << 1) & 0xff00;
+                let shifted_value = (extra_bit + value16) >> 1;
+                let actual_byte = shifted_value.to_le_bytes()[0];
+                self.write_memory_u8(addr, actual_byte)?;
+                self.cycle();
+                Ok(())
+            }
+            Extended::ShiftMemoryZero(dir) => {
+                let addr = self.read_register_u16(registers::WordRegister::HL);
+                self.cycle();
+                let value = self.read_memory_u8(addr)?;
+                let (shifted_value, carry) = match dir {
+                    Left => (value << 1, value & 0x80 != 0),
+                    Right => (value >> 1, value & 0x01 != 0),
+                };
+                self.set_flag_to(registers::Flag::Carry, carry);
+                self.cycle();
+                self.write_memory_u8(addr, shifted_value)?;
+                self.cycle();
+                Ok(())
+            }
         }
     }
 
@@ -672,24 +850,39 @@ impl GameBoy {
 }
 
 #[cfg(test)]
-mod tests {
+mod alu_tests;
+
+#[cfg(test)]
+mod extended_opcode_tests;
+
+#[cfg(test)]
+mod jump_tests;
+
+#[cfg(test)]
+mod load_tests;
+
+#[cfg(test)]
+mod stack_tests;
+
+#[cfg(test)]
+pub(crate) mod testutils {
     use super::*;
     use crate::gameboy;
 
-    const PROGRAM_START: u16 = 0x200;
-    const PROG_MEMORY_OFFSET: usize = 0x200;
+    pub const PROGRAM_START: u16 = 0x200;
+    pub const PROG_MEMORY_OFFSET: usize = 0x200;
 
-    fn make_cartridge() -> rom::Cartridge {
+    pub fn make_cartridge() -> rom::Cartridge {
         rom::Cartridge::from_data(vec![0u8; 0x8000]).unwrap()
     }
 
-    fn make_cartridge_with(program: &[u8]) -> rom::Cartridge {
+    pub fn make_cartridge_with(program: &[u8]) -> rom::Cartridge {
         let mut data = vec![0u8; 0x8000];
         data[PROG_MEMORY_OFFSET..PROG_MEMORY_OFFSET + program.len()].clone_from_slice(program);
         rom::Cartridge::from_data(data).unwrap()
     }
 
-    fn run_program(steps: u64, program: &[u8]) -> StepResult<GameBoy> {
+    pub fn run_program(steps: u64, program: &[u8]) -> StepResult<GameBoy> {
         let cartridge = make_cartridge_with(program);
         let mut gb = GameBoy::new(cartridge, gameboy::GameBoyModel::GameBoy);
         gb.write_register_u16(registers::WordRegister::PC, PROGRAM_START);
@@ -698,6 +891,13 @@ mod tests {
         }
         Ok(gb)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::testutils::*;
+    use super::*;
+    use crate::gameboy;
 
     #[test]
     fn test_reg_write_u8_read_u8() {
@@ -883,607 +1083,6 @@ mod tests {
     }
 
     #[test]
-    fn test_loads() -> StepResult<()> {
-        let gb = run_program(
-            6,
-            &[
-                0x26, 0x80, // LD H, 0x80 - 8 clocks
-                0x2E, 0x00, // LD L, 0x00 - 8 clocks
-                0x06, 0x25, // LD B, 0x25 - 8 clocks
-                0x50, // LD D, B - 4 clocks
-                0x72, // LD (HL), D - 8 clocks
-                0x5E, // LD E, (HL) - 8 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::B), 0x25);
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::D), 0x25);
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::E), 0x25);
-        assert_eq!(gb.read_memory_u8(0x8000)?, 0x25);
-        assert_eq!(gb.clocks_elapsed(), 44);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_add_no_carry() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x05, // LD B, 0x05 - 8 clocks
-                0x80, // ADD A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_add_half_carry() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x0F, // LD A, 0xFA - 8 clocks
-                0x06, 0x01, // LD B, 0x05 - 8 clocks
-                0x80, // ADD A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x10);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_add_causes_carry_zero() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x06, // LD B, 0x06 - 8 clocks
-                0x80, // ADD A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_add_causes_carry_nonzero() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x07, // LD B, 0x07 - 8 clocks
-                0x80, // ADD A, B
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x01);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_sub_no_carry() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x06, // LD A, 0x06 - 8 clocks
-                0x06, 0x05, // LD B, 0x05 - 8 clocks
-                0x90, // SUB A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x01);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_sub_half_carry() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x10, // LD A, 0x06 - 8 clocks
-                0x06, 0x01, // LD B, 0x05 - 8 clocks
-                0x90, // SUB A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0F);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_sub_causes_zero() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x06, // LD A, 0x06 - 8 clocks
-                0x06, 0x06, // LD B, 0x06 - 8 clocks
-                0x90, // SUB A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_sub_causes_carry() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x06, // LD A, 0xFA - 8 clocks
-                0x06, 0x07, // LD B, 0x07 - 8 clocks
-                0x90, // SUB A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_adc_no_carry() -> StepResult<()> {
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x04, // LD B, 0x04 - 8 clocks
-                0x3F, // CCF - 4 clocks
-                0x88, // ADC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFE);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x04, // LD B, 0x04 - 8 clocks
-                0x37, // SCF - 4 clocks
-                0x88, // ADC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_adc_causes_carry_zero() -> StepResult<()> {
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x06, // LD B, 0x06 - 8 clocks
-                0x3F, // CCF - 4 clocks
-                0x88, // ADC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x05, // LD B, 0x05 - 8 clocks
-                0x37, // SCF - 4 clocks
-                0x88, // ADC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_adc_causes_carry_nonzero() -> StepResult<()> {
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x07, // LD B, 0x07 - 8 clocks
-                0x3F, // CCF - 4 clocks
-                0x88, // ADC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x01);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x06, // LD B, 0x06 - 8 clocks
-                0x37, // SCF - 4 clocks
-                0x88, // ADC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x01);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_sbc_no_carry() -> StepResult<()> {
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x04, // LD B, 0x04 - 8 clocks
-                0x3F, // CCF - 4 clocks
-                0x98, // SBC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xF6);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0x04, // LD B, 0x04 - 8 clocks
-                0x37, // SCF - 4 clocks
-                0x98, // SBC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xF5);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_sbc_zero() -> StepResult<()> {
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0xFA, // LD B, 0xFA - 8 clocks
-                0x3F, // CCF - 4 clocks
-                0x98, // SBC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0xF9, // LD B, 0xF9 - 8 clocks
-                0x37, // SCF - 4 clocks
-                0x98, // SBC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_sbc_carry() -> StepResult<()> {
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0xFB, // LD B, 0xFB - 8 clocks
-                0x3F, // CCF - 4 clocks
-                0x98, // SBC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        let gb = run_program(
-            4,
-            &[
-                0x3E, 0xFA, // LD A, 0xFA - 8 clocks
-                0x06, 0xFA, // LD B, 0xFA - 8 clocks
-                0x37, // SCF - 4 clocks
-                0x98, // SBC A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_and() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x06, // LD A, 0x06 - 8 clocks
-                0x06, 0x05, // LD B, 0x05 - 8 clocks
-                0xA0, // AND A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x06 & 0x05);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x06, // LD A, 0x06 - 8 clocks
-                0x06, 0x10, // LD B, 0x05 - 8 clocks
-                0xA0, // AND A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_or() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x06, // LD A, 0x06 - 8 clocks
-                0x06, 0x05, // LD B, 0x05 - 8 clocks
-                0xB0, // OR A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x07);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x00, // LD A, 0x06 - 8 clocks
-                0x06, 0x00, // LD B, 0x05 - 8 clocks
-                0xB0, // OR A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_xor() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x0C, // LD A, 0x0C - 8 clocks
-                0x06, 0x0F, // LD B, 0x0F - 8 clocks
-                0xA8, // XOR A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x03);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x0F, // LD A, 0x06 - 8 clocks
-                0x06, 0x0F, // LD B, 0x05 - 8 clocks
-                0xA8, // XOR A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_cp_greater() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x0C, // LD A, 0x0C - 8 clocks
-                0x06, 0x0F, // LD B, 0x0F - 8 clocks
-                0xB8, // CP A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0C);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_cp_equal() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x0C, // LD A, 0x06 - 8 clocks
-                0x06, 0x0C, // LD B, 0x05 - 8 clocks
-                0xB8, // CP A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0C);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_cp_less() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x3E, 0x0C, // LD A, 0x06 - 8 clocks
-                0x06, 0x08, // LD B, 0x05 - 8 clocks
-                0xB8, // CP A, B - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0C);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_stack() -> StepResult<()> {
-        let gb = run_program(
-            7,
-            &[
-                0x06, 0x05, // LD B, 0x05 - 8 clocks
-                0x0E, 0x08, // LD C, 0x08 - 8 clocks
-                0xC5, // PUSH BC - 16 blocks
-                0xC5, // PUSH BC - 16 blocks
-                0xC5, // PUSH BC - 16 blocks
-                0xD1, // POP DE - 12 blocks
-                0xE1, // POP HL - 12 blocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::DE), 0x0508);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x0508);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFC);
-        assert_eq!(gb.read_memory_u16(0xFFFA)?, 0x0508);
-        assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0508);
-        assert_eq!(gb.read_memory_u16(0xFFF8)?, 0x0508);
-        assert_eq!(gb.clocks_elapsed(), 88);
-
-        Ok(())
-    }
-
-    #[test]
     fn test_nop() -> StepResult<()> {
         let gb = run_program(
             1,
@@ -1493,558 +1092,6 @@ mod tests {
         )?;
 
         assert_eq!(gb.clocks_elapsed(), 4);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_jump() -> StepResult<()> {
-        let gb = run_program(
-            1,
-            &[
-                0xC3, 0x13, 0x20, // JP 0x2013 - 16 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
-        assert_eq!(gb.clocks_elapsed(), 16);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_jump_if_carry() -> StepResult<()> {
-        let gb = run_program(
-            2,
-            &[
-                0x37, // SCF - 4 clocks
-                0xDA, 0x13, 0x20, // JP C, 0x2013 - 16/12 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        let gb = run_program(
-            2,
-            &[
-                0x3F, // CCF - 4 clocks
-                0xDA, 0x13, 0x20, // JP C, 0x2013 - 16/12 clocks
-            ],
-        )?;
-
-        assert_eq!(
-            gb.read_register_u16(registers::WordRegister::PC),
-            PROGRAM_START + 4
-        );
-        assert_eq!(gb.clocks_elapsed(), 16);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_jump_if_nocarry() -> StepResult<()> {
-        let gb = run_program(
-            2,
-            &[
-                0x37, // SCF - 4 clocks
-                0xD2, 0x13, 0x20, // JP C, 0x2013 - 16/12 clocks
-            ],
-        )?;
-
-        assert_eq!(
-            gb.read_register_u16(registers::WordRegister::PC),
-            PROGRAM_START + 4
-        );
-        assert_eq!(gb.clocks_elapsed(), 16);
-
-        let gb = run_program(
-            2,
-            &[
-                0x3F, // CCF - 4 clocks
-                0xD2, 0x13, 0x20, // JP C, 0x2013 - 16/12 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_jump_if_zero() -> StepResult<()> {
-        let gb = run_program(
-            2,
-            &[
-                0xBF, // CP A - 4 clocks (set zero flag)
-                0xCA, 0x13, 0x20, // JP Z, 0x2013 - 16/12 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        let gb = run_program(
-            2,
-            &[
-                0xC6, 1, // ADD A, 1 - 8 clocks (clear zero flag)
-                0xCA, 0x13, 0x20, // JP Z, 0x2013 - 16/12 clocks
-            ],
-        )?;
-
-        assert_eq!(
-            gb.read_register_u16(registers::WordRegister::PC),
-            PROGRAM_START + 5
-        );
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_jump_if_nonzero() -> StepResult<()> {
-        let gb = run_program(
-            2,
-            &[
-                0xBF, // CP A - 4 clocks (set zero flag)
-                0xC2, 0x13, 0x20, // JP NZ, 0x2013 - 16/12 clocks
-            ],
-        )?;
-
-        assert_eq!(
-            gb.read_register_u16(registers::WordRegister::PC),
-            PROGRAM_START + 4
-        );
-        assert_eq!(gb.clocks_elapsed(), 16);
-
-        let gb = run_program(
-            2,
-            &[
-                0xC6, 1, // ADD A, 1 - 8 clocks (clear zero flag)
-                0xC2, 0x13, 0x20, // JP NZ, 0x2013 - 16/12 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_register_jump() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x26, 0x20, // LD H, 0x20 - 8 clocks
-                0x2E, 0x31, // LD L, 0x31 - 8 blocks
-                0xE9, // JP HL - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2031);
-        assert_eq!(gb.clocks_elapsed(), 20);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_relative_jump() -> StepResult<()> {
-        let gb = run_program(
-            1,
-            &[
-                0x18,
-                (-4i8).to_le_bytes()[0], // JR -4 - 12 clocks
-            ],
-        )?;
-
-        assert_eq!(
-            gb.read_register_u16(registers::WordRegister::PC),
-            PROGRAM_START - 2
-        );
-        assert_eq!(gb.clocks_elapsed(), 12);
-
-        let gb = run_program(
-            1,
-            &[
-                0x18,
-                (4i8).to_le_bytes()[0], // JR -4 - 12 clocks
-            ],
-        )?;
-
-        assert_eq!(
-            gb.read_register_u16(registers::WordRegister::PC),
-            PROGRAM_START + 6
-        );
-        assert_eq!(gb.clocks_elapsed(), 12);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_relative_jump_if() -> StepResult<()> {
-        let gb = run_program(
-            4,
-            &[
-                0x37, // SCF - 4 blocks
-                0x38, 0x02, // JR C, 5 - 12/8 clocks
-                0x76, // HALT
-                0x30, 0x02, // JR NC, 2 - 12/8 clocks
-                0x06, 0x12, // LD B, 0x12 - 8 clocks
-                0x00, 0x76, // HALT
-            ], // Expected path is SCF - JR C, 5 (jumps) - JR NC, 2 (no jump) - LD B, 0x12
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::B), 0x12);
-        assert_eq!(
-            gb.read_register_u16(registers::WordRegister::PC),
-            PROGRAM_START + 8
-        );
-        assert_eq!(gb.clocks_elapsed(), 32);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_relative_jump_backwards() -> StepResult<()> {
-        let gb = run_program(
-            4,
-            &[
-                0x18, 0x03, // JR 3 - 12 clocks
-                0x76, // HALT
-                0x06, 0x12, // LD B, 0x12 - 8 clocks
-                0x37, // SCF - 4 clocks
-                0x38, 0xFB, // JR C, -5 - 12/8 clocks
-            ], // Expected path is JR 3, SCF, JR C, -2 (jumps), LD B, 0x12
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::B), 0x12);
-        assert_eq!(
-            gb.read_register_u16(registers::WordRegister::PC),
-            PROGRAM_START + 5
-        );
-        assert_eq!(gb.clocks_elapsed(), 36);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_call() -> StepResult<()> {
-        let gb = run_program(
-            1,
-            &[
-                0xCD, 0x20, 0x30, // CALL 0x3020 - 24 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x3020);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFC);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_call_system() -> StepResult<()> {
-        let gb = run_program(
-            1,
-            &[
-                0xCF, // RST 0x08 - 16 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0201);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x08);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFC);
-        assert_eq!(gb.clocks_elapsed(), 16);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_return() -> StepResult<()> {
-        let gb = run_program(
-            2,
-            &[
-                0xCD, 0x06, 0x02, // CALL 0x206 - 24 clocks
-                0x00, 0x00, 0x00, // NOP, NOP, NOP
-                0xC9, // RET - 16 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x203);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFE);
-        assert_eq!(gb.clocks_elapsed(), 40);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_return_if() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0xCD, 0x06, 0x02, // CALL 0x206 - 24 clocks
-                0x00, 0x00, 0x00, // NOP, NOP, NOP
-                0x37, // SCF - 4 clocks
-                0xD8, // RET C -  20/8 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFE);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x203);
-        assert_eq!(gb.clocks_elapsed(), 48);
-
-        let gb = run_program(
-            3,
-            &[
-                0xCD, 0x06, 0x02, // CALL 0x206 - 24 clocks
-                0x00, 0x00, 0x00, // NOP, NOP, NOP
-                0x3F, // CCF - 4 clocks
-                0xD8, // RET C -  20/8 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFC);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x208);
-        assert_eq!(gb.clocks_elapsed(), 36);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_call_if() -> StepResult<()> {
-        let gb = run_program(
-            2,
-            &[
-                0x37, // SCF - 4 clocks
-                0xDC, 0x20, 0x30, // CALL C, 0x3020 - 24/12 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0204);
-        assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x3020);
-        assert_eq!(gb.clocks_elapsed(), 28);
-
-        let gb = run_program(
-            2,
-            &[
-                0x3F, // CCF - 4 clocks
-                0xDC, 0x20, 0x30, // CALL C, 0x3020 - 24/12 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0000);
-        assert_eq!(
-            gb.read_register_u16(registers::WordRegister::PC),
-            PROGRAM_START + 4
-        );
-        assert_eq!(gb.clocks_elapsed(), 16);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_set_bit() -> StepResult<()> {
-        let gb = run_program(
-            2,
-            &[
-                0x2E, 0x00, // LD L, 0x00 - 8 clocks
-                0xCB, 0xFD, // BIT 7, L - 8 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0x80);
-        assert_eq!(gb.clocks_elapsed(), 16);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_increment_8() -> StepResult<()> {
-        let gb = run_program(
-            2,
-            &[
-                0x2E, 0xFE, // LD L, 0x00 - 8 clocks
-                0x2C, // INC L - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0xFF);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 12);
-
-        let gb = run_program(
-            2,
-            &[
-                0x2E, 0xFF, // LD L, 0x00 - 8 clocks
-                0x2C, // INC L - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0x00);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 12);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_decrement_8() -> StepResult<()> {
-        let gb = run_program(
-            2,
-            &[
-                0x2E, 0x02, // LD L, 0x00 - 8 clocks
-                0x2D, // DEC L - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0x01);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 12);
-
-        let gb = run_program(
-            2,
-            &[
-                0x2E, 0x01, // LD L, 0x00 - 8 clocks
-                0x2D, // DEC L - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0x00);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 12);
-
-        let gb = run_program(
-            2,
-            &[
-                0x2E, 0x00, // LD L, 0x00 - 8 clocks
-                0x2D, // DEC L - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0xFF);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
-        assert_eq!(gb.clocks_elapsed(), 12);
-
-        Ok(())
-    }
-
-
-    #[test]
-    fn test_increment_16() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x26, 0x01, // LD H, 0x01 - 8 blocks
-                0x2E, 0xFF, // LD L, 0xFF - 8 clocks
-                0x23, // INC HL - 8 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x200);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_decrement_16() -> StepResult<()> {
-        let gb = run_program(
-            3,
-            &[
-                0x26, 0x01, // LD H, 0x01 - 8 blocks
-                0x2E, 0x00, // LD L, 0xFF - 8 clocks
-                0x2B, // DEC HL - 8 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0xFF);
-        assert_eq!(gb.clocks_elapsed(), 24);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_add_16() -> StepResult<()> {
-        let gb = run_program(
-            5,
-            &[
-                0x26, 0x0F, // LD H, 0x0F - 8 blocks
-                0x2E, 0xFF, // LD L, 0xFF - 8 clocks
-                0x06, 0x00, // LD B, 0 - 8 clocks
-                0x0E, 0x01, // LD C, 1 - 8 blocks
-                0x09, // ADD HL, BC - 8 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x1000);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 40);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_add_16_carry() -> StepResult<()> {
-        let gb = run_program(
-            5,
-            &[
-                0x26, 0x0F, // LD H, 0x0F - 8 blocks
-                0x2E, 0xFF, // LD L, 0xFF - 8 clocks
-                0x06, 0xF0, // LD B, 0 - 8 clocks
-                0x0E, 0x02, // LD C, 1 - 8 blocks
-                0x09, // ADD HL, BC - 8 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x0001);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 40);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_add_16_zero() -> StepResult<()> {
-        let gb = run_program(
-            5,
-            &[
-                0x26, 0xFF, // LD H, 0x0F - 8 blocks
-                0x2E, 0xFF, // LD L, 0xFF - 8 clocks
-                0x06, 0x00, // LD B, 0 - 8 clocks
-                0x0E, 0x01, // LD C, 1 - 8 blocks
-                0x09, // ADD HL, BC - 8 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x0);
-        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
-        assert_eq!(gb.clocks_elapsed(), 40);
 
         Ok(())
     }

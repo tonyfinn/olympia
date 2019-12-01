@@ -120,12 +120,12 @@ impl From<Load> for Instruction {
 pub enum Extended {
     Rotate(RotateDirection, Carry, registers::ByteRegister), // RLC <reg> / RRC <reg> / RL <reg> / RR <reg>
     RotateMemory(RotateDirection, Carry), // RLC (HL) / RRC (HL) / RL (HL) / RR (HL)
-    ShiftHigh(RotateDirection, registers::ByteRegister), // SLA <reg> / SRA <reg>
-    ShiftMemoryHigh(RotateDirection),     // SLA (HL) / SRA (HL)
+    ShiftZero(RotateDirection, registers::ByteRegister), // SLA <reg> / SRA <reg>
+    ShiftMemoryZero(RotateDirection),     // SLA (HL) / SRL (HL)
     Swap(registers::ByteRegister),        // SWAP <reg>
     SwapMemory,                           // SWAP (HL)
-    ShiftRightZero(registers::ByteRegister), // SRL <reg>
-    ShiftMemoryRightZero,                 // SRL (HL)
+    ShiftRightExtend(registers::ByteRegister), // SRA <reg>
+    ShiftMemoryRightExtend,               // SRA (HL)
     TestBit(u8, registers::ByteRegister), // BIT <bit>, <reg>
     TestMemoryBit(u8),                    // BIT <bit>, (HL)
     ResetBit(u8, registers::ByteRegister), // RES <bit>, <reg>
