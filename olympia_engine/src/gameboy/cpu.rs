@@ -334,6 +334,7 @@ impl GameBoy {
                 self.set_flag_to(registers::Flag::Carry, overflow);
                 self.reset_flag(registers::Flag::AddSubtract);
                 self.set_flag_to(registers::Flag::Zero, new == 0);
+                self.set_add_half_carry(current_value, arg);
                 new
             }
             ALOp::AddCarry => {
@@ -343,6 +344,7 @@ impl GameBoy {
                 self.set_flag_to(registers::Flag::Carry, overflow | overflow_carry);
                 self.reset_flag(registers::Flag::AddSubtract);
                 self.set_flag_to(registers::Flag::Zero, new == 0);
+                self.set_add_half_carry(current_value, arg + carry_bit);
                 new
             }
             ALOp::Sub => {
@@ -350,6 +352,7 @@ impl GameBoy {
                 self.set_flag_to(registers::Flag::Carry, overflow);
                 self.set_flag(registers::Flag::AddSubtract);
                 self.set_flag_to(registers::Flag::Zero, new == 0);
+                self.set_sub_half_carry(current_value, arg);
                 new
             }
             ALOp::SubCarry => {
@@ -359,6 +362,7 @@ impl GameBoy {
                 self.set_flag_to(registers::Flag::Carry, overflow | overflow_carry);
                 self.set_flag(registers::Flag::AddSubtract);
                 self.set_flag_to(registers::Flag::Zero, new == 0);
+                self.set_sub_half_carry(current_value, arg + carry_bit);
                 new
             }
             ALOp::Compare => {
@@ -366,6 +370,7 @@ impl GameBoy {
                 self.set_flag_to(registers::Flag::Carry, overflow);
                 self.set_flag(registers::Flag::AddSubtract);
                 self.set_flag_to(registers::Flag::Zero, new == 0);
+                self.set_sub_half_carry(current_value, arg);
                 current_value
             }
             ALOp::And => {
@@ -395,6 +400,17 @@ impl GameBoy {
         }
     }
 
+    fn set_add_half_carry(&mut self, a: u8, b: u8) {
+        let half_add = ((a & 0xF) + (b & 0xF)) & 0xF0;
+        self.set_flag_to(registers::Flag::HalfCarry, half_add != 0);
+    }
+
+    fn set_sub_half_carry(&mut self, a: u8, b: u8) {
+        let sub = (a & 0x1F).wrapping_sub(b & 0x0F);
+        let half_carry = (sub & 0x10) != a & 0x10;
+        self.set_flag_to(registers::Flag::HalfCarry, half_carry);
+    }
+
     fn exec_register_al(&mut self, instr: instructions::RegisterAL) -> StepResult<()> {
         use instructions::RegisterAL;
         match instr {
@@ -409,6 +425,7 @@ impl GameBoy {
                 self.set_flag_to(registers::Flag::Zero, new == 0);
                 self.set_flag_to(registers::Flag::Carry, carry);
                 self.reset_flag(registers::Flag::AddSubtract);
+                self.set_add_half_carry(reg_value, 1);
                 self.write_register_u8(reg, new);
             }
             RegisterAL::Decrement(reg) => {
@@ -417,9 +434,33 @@ impl GameBoy {
                 self.set_flag_to(registers::Flag::Zero, new == 0);
                 self.set_flag_to(registers::Flag::Carry, carry);
                 self.set_flag(registers::Flag::AddSubtract);
+                self.set_sub_half_carry(reg_value, 1);
                 self.write_register_u8(reg, new);
             }
-            _ => return Err(StepError::Unimplemented(instr.into())),
+            RegisterAL::Decrement16(reg) => {
+                let reg_value = self.read_register_u16(reg.into());
+                let (new, _carry) = reg_value.overflowing_sub(1);
+                self.write_register_u16(reg.into(), new);
+                self.cycle();
+            }
+            RegisterAL::Increment16(reg) => {
+                let reg_value = self.read_register_u16(reg.into());
+                let (new, _carry) = reg_value.overflowing_add(1);
+                self.write_register_u16(reg.into(), new);
+                self.cycle();
+            }
+            RegisterAL::Add16(reg) => {
+                let current_value = self.read_register_u16(registers::WordRegister::HL);
+                let value_to_add = self.read_register_u16(reg.into());
+                let (new, carry) = current_value.overflowing_add(value_to_add);
+                self.set_flag_to(registers::Flag::Zero, new == 0);
+                self.set_flag_to(registers::Flag::Carry, carry);
+                self.reset_flag(registers::Flag::AddSubtract);
+                let has_half_carry = (((current_value & 0x0FFF) + (value_to_add & 0x0FFF)) & 0xF000) != 0;
+                self.set_flag_to(registers::Flag::HalfCarry, has_half_carry);
+                self.write_register_u16(registers::WordRegister::HL, new);
+                self.cycle();
+            }
         };
         self.cycle();
         Ok(())
@@ -878,6 +919,28 @@ mod tests {
         assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
         assert_eq!(gb.read_flag(registers::Flag::Zero), false);
         assert_eq!(gb.read_flag(registers::Flag::Carry), false);
+        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), false);
+        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+        assert_eq!(gb.clocks_elapsed(), 20);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_half_carry() -> StepResult<()> {
+        let gb = run_program(
+            3,
+            &[
+                0x3E, 0x0F, // LD A, 0xFA - 8 clocks
+                0x06, 0x01, // LD B, 0x05 - 8 clocks
+                0x80, // ADD A, B - 4 clocks
+            ],
+        )?;
+
+        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x10);
+        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
+        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
+        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
         assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
         assert_eq!(gb.clocks_elapsed(), 20);
 
@@ -945,6 +1008,27 @@ mod tests {
     }
 
     #[test]
+    fn test_sub_half_carry() -> StepResult<()> {
+        let gb = run_program(
+            3,
+            &[
+                0x3E, 0x10, // LD A, 0x06 - 8 clocks
+                0x06, 0x01, // LD B, 0x05 - 8 clocks
+                0x90, // SUB A, B - 4 clocks
+            ],
+        )?;
+
+        assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0F);
+        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
+        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
+        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
+        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+        assert_eq!(gb.clocks_elapsed(), 20);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_sub_causes_zero() -> StepResult<()> {
         let gb = run_program(
             3,
@@ -958,6 +1042,7 @@ mod tests {
         assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
         assert_eq!(gb.read_flag(registers::Flag::Zero), true);
         assert_eq!(gb.read_flag(registers::Flag::Carry), false);
+        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), false);
         assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
         assert_eq!(gb.clocks_elapsed(), 20);
 
@@ -978,6 +1063,7 @@ mod tests {
         assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
         assert_eq!(gb.read_flag(registers::Flag::Zero), false);
         assert_eq!(gb.read_flag(registers::Flag::Carry), true);
+        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
         assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
         assert_eq!(gb.clocks_elapsed(), 20);
 
@@ -1855,6 +1941,110 @@ mod tests {
         assert_eq!(gb.read_flag(registers::Flag::Carry), true);
         assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
         assert_eq!(gb.clocks_elapsed(), 12);
+
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_increment_16() -> StepResult<()> {
+        let gb = run_program(
+            3,
+            &[
+                0x26, 0x01, // LD H, 0x01 - 8 blocks
+                0x2E, 0xFF, // LD L, 0xFF - 8 clocks
+                0x23, // INC HL - 8 clocks
+            ],
+        )?;
+
+        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x200);
+        assert_eq!(gb.clocks_elapsed(), 24);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_decrement_16() -> StepResult<()> {
+        let gb = run_program(
+            3,
+            &[
+                0x26, 0x01, // LD H, 0x01 - 8 blocks
+                0x2E, 0x00, // LD L, 0xFF - 8 clocks
+                0x2B, // DEC HL - 8 clocks
+            ],
+        )?;
+
+        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0xFF);
+        assert_eq!(gb.clocks_elapsed(), 24);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_16() -> StepResult<()> {
+        let gb = run_program(
+            5,
+            &[
+                0x26, 0x0F, // LD H, 0x0F - 8 blocks
+                0x2E, 0xFF, // LD L, 0xFF - 8 clocks
+                0x06, 0x00, // LD B, 0 - 8 clocks
+                0x0E, 0x01, // LD C, 1 - 8 blocks
+                0x09, // ADD HL, BC - 8 clocks
+            ],
+        )?;
+
+        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x1000);
+        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
+        assert_eq!(gb.read_flag(registers::Flag::Carry), false);
+        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
+        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+        assert_eq!(gb.clocks_elapsed(), 40);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_16_carry() -> StepResult<()> {
+        let gb = run_program(
+            5,
+            &[
+                0x26, 0x0F, // LD H, 0x0F - 8 blocks
+                0x2E, 0xFF, // LD L, 0xFF - 8 clocks
+                0x06, 0xF0, // LD B, 0 - 8 clocks
+                0x0E, 0x02, // LD C, 1 - 8 blocks
+                0x09, // ADD HL, BC - 8 clocks
+            ],
+        )?;
+
+        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x0001);
+        assert_eq!(gb.read_flag(registers::Flag::Zero), false);
+        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
+        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
+        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+        assert_eq!(gb.clocks_elapsed(), 40);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_16_zero() -> StepResult<()> {
+        let gb = run_program(
+            5,
+            &[
+                0x26, 0xFF, // LD H, 0x0F - 8 blocks
+                0x2E, 0xFF, // LD L, 0xFF - 8 clocks
+                0x06, 0x00, // LD B, 0 - 8 clocks
+                0x0E, 0x01, // LD C, 1 - 8 blocks
+                0x09, // ADD HL, BC - 8 clocks
+            ],
+        )?;
+
+        assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x0);
+        assert_eq!(gb.read_flag(registers::Flag::Zero), true);
+        assert_eq!(gb.read_flag(registers::Flag::Carry), true);
+        assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
+        assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+        assert_eq!(gb.clocks_elapsed(), 40);
 
         Ok(())
     }
