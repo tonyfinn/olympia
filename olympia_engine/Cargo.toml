@@ -1,8 +1,15 @@
 [package]
 name = "olympia_engine"
 version = "0.1.0"
-authors = ["Tony Finn <tony@tonyfinn.com>"]
 edition = "2018"
+authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
+description = """
+Olympia is a gameboy emulator and toolkit, intended to run
+as a native or web assembly application targeting a cycle 
+count accurate emulation. olympia_engine is the reusable
+core for both native and wasm.
+"""
+license = "GPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

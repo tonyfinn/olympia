@@ -3,7 +3,7 @@ use crate::instructions;
 use crate::registers;
 use crate::rom;
 
-use std::convert::TryFrom;
+use core::convert::TryFrom;
 
 pub use crate::registers::{ByteRegister, WordRegister};
 
