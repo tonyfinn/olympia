@@ -638,7 +638,7 @@ fn test_increment_16() -> StepResult<()> {
     let gb = run_program(
         3,
         &[
-            0x26, 0x01, // LD H, 0x01 - 8 blocks
+            0x26, 0x01, // LD H, 0x01 - 8 clocks
             0x2E, 0xFF, // LD L, 0xFF - 8 clocks
             0x23, // INC HL - 8 clocks
         ],
@@ -655,7 +655,7 @@ fn test_decrement_16() -> StepResult<()> {
     let gb = run_program(
         3,
         &[
-            0x26, 0x01, // LD H, 0x01 - 8 blocks
+            0x26, 0x01, // LD H, 0x01 - 8 clocks
             0x2E, 0x00, // LD L, 0xFF - 8 clocks
             0x2B, // DEC HL - 8 clocks
         ],
@@ -672,10 +672,10 @@ fn test_add_16() -> StepResult<()> {
     let gb = run_program(
         5,
         &[
-            0x26, 0x0F, // LD H, 0x0F - 8 blocks
+            0x26, 0x0F, // LD H, 0x0F - 8 clocks
             0x2E, 0xFF, // LD L, 0xFF - 8 clocks
             0x06, 0x00, // LD B, 0 - 8 clocks
-            0x0E, 0x01, // LD C, 1 - 8 blocks
+            0x0E, 0x01, // LD C, 1 - 8 clocks
             0x09, // ADD HL, BC - 8 clocks
         ],
     )?;
@@ -695,10 +695,10 @@ fn test_add_16_carry() -> StepResult<()> {
     let gb = run_program(
         5,
         &[
-            0x26, 0x0F, // LD H, 0x0F - 8 blocks
+            0x26, 0x0F, // LD H, 0x0F - 8 clocks
             0x2E, 0xFF, // LD L, 0xFF - 8 clocks
             0x06, 0xF0, // LD B, 0 - 8 clocks
-            0x0E, 0x02, // LD C, 1 - 8 blocks
+            0x0E, 0x02, // LD C, 1 - 8 clocks
             0x09, // ADD HL, BC - 8 clocks
         ],
     )?;
@@ -718,10 +718,10 @@ fn test_add_16_zero() -> StepResult<()> {
     let gb = run_program(
         5,
         &[
-            0x26, 0xFF, // LD H, 0x0F - 8 blocks
+            0x26, 0xFF, // LD H, 0x0F - 8 clocks
             0x2E, 0xFF, // LD L, 0xFF - 8 clocks
             0x06, 0x00, // LD B, 0 - 8 clocks
-            0x0E, 0x01, // LD C, 1 - 8 blocks
+            0x0E, 0x01, // LD C, 1 - 8 clocks
             0x09, // ADD HL, BC - 8 clocks
         ],
     )?;

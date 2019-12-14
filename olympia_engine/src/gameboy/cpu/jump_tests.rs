@@ -142,7 +142,7 @@ fn test_register_jump() -> StepResult<()> {
         3,
         &[
             0x26, 0x20, // LD H, 0x20 - 8 clocks
-            0x2E, 0x31, // LD L, 0x31 - 8 blocks
+            0x2E, 0x31, // LD L, 0x31 - 8 clocks
             0xE9, // JP HL - 4 clocks
         ],
     )?;
@@ -191,7 +191,7 @@ fn test_relative_jump_if() -> StepResult<()> {
     let gb = run_program(
         4,
         &[
-            0x37, // SCF - 4 blocks
+            0x37, // SCF - 4 clocks
             0x38, 0x02, // JR C, 5 - 12/8 clocks
             0x76, // HALT
             0x30, 0x02, // JR NC, 2 - 12/8 clocks
