@@ -10,6 +10,10 @@ count accurate emulation. olympia_cli contains tools to debug
 the olympia emulator and rom files.
 """
 license = "GPL-3.0-or-later"
+homepage = "https://gitlab.com/tonyfinn/olympia"
+repository = "https://gitlab.com/tonyfinn/olympia"
+documentation = "https://docs.rs/olympia_cli"
+readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

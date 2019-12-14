@@ -9,6 +9,10 @@ as a native or web assembly application targeting a cycle
 count accurate emulation.  
 """
 license = "GPL-3.0-or-later"
+readme = "README.md"
+homepage = "https://gitlab.com/tonyfinn/olympia"
+repository = "https://gitlab.com/tonyfinn/olympia"
+documentation = "https://docs.rs/olympia"
 
 [workspace]
 

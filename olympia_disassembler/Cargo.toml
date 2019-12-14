@@ -10,6 +10,10 @@ count accurate emulation. olympia_disassembler is a CLI
 app to disassemble a GB ROM.
 """
 license = "GPL-3.0-or-later"
+homepage = "https://gitlab.com/tonyfinn/olympia"
+repository = "https://gitlab.com/tonyfinn/olympia"
+documentation = "https://docs.rs/olympia_disassembler"
+readme = "README.md"
 autotests = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
