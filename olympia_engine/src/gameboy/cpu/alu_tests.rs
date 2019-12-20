@@ -1,5 +1,6 @@
 use super::testutils::*;
 use super::*;
+use crate::gameboy::StepResult;
 
 #[test]
 fn test_add_no_carry() -> StepResult<()> {
@@ -12,11 +13,11 @@ fn test_add_no_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::HalfCarry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0xFF);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::HalfCarry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -33,11 +34,11 @@ fn test_add_half_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x10);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x10);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::HalfCarry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -54,10 +55,10 @@ fn test_add_causes_carry_zero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x00);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -74,10 +75,10 @@ fn test_add_causes_carry_nonzero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x01);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x01);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -94,10 +95,10 @@ fn test_sub_no_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x01);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x01);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -114,11 +115,11 @@ fn test_sub_half_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0F);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x0F);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::HalfCarry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -135,11 +136,11 @@ fn test_sub_causes_zero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::HalfCarry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x00);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::HalfCarry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -156,11 +157,11 @@ fn test_sub_causes_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0xFF);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::HalfCarry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -178,10 +179,10 @@ fn test_adc_no_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFE);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0xFE);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     let gb = run_program(
@@ -194,10 +195,10 @@ fn test_adc_no_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0xFF);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -215,10 +216,10 @@ fn test_adc_causes_carry_zero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x00);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     let gb = run_program(
@@ -231,10 +232,10 @@ fn test_adc_causes_carry_zero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x00);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -252,10 +253,10 @@ fn test_adc_causes_carry_nonzero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x01);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x01);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     let gb = run_program(
@@ -268,10 +269,10 @@ fn test_adc_causes_carry_nonzero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x01);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x01);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -289,10 +290,10 @@ fn test_sbc_no_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xF6);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0xF6);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     let gb = run_program(
@@ -305,10 +306,10 @@ fn test_sbc_no_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xF5);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0xF5);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -326,10 +327,10 @@ fn test_sbc_zero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x00);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     let gb = run_program(
@@ -342,10 +343,10 @@ fn test_sbc_zero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x00);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x00);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -363,10 +364,10 @@ fn test_sbc_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0xFF);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     let gb = run_program(
@@ -379,10 +380,10 @@ fn test_sbc_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0xFF);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0xFF);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -399,10 +400,13 @@ fn test_and() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x06 & 0x05);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(
+        gb.cpu.read_register_u8(registers::ByteRegister::A),
+        0x06 & 0x05
+    );
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     let gb = run_program(
@@ -414,10 +418,10 @@ fn test_and() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -434,10 +438,10 @@ fn test_or() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x07);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x07);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     let gb = run_program(
@@ -449,10 +453,10 @@ fn test_or() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x0);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -469,10 +473,10 @@ fn test_xor() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x03);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x03);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     let gb = run_program(
@@ -484,10 +488,10 @@ fn test_xor() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x0);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -504,10 +508,10 @@ fn test_cp_greater() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0C);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x0C);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -524,10 +528,10 @@ fn test_cp_equal() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0C);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x0C);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -544,10 +548,10 @@ fn test_cp_less() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::A), 0x0C);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::A), 0x0C);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -563,10 +567,10 @@ fn test_increment_8() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0xFF);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::L), 0xFF);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 12);
 
     let gb = run_program(
@@ -577,10 +581,10 @@ fn test_increment_8() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0x00);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::L), 0x00);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 12);
 
     Ok(())
@@ -596,10 +600,10 @@ fn test_decrement_8() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0x01);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::L), 0x01);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 12);
 
     let gb = run_program(
@@ -610,10 +614,10 @@ fn test_decrement_8() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0x00);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::L), 0x00);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 12);
 
     let gb = run_program(
@@ -624,10 +628,10 @@ fn test_decrement_8() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::L), 0xFF);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), true);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::L), 0xFF);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), true);
     assert_eq!(gb.clocks_elapsed(), 12);
 
     Ok(())
@@ -644,7 +648,7 @@ fn test_increment_16() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x200);
+    assert_eq!(gb.cpu.read_register_u16(registers::WordRegister::HL), 0x200);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -661,7 +665,7 @@ fn test_decrement_16() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0xFF);
+    assert_eq!(gb.cpu.read_register_u16(registers::WordRegister::HL), 0xFF);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -680,11 +684,14 @@ fn test_add_16() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x1000);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), false);
-    assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::HL),
+        0x1000
+    );
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::HalfCarry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 40);
 
     Ok(())
@@ -703,11 +710,14 @@ fn test_add_16_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x0001);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), false);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::HL),
+        0x0001
+    );
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), false);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::HalfCarry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 40);
 
     Ok(())
@@ -726,11 +736,11 @@ fn test_add_16_zero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x0);
-    assert_eq!(gb.read_flag(registers::Flag::Zero), true);
-    assert_eq!(gb.read_flag(registers::Flag::Carry), true);
-    assert_eq!(gb.read_flag(registers::Flag::HalfCarry), true);
-    assert_eq!(gb.read_flag(registers::Flag::AddSubtract), false);
+    assert_eq!(gb.cpu.read_register_u16(registers::WordRegister::HL), 0x0);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Zero), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::Carry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::HalfCarry), true);
+    assert_eq!(gb.cpu.read_flag(registers::Flag::AddSubtract), false);
     assert_eq!(gb.clocks_elapsed(), 40);
 
     Ok(())

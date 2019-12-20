@@ -6,8 +6,8 @@ use std::ops;
 use std::path::PathBuf;
 
 use olympia_engine::disassembler::Disassemble;
-use olympia_engine::gameboy::cpu;
-use olympia_engine::gameboy::GameBoyModel;
+use olympia_engine::gameboy;
+use olympia_engine::registers::{ByteRegister as br, WordRegister as wr};
 use olympia_engine::rom;
 use structopt::StructOpt;
 
@@ -255,7 +255,7 @@ fn print_rom_info(cartridge: rom::Cartridge, out: &mut dyn io::Write) -> Olympia
     Ok(())
 }
 
-fn print_bytes(cpu: &cpu::GameBoy, range: ByteRange, out: &mut dyn io::Write) -> io::Result<()> {
+fn print_bytes(gb: &gameboy::GameBoy, range: ByteRange, out: &mut dyn io::Write) -> io::Result<()> {
     let (min, max) = range;
 
     let min_address = match min {
@@ -282,7 +282,7 @@ fn print_bytes(cpu: &cpu::GameBoy, range: ByteRange, out: &mut dyn io::Write) ->
             }
             write!(out, "{:04X}: ", addr)?;
         }
-        let val = cpu
+        let val = gb
             .read_memory_u8(addr)
             .map(|val| format!("{:02X}", val))
             .unwrap_or_else(|_| "--".to_string());
@@ -293,42 +293,42 @@ fn print_bytes(cpu: &cpu::GameBoy, range: ByteRange, out: &mut dyn io::Write) ->
     writeln!(out)
 }
 
-fn print_registers(cpu: &cpu::GameBoy, out: &mut dyn io::Write) -> io::Result<()> {
+fn print_registers(gb: &gameboy::GameBoy, out: &mut dyn io::Write) -> io::Result<()> {
     writeln!(
         out,
         "A: {:02X}, F: {:02x}, AF: {:04X}",
-        cpu.read_register_u8(cpu::ByteRegister::A),
-        cpu.read_register_u8(cpu::ByteRegister::F),
-        cpu.read_register_u16(cpu::WordRegister::AF)
+        gb.read_register_u8(br::A),
+        gb.read_register_u8(br::F),
+        gb.read_register_u16(wr::AF)
     )?;
     writeln!(
         out,
         "B: {:02X}, C: {:02X}, BC: {:04X}",
-        cpu.read_register_u8(cpu::ByteRegister::B),
-        cpu.read_register_u8(cpu::ByteRegister::C),
-        cpu.read_register_u16(cpu::WordRegister::BC)
+        gb.read_register_u8(br::B),
+        gb.read_register_u8(br::C),
+        gb.read_register_u16(wr::BC)
     )?;
     writeln!(
         out,
         "D: {:02X}, E: {:02X}, DE: {:04X}",
-        cpu.read_register_u8(cpu::ByteRegister::D),
-        cpu.read_register_u8(cpu::ByteRegister::E),
-        cpu.read_register_u16(cpu::WordRegister::DE)
+        gb.read_register_u8(br::D),
+        gb.read_register_u8(br::E),
+        gb.read_register_u16(wr::DE)
     )?;
     writeln!(
         out,
         "H: {:02X}, L: {:02X}, HL: {:04X}",
-        cpu.read_register_u8(cpu::ByteRegister::H),
-        cpu.read_register_u8(cpu::ByteRegister::L),
-        cpu.read_register_u16(cpu::WordRegister::HL)
+        gb.read_register_u8(br::H),
+        gb.read_register_u8(br::L),
+        gb.read_register_u16(wr::HL)
     )?;
     writeln!(
         out,
         "SP: {:04X}, PC: {:04X}",
-        cpu.read_register_u16(cpu::WordRegister::SP),
-        cpu.read_register_u16(cpu::WordRegister::PC)
+        gb.read_register_u16(wr::SP),
+        gb.read_register_u16(wr::PC)
     )?;
-    let flags_register = cpu.read_register_u8(cpu::ByteRegister::F);
+    let flags_register = gb.read_register_u8(br::F);
     writeln!(
         out,
         "Flags - Zero: {}, AddSubtract: {}, HalfCarry: {}, Carry: {}",
@@ -341,7 +341,7 @@ fn print_registers(cpu: &cpu::GameBoy, out: &mut dyn io::Write) -> io::Result<()
 }
 
 fn debug(
-    mut gb: cpu::GameBoy,
+    mut gb: gameboy::GameBoy,
     in_: &mut dyn io::Read,
     out: &mut dyn io::Write,
     err: &mut dyn io::Write,
@@ -483,7 +483,7 @@ fn main() -> OlympiaResult<()> {
             print_rom_info(parse_cartridge(&rom)?, &mut io::stdout())?
         }
         OlympiaCommand::Debug { rom } => debug(
-            cpu::GameBoy::new(parse_cartridge(&rom)?, GameBoyModel::GameBoy),
+            gameboy::GameBoy::new(parse_cartridge(&rom)?, gameboy::GameBoyModel::GameBoy),
             &mut io::stdin(),
             &mut io::stdout(),
             err.as_mut(),
@@ -496,31 +496,31 @@ fn main() -> OlympiaResult<()> {
 pub mod test {
     use super::*;
 
-    fn get_test_gbcpu() -> cpu::GameBoy {
+    fn get_test_gbcpu() -> gameboy::GameBoy {
         let cartridge = rom::Cartridge {
             data: vec![0xF1u8; 0x8000],
             controller: rom::MBC2::default().into(),
             target: rom::TargetConsole::GameBoyOnly,
         };
-        cpu::GameBoy::new(cartridge, GameBoyModel::GameBoy)
+        gameboy::GameBoy::new(cartridge, gameboy::GameBoyModel::GameBoy)
     }
 
     #[test]
     fn test_print_registers() {
-        let mut cpu = get_test_gbcpu();
+        let mut gb = get_test_gbcpu();
 
-        cpu.write_register_u16(cpu::WordRegister::AF, 0x1234);
-        cpu.write_register_u16(cpu::WordRegister::BC, 0x2244);
-        cpu.write_register_u16(cpu::WordRegister::DE, 0x3254);
-        cpu.write_register_u16(cpu::WordRegister::HL, 0x4264);
-        cpu.write_register_u16(cpu::WordRegister::PC, 0x5264);
-        cpu.write_register_u16(cpu::WordRegister::SP, 0x6274);
+        gb.write_register_u16(wr::AF, 0x1234);
+        gb.write_register_u16(wr::BC, 0x2244);
+        gb.write_register_u16(wr::DE, 0x3254);
+        gb.write_register_u16(wr::HL, 0x4264);
+        gb.write_register_u16(wr::PC, 0x5264);
+        gb.write_register_u16(wr::SP, 0x6274);
 
         let input = "pr\n";
         let mut captured_output = Vec::new();
 
         debug(
-            cpu,
+            gb,
             &mut io::BufReader::new(input.as_bytes()),
             &mut captured_output,
             &mut io::sink(),
@@ -545,18 +545,18 @@ pub mod test {
 
     #[test]
     fn test_print_bytes() {
-        let mut cpu = get_test_gbcpu();
+        let mut gb = get_test_gbcpu();
 
         for x in 0..=0x1fu8 {
             let addr = 0xc000 + u16::from(x);
-            cpu.write_memory_u8(addr, x).unwrap()
+            gb.write_memory_u8(addr, x).unwrap()
         }
 
         let input = "pb 0xC000:0xC01F\n\n";
         let mut captured_output = Vec::new();
 
         debug(
-            cpu,
+            gb,
             &mut io::BufReader::new(input.as_bytes()),
             &mut captured_output,
             &mut io::sink(),
@@ -576,13 +576,13 @@ pub mod test {
 
     #[test]
     fn test_print_bytes_unmapped() {
-        let cpu = get_test_gbcpu();
+        let gb = get_test_gbcpu();
 
         let input = "pb 40960:0xA01F\n";
         let mut captured_output = Vec::new();
 
         debug(
-            cpu,
+            gb,
             &mut io::BufReader::new(input.as_bytes()),
             &mut captured_output,
             &mut io::sink(),
@@ -602,13 +602,13 @@ pub mod test {
 
     #[test]
     fn test_print_bytes_unbound_min() {
-        let cpu = get_test_gbcpu();
+        let gb = get_test_gbcpu();
 
         let input = "pb :0x001F\n";
         let mut captured_output = Vec::new();
 
         debug(
-            cpu,
+            gb,
             &mut io::BufReader::new(input.as_bytes()),
             &mut captured_output,
             &mut io::sink(),
@@ -628,18 +628,18 @@ pub mod test {
 
     #[test]
     fn test_print_bytes_unbound_max() {
-        let mut cpu = get_test_gbcpu();
+        let mut gb = get_test_gbcpu();
 
         for x in 0..=0x1fu8 {
             let addr = 0xffe0 + u16::from(x);
-            cpu.write_memory_u8(addr, x).unwrap()
+            gb.write_memory_u8(addr, x).unwrap()
         }
 
         let input = "pb 0xFFE0:\n";
         let mut captured_output = Vec::new();
 
         debug(
-            cpu,
+            gb,
             &mut io::BufReader::new(input.as_bytes()),
             &mut captured_output,
             &mut io::sink(),
@@ -659,18 +659,18 @@ pub mod test {
 
     #[test]
     fn test_print_bytes_wraparound() {
-        let mut cpu = get_test_gbcpu();
+        let mut gb = get_test_gbcpu();
 
         for x in 0..=0x1fu8 {
             let addr = 0xffe0 + u16::from(x);
-            cpu.write_memory_u8(addr, x).unwrap()
+            gb.write_memory_u8(addr, x).unwrap()
         }
 
         let input = "pb 0xFFF0:Fh\n";
         let mut captured_output = Vec::new();
 
         debug(
-            cpu,
+            gb,
             &mut io::BufReader::new(input.as_bytes()),
             &mut captured_output,
             &mut io::sink(),
@@ -690,11 +690,11 @@ pub mod test {
 
     #[test]
     fn test_unknown_command() {
-        let mut cpu = get_test_gbcpu();
+        let mut gb = get_test_gbcpu();
 
         for x in 0..=0x1fu8 {
             let addr = 0xffe0 + u16::from(x);
-            cpu.write_memory_u8(addr, x).unwrap()
+            gb.write_memory_u8(addr, x).unwrap()
         }
 
         let input = "unknown\n";
@@ -702,7 +702,7 @@ pub mod test {
         let mut captured_error = Vec::new();
 
         debug(
-            cpu,
+            gb,
             &mut io::BufReader::new(input.as_bytes()),
             &mut captured_output,
             &mut captured_error,

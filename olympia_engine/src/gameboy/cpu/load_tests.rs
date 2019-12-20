@@ -1,5 +1,6 @@
 use super::testutils::*;
 use super::*;
+use crate::gameboy::StepResult;
 
 // TODO: Dedicated test for Load::ConstantMemory
 
@@ -17,9 +18,9 @@ fn test_loads() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::B), 0x25);
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::D), 0x25);
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::E), 0x25);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::B), 0x25);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::D), 0x25);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::E), 0x25);
     assert_eq!(gb.read_memory_u8(0x8000)?, 0x25);
     assert_eq!(gb.clocks_elapsed(), 44);
 

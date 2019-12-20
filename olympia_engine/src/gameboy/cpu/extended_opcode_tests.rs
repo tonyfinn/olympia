@@ -1,5 +1,6 @@
 use super::testutils::*;
 use super::*;
+use crate::gameboy::StepResult;
 use registers::ByteRegister as br;
 use registers::Flag as f;
 
@@ -13,7 +14,7 @@ fn test_set_bit() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::L), 0x80);
+    assert_eq!(gb.cpu.read_register_u8(br::L), 0x80);
     assert_eq!(gb.clocks_elapsed(), 16);
 
     Ok(())
@@ -64,7 +65,7 @@ fn test_reset_bit() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::L), 0xFE);
+    assert_eq!(gb.cpu.read_register_u8(br::L), 0xFE);
     assert_eq!(gb.clocks_elapsed(), 16);
 
     Ok(())
@@ -80,7 +81,7 @@ fn test_test_bit_set() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_flag(f::Zero), false);
+    assert_eq!(gb.cpu.read_flag(f::Zero), false);
     assert_eq!(gb.clocks_elapsed(), 16);
 
     Ok(())
@@ -96,7 +97,7 @@ fn test_test_bit_not_set() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_flag(f::Zero), true);
+    assert_eq!(gb.cpu.read_flag(f::Zero), true);
     assert_eq!(gb.clocks_elapsed(), 16);
 
     Ok(())
@@ -114,7 +115,7 @@ fn test_test_memory_bit_set() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_flag(f::Zero), false);
+    assert_eq!(gb.cpu.read_flag(f::Zero), false);
     assert_eq!(gb.clocks_elapsed(), 40);
 
     Ok(())
@@ -132,7 +133,7 @@ fn test_test_memory_bit_not_set() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_flag(f::Zero), true);
+    assert_eq!(gb.cpu.read_flag(f::Zero), true);
     assert_eq!(gb.clocks_elapsed(), 40);
 
     Ok(())
@@ -149,8 +150,8 @@ fn test_rotate_reg_left_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::E), 0x11);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_register_u8(br::E), 0x11);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     let gb = run_program(
@@ -162,8 +163,8 @@ fn test_rotate_reg_left_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::E), 0x90);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_register_u8(br::E), 0x90);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -180,8 +181,8 @@ fn test_rotate_reg_left() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::E), 0x10);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_register_u8(br::E), 0x10);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     let gb = run_program(
@@ -193,8 +194,8 @@ fn test_rotate_reg_left() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::E), 0x91);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_register_u8(br::E), 0x91);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -211,8 +212,8 @@ fn test_rotate_reg_right_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::E), 0xC4);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_register_u8(br::E), 0xC4);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     let gb = run_program(
@@ -224,8 +225,8 @@ fn test_rotate_reg_right_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::E), 0x24);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_register_u8(br::E), 0x24);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -242,8 +243,8 @@ fn test_rotate_reg_right() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::E), 0x44);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_register_u8(br::E), 0x44);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     let gb = run_program(
@@ -255,8 +256,8 @@ fn test_rotate_reg_right() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::E), 0xA4);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_register_u8(br::E), 0xA4);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -276,7 +277,7 @@ fn test_rotate_mem_left_carry() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0x11);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 48);
 
     let gb = run_program(
@@ -291,7 +292,7 @@ fn test_rotate_mem_left_carry() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0x90);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 48);
 
     Ok(())
@@ -311,7 +312,7 @@ fn test_rotate_mem_left() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0x10);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 48);
 
     let gb = run_program(
@@ -326,7 +327,7 @@ fn test_rotate_mem_left() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0x91);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 48);
 
     Ok(())
@@ -346,7 +347,7 @@ fn test_rotate_mem_right_carry() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0xC4);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 48);
 
     let gb = run_program(
@@ -361,7 +362,7 @@ fn test_rotate_mem_right_carry() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0x24);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 48);
 
     Ok(())
@@ -381,7 +382,7 @@ fn test_rotate_mem_right() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0x44);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 48);
 
     let gb = run_program(
@@ -396,7 +397,7 @@ fn test_rotate_mem_right() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0xA4);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 48);
 
     Ok(())
@@ -412,8 +413,8 @@ fn test_reg_shift_low_right() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::B), 0x78);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_register_u8(br::B), 0x78);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 16);
 
     let gb = run_program(
@@ -424,8 +425,8 @@ fn test_reg_shift_low_right() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::B), 0x78);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_register_u8(br::B), 0x78);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 16);
 
     Ok(())
@@ -441,8 +442,8 @@ fn test_reg_shift_low_left() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::B), 0xE2);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_register_u8(br::B), 0xE2);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 16);
 
     let gb = run_program(
@@ -453,8 +454,8 @@ fn test_reg_shift_low_left() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::B), 0xE2);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_register_u8(br::B), 0xE2);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 16);
 
     Ok(())
@@ -472,7 +473,7 @@ fn test_mem_shift_low_right() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0x78);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 44);
 
     let gb = run_program(
@@ -486,7 +487,7 @@ fn test_mem_shift_low_right() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0x78);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 44);
 
     Ok(())
@@ -505,7 +506,7 @@ fn test_mem_shift_low_left() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0xE2);
-    assert_eq!(gb.read_flag(f::Carry), false);
+    assert_eq!(gb.cpu.read_flag(f::Carry), false);
     assert_eq!(gb.clocks_elapsed(), 44);
 
     let gb = run_program(
@@ -519,7 +520,7 @@ fn test_mem_shift_low_left() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u8(0x8000)?, 0xE2);
-    assert_eq!(gb.read_flag(f::Carry), true);
+    assert_eq!(gb.cpu.read_flag(f::Carry), true);
     assert_eq!(gb.clocks_elapsed(), 44);
 
     Ok(())
@@ -535,7 +536,7 @@ fn test_reg_swap() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::D), 0xAF);
+    assert_eq!(gb.cpu.read_register_u8(br::D), 0xAF);
     assert_eq!(gb.clocks_elapsed(), 16);
 
     Ok(())
@@ -570,7 +571,7 @@ fn test_reg_shift_extend_right() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u8(br::B), 0xE0);
+    assert_eq!(gb.cpu.read_register_u8(br::B), 0xE0);
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())

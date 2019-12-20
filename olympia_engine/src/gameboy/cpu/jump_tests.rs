@@ -1,5 +1,6 @@
 use super::testutils::*;
 use super::*;
+use crate::gameboy::StepResult;
 
 #[test]
 fn test_jump() -> StepResult<()> {
@@ -10,7 +11,10 @@ fn test_jump() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
+        0x2013
+    );
     assert_eq!(gb.clocks_elapsed(), 16);
 
     Ok(())
@@ -26,7 +30,10 @@ fn test_jump_if_carry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
+        0x2013
+    );
     assert_eq!(gb.clocks_elapsed(), 20);
 
     let gb = run_program(
@@ -38,7 +45,7 @@ fn test_jump_if_carry() -> StepResult<()> {
     )?;
 
     assert_eq!(
-        gb.read_register_u16(registers::WordRegister::PC),
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START + 4
     );
     assert_eq!(gb.clocks_elapsed(), 16);
@@ -57,7 +64,7 @@ fn test_jump_if_nocarry() -> StepResult<()> {
     )?;
 
     assert_eq!(
-        gb.read_register_u16(registers::WordRegister::PC),
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START + 4
     );
     assert_eq!(gb.clocks_elapsed(), 16);
@@ -70,7 +77,10 @@ fn test_jump_if_nocarry() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
+        0x2013
+    );
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -86,7 +96,10 @@ fn test_jump_if_zero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
+        0x2013
+    );
     assert_eq!(gb.clocks_elapsed(), 20);
 
     let gb = run_program(
@@ -98,7 +111,7 @@ fn test_jump_if_zero() -> StepResult<()> {
     )?;
 
     assert_eq!(
-        gb.read_register_u16(registers::WordRegister::PC),
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START + 5
     );
     assert_eq!(gb.clocks_elapsed(), 20);
@@ -117,7 +130,7 @@ fn test_jump_if_nonzero() -> StepResult<()> {
     )?;
 
     assert_eq!(
-        gb.read_register_u16(registers::WordRegister::PC),
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START + 4
     );
     assert_eq!(gb.clocks_elapsed(), 16);
@@ -130,7 +143,10 @@ fn test_jump_if_nonzero() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2013);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
+        0x2013
+    );
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -147,7 +163,10 @@ fn test_register_jump() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x2031);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
+        0x2031
+    );
     assert_eq!(gb.clocks_elapsed(), 20);
 
     Ok(())
@@ -164,7 +183,7 @@ fn test_relative_jump() -> StepResult<()> {
     )?;
 
     assert_eq!(
-        gb.read_register_u16(registers::WordRegister::PC),
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START - 2
     );
     assert_eq!(gb.clocks_elapsed(), 12);
@@ -178,7 +197,7 @@ fn test_relative_jump() -> StepResult<()> {
     )?;
 
     assert_eq!(
-        gb.read_register_u16(registers::WordRegister::PC),
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START + 6
     );
     assert_eq!(gb.clocks_elapsed(), 12);
@@ -200,9 +219,9 @@ fn test_relative_jump_if() -> StepResult<()> {
         ], // Expected path is SCF - JR C, 5 (jumps) - JR NC, 2 (no jump) - LD B, 0x12
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::B), 0x12);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::B), 0x12);
     assert_eq!(
-        gb.read_register_u16(registers::WordRegister::PC),
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START + 8
     );
     assert_eq!(gb.clocks_elapsed(), 32);
@@ -223,9 +242,9 @@ fn test_relative_jump_backwards() -> StepResult<()> {
         ], // Expected path is JR 3, SCF, JR C, -2 (jumps), LD B, 0x12
     )?;
 
-    assert_eq!(gb.read_register_u8(registers::ByteRegister::B), 0x12);
+    assert_eq!(gb.cpu.read_register_u8(registers::ByteRegister::B), 0x12);
     assert_eq!(
-        gb.read_register_u16(registers::WordRegister::PC),
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START + 5
     );
     assert_eq!(gb.clocks_elapsed(), 36);
@@ -243,8 +262,14 @@ fn test_call() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x3020);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFC);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
+        0x3020
+    );
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::SP),
+        0xFFFC
+    );
     assert_eq!(gb.clocks_elapsed(), 24);
 
     Ok(())
@@ -260,8 +285,11 @@ fn test_call_system() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0201);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x08);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFC);
+    assert_eq!(gb.cpu.read_register_u16(registers::WordRegister::PC), 0x08);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::SP),
+        0xFFFC
+    );
     assert_eq!(gb.clocks_elapsed(), 16);
 
     Ok(())
@@ -279,8 +307,11 @@ fn test_return() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x203);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFE);
+    assert_eq!(gb.cpu.read_register_u16(registers::WordRegister::PC), 0x203);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::SP),
+        0xFFFE
+    );
     assert_eq!(gb.clocks_elapsed(), 40);
 
     Ok(())
@@ -299,8 +330,11 @@ fn test_return_if() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFE);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x203);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::SP),
+        0xFFFE
+    );
+    assert_eq!(gb.cpu.read_register_u16(registers::WordRegister::PC), 0x203);
     assert_eq!(gb.clocks_elapsed(), 48);
 
     let gb = run_program(
@@ -314,8 +348,11 @@ fn test_return_if() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFC);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x208);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::SP),
+        0xFFFC
+    );
+    assert_eq!(gb.cpu.read_register_u16(registers::WordRegister::PC), 0x208);
     assert_eq!(gb.clocks_elapsed(), 36);
 
     Ok(())
@@ -332,7 +369,10 @@ fn test_call_if() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0204);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::PC), 0x3020);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
+        0x3020
+    );
     assert_eq!(gb.clocks_elapsed(), 28);
 
     let gb = run_program(
@@ -345,7 +385,7 @@ fn test_call_if() -> StepResult<()> {
 
     assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0000);
     assert_eq!(
-        gb.read_register_u16(registers::WordRegister::PC),
+        gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START + 4
     );
     assert_eq!(gb.clocks_elapsed(), 16);

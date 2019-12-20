@@ -1,5 +1,6 @@
 use super::testutils::*;
 use super::*;
+use crate::gameboy::StepResult;
 
 #[test]
 fn test_stack() -> StepResult<()> {
@@ -16,9 +17,18 @@ fn test_stack() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_register_u16(registers::WordRegister::DE), 0x0508);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::HL), 0x0508);
-    assert_eq!(gb.read_register_u16(registers::WordRegister::SP), 0xFFFC);
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::DE),
+        0x0508
+    );
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::HL),
+        0x0508
+    );
+    assert_eq!(
+        gb.cpu.read_register_u16(registers::WordRegister::SP),
+        0xFFFC
+    );
     assert_eq!(gb.read_memory_u16(0xFFFA)?, 0x0508);
     assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0508);
     assert_eq!(gb.read_memory_u16(0xFFF8)?, 0x0508);

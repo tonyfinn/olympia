@@ -6,7 +6,7 @@ extern crate alloc;
 pub mod decoder;
 pub mod gameboy;
 mod instructions;
-mod registers;
+pub mod registers;
 pub mod rom;
 mod types;
 
