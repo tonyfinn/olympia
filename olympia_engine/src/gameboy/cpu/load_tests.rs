@@ -26,3 +26,25 @@ fn test_loads() -> StepResult<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_offset_load() -> StepResult<()> {
+    let gb = run_program(
+        6,
+        &[
+            0x3E, 0xFF, // LD A, 0xFF - 8 clocks
+            0xE0, 0xA0, // LDH (0xA0), A - 12 clocks
+            0x26, 0xFF, // LD H, 0xFF - 8 clocks
+            0x2E, 0xA1, // LD L, 0xA1 - 8 clocks
+            0x75, // LD (HL), L - 8 clocks
+            0xF0, 0xA1, // LDH A, (0xA1) - 12 clocks
+        ],
+    )?;
+
+    assert_eq!(gb.read_memory_u8(0xFFA1)?, 0xA1);
+    assert_eq!(gb.read_memory_u8(0xFFA0)?, 0xFF);
+    assert_eq!(gb.read_register_u8(br::A), 0xA1);
+    assert_eq!(gb.clocks_elapsed(), 56);
+
+    Ok(())
+}

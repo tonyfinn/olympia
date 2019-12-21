@@ -111,15 +111,15 @@ impl ThreeByteDataDecoder for LoadConstant16 {
     }
 }
 
-pub(super) struct LoadHighOffset;
-impl TwoByteAddressDecoder for LoadHighOffset {
+pub(super) struct HighOffsetA;
+impl TwoByteAddressDecoder for HighOffsetA {
     fn decode(&self, _opcode: u8, addr: types::HighAddress) -> DecodeResult<Instruction> {
         Ok(instructions::Load::HighOffsetA(addr).into())
     }
 }
 
-pub(super) struct StoreHighOffset;
-impl TwoByteAddressDecoder for StoreHighOffset {
+pub(super) struct AHighOffset;
+impl TwoByteAddressDecoder for AHighOffset {
     fn decode(&self, _opcode: u8, addr: types::HighAddress) -> DecodeResult<Instruction> {
         Ok(instructions::Load::AHighOffset(addr).into())
     }
@@ -515,21 +515,21 @@ mod test {
 
     #[test]
     fn test_store_high_offset() {
-        let idecoder = StoreHighOffset {};
+        let idecoder = HighOffsetA {};
 
         assert_eq!(
             idecoder.decode(0xE0, 0x55.into()),
-            Ok(instructions::Load::AHighOffset(0x55.into()).into())
+            Ok(instructions::Load::HighOffsetA(0x55.into()).into())
         );
     }
 
     #[test]
     fn test_load_high_offset() {
-        let idecoder = LoadHighOffset {};
+        let idecoder = AHighOffset {};
 
         assert_eq!(
             idecoder.decode(0xF0, 0x55.into()),
-            Ok(instructions::Load::HighOffsetA(0x55.into()).into())
+            Ok(instructions::Load::AHighOffset(0x55.into()).into())
         );
     }
 

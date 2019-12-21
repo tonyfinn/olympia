@@ -1,7 +1,9 @@
-mod cpu;
+pub(crate) mod cpu;
+mod dma;
 
 use crate::decoder;
 use crate::gameboy::cpu::Cpu;
+use crate::gameboy::dma::DmaUnit;
 use crate::instructions;
 use crate::registers;
 use crate::registers::{ByteRegister as br, WordRegister as wr};
@@ -12,6 +14,9 @@ use core::convert::TryFrom;
 
 pub struct GameBoy {
     cpu: Cpu,
+    dma: DmaUnit,
+    cpuram: [u8; 127],
+    oamram: [u8; 160],
     sysram: [u8; 0x2000],
     vram: [u8; 0x2000],
     cartridge: rom::Cartridge,
@@ -19,10 +24,11 @@ pub struct GameBoy {
     clocks_elapsed: u64,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum MemoryError {
     InvalidRomAddress(u16),
     InvalidRamAddress(u16),
+    UnmappedAddress(u16),
 }
 
 pub type MemoryResult<T> = Result<T, MemoryError>;
@@ -67,6 +73,9 @@ impl GameBoy {
     pub fn new(cartridge: rom::Cartridge, model: GameBoyModel) -> GameBoy {
         GameBoy {
             cpu: Cpu::new(model, cartridge.target),
+            dma: Default::default(),
+            cpuram: [0u8; 127],
+            oamram: [0u8; 160],
             sysram: [0u8; 0x2000],
             vram: [0u8; 0x2000],
             cartridge,
@@ -90,8 +99,14 @@ impl GameBoy {
             Ok(self.sysram[(addr - 0xc000) as usize])
         } else if addr <= 0xfdff {
             Ok(self.sysram[(addr - 0xe000) as usize])
+        } else if addr >= 0xfe00 && addr < 0xfea0 {
+            Ok(self.oamram[(addr - 0xfe00) as usize])
+        } else if addr >= 0xff80 && addr <= 0xfffe {
+            Ok(self.cpuram[(addr - 0xff80) as usize])
+        } else if GameBoy::is_mem_register(addr) {
+            Ok(self.read_mem_register(addr))
         } else {
-            Ok(self.cpu.read_addr_u8(addr))
+            Err(MemoryError::UnmappedAddress(addr))
         }
     }
 
@@ -124,9 +139,35 @@ impl GameBoy {
         } else if addr <= 0xfdff {
             self.sysram[(addr - 0xe000) as usize] = value;
             Ok(())
-        } else {
-            self.cpu.write_addr_u8(addr, value);
+        } else if addr >= 0xfe00 && addr < 0xfea0 {
+            self.oamram[(addr - 0xfe00) as usize] = value;
             Ok(())
+        } else if GameBoy::is_mem_register(addr) {
+            self.write_mem_register(addr, value);
+            Ok(())
+        } else if addr >= 0xff80 && addr <= 0xfffe {
+            self.cpuram[(addr - 0xff80) as usize] = value;
+            Ok(())
+        } else {
+            Err(MemoryError::UnmappedAddress(addr))
+        }
+    }
+
+    fn is_mem_register(addr: u16) -> bool {
+        (addr >= 0xff00 && addr < 0xff80) || addr == 0xffff
+    }
+
+    fn read_mem_register(&self, addr: u16) -> u8 {
+        if addr == 0xff46 {
+            self.dma.register_value
+        } else {
+            0
+        }
+    }
+
+    fn write_mem_register(&mut self, addr: u16, value: u8) {
+        if addr == 0xff46 {
+            self.dma.start(value);
         }
     }
 
@@ -239,6 +280,22 @@ impl GameBoy {
                 let addr = self.cpu.read_register_u16(wr::HL);
                 self.write_memory_u8(addr, val)?;
                 self.cycle();
+                self.cycle();
+            }
+            Load::AHighOffset(_) => {
+                let offset = self.exec_read_inc_pc()?;
+                let addr = u16::from(offset) + 0xff00;
+                let value = self.read_memory_u8(addr)?;
+                self.cycle();
+                self.write_register_u8(br::A, value);
+                self.cycle();
+            }
+            Load::HighOffsetA(_) => {
+                let offset = self.exec_read_inc_pc()?;
+                let addr = u16::from(offset) + 0xff00;
+                self.cycle();
+                let value = self.read_register_u8(br::A);
+                self.write_memory_u8(addr, value)?;
                 self.cycle();
             }
             _ => return Err(StepError::Unimplemented(instr.into())),
@@ -764,6 +821,11 @@ impl GameBoy {
     }
 
     fn cycle(&mut self) {
+        // TODO: Use this. a memory error can occur if the DMA operation tries to
+        // write to cartridge RAM that is not present. As with actual hardware,
+        // the DMA operation continues, and so we shouldn't abort emulation early,
+        // but it would be useful to surface this information somewhere for ROM developers.
+        let _dma_result = DmaUnit::run_cycle(self);
         self.clocks_elapsed += 4;
     }
 

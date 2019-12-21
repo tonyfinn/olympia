@@ -43,6 +43,16 @@ pub enum DisassembledInstruction {
     ThreeByte(u32, String),
 }
 
+impl DisassembledInstruction {
+    pub fn text(&self) -> &str {
+        match self {
+            DisassembledInstruction::OneByte(_, text) => &text,
+            DisassembledInstruction::TwoByte(_, text) => &text,
+            DisassembledInstruction::ThreeByte(_, text) => &text,
+        }
+    }
+}
+
 trait OneByteDecoder {
     fn decode(&self, opcode: u8) -> DecodeResult<Instruction>;
 }
@@ -464,7 +474,7 @@ impl Decoder {
         instruction_decoders[0xDF] = Basic(instructions::Jump::CallSystem(0x18.into()).into());
 
         // Ex
-        instruction_decoders[0xE0] = TwoByteAddress(Box::new(idecoders::LoadHighOffset));
+        instruction_decoders[0xE0] = TwoByteAddress(Box::new(idecoders::HighOffsetA));
         instruction_decoders[0xE1] = Basic(instructions::Stack::Pop(aw::HL).into());
         instruction_decoders[0xE2] = Basic(instructions::Load::MemoryOffsetA.into());
         instruction_decoders[0xE3] = OneByte(Box::new(idecoders::Literal));
@@ -483,7 +493,7 @@ impl Decoder {
         instruction_decoders[0xEF] = Basic(instructions::Jump::CallSystem(0x28.into()).into());
 
         // Fx
-        instruction_decoders[0xF0] = TwoByteAddress(Box::new(idecoders::StoreHighOffset));
+        instruction_decoders[0xF0] = TwoByteAddress(Box::new(idecoders::AHighOffset));
         instruction_decoders[0xF1] = Basic(instructions::Stack::Pop(aw::AF).into());
         instruction_decoders[0xF2] = Basic(instructions::Load::AMemoryOffset.into());
         instruction_decoders[0xF3] = Basic(Instruction::DisableInterrupts);

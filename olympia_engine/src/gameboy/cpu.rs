@@ -129,7 +129,6 @@ struct AddressBus {
 
 pub(crate) struct Cpu {
     registers: Registers,
-    ram: [u8; 0x200],
     // address_bus: AddressBus
 }
 
@@ -137,7 +136,6 @@ impl Cpu {
     pub(crate) fn new(model: super::GameBoyModel, target: rom::TargetConsole) -> Cpu {
         Cpu {
             registers: Registers::default_for_model(model, target),
-            ram: [0u8; 0x200],
             // address_bus: AddressBus::default()
         }
     }
@@ -156,14 +154,6 @@ impl Cpu {
 
     pub(crate) fn write_register_u8(&mut self, reg: registers::ByteRegister, val: u8) {
         self.registers.write_u8(reg, val)
-    }
-
-    pub(crate) fn read_addr_u8(&self, addr: u16) -> u8 {
-        self.ram[(addr - 0xfe00) as usize]
-    }
-
-    pub(crate) fn write_addr_u8(&mut self, addr: u16, val: u8) {
-        self.ram[(addr - 0xfe00) as usize] = val;
     }
 
     pub(crate) fn read_flag(&self, flag: registers::Flag) -> bool {
