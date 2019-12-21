@@ -268,6 +268,13 @@ impl GameBoy {
                 self.cpu.write_register_u8(dest, val);
                 self.cycle();
             }
+            Load::Constant16(reg, _) => {
+                let first_byte = self.exec_read_inc_pc()?;
+                let second_byte = self.exec_read_inc_pc()?;
+                let value = u16::from_le_bytes([first_byte, second_byte]);
+                self.write_register_u16(reg.into(), value);
+                self.cycle();
+            }
             Load::RegisterMemory(dest, src) => {
                 let addr = self.cpu.read_register_u16(src);
                 let value = self.read_memory_u8(addr)?;
@@ -279,6 +286,38 @@ impl GameBoy {
                 let val = self.exec_read_inc_pc()?;
                 let addr = self.cpu.read_register_u16(wr::HL);
                 self.write_memory_u8(addr, val)?;
+                self.cycle();
+                self.cycle();
+            }
+            Load::AMemoryOffset => {
+                let addr = u16::from(self.read_register_u8(br::C)) + 0xff00;
+                let value = self.read_memory_u8(addr)?;
+                self.cycle();
+                self.write_register_u8(br::A, value);
+                self.cycle();
+            }
+            Load::MemoryOffsetA => {
+                let addr = u16::from(self.read_register_u8(br::C)) + 0xff00;
+                let value = self.read_register_u8(br::A);
+                self.write_memory_u8(addr, value)?;
+                self.cycle();
+                self.cycle();
+            }
+            Load::AIndirect(_) => {
+                let addr_first_byte = self.exec_read_inc_pc()?;
+                let addr_second_byte = self.exec_read_inc_pc()?;
+                let addr = u16::from_le_bytes([addr_first_byte, addr_second_byte]);
+                let value = self.read_memory_u8(addr)?;
+                self.cycle();
+                self.write_register_u8(br::A, value);
+                self.cycle();
+            }
+            Load::IndirectA(_) => {
+                let addr_first_byte = self.exec_read_inc_pc()?;
+                let addr_second_byte = self.exec_read_inc_pc()?;
+                let addr = u16::from_le_bytes([addr_first_byte, addr_second_byte]);
+                let value = self.read_register_u8(br::A);
+                self.write_memory_u8(addr, value)?;
                 self.cycle();
                 self.cycle();
             }
@@ -298,7 +337,29 @@ impl GameBoy {
                 self.write_memory_u8(addr, value)?;
                 self.cycle();
             }
-            _ => return Err(StepError::Unimplemented(instr.into())),
+            Load::Increment16A(inc) => {
+                let addr = self.read_register_u16(wr::HL);
+                self.write_memory_u8(addr, self.read_register_u8(br::A))?;
+                self.cycle();
+                let new_addr = match inc {
+                    instructions::Increment::Increment => addr.wrapping_add(1),
+                    instructions::Increment::Decrement => addr.wrapping_sub(1),
+                };
+                self.write_register_u16(wr::HL, new_addr);
+                self.cycle();
+            }
+            Load::AIncrement16(inc) => {
+                let addr = self.read_register_u16(wr::HL);
+                let value = self.read_memory_u8(addr)?;
+                self.cycle();
+                let new_addr = match inc {
+                    instructions::Increment::Increment => addr.wrapping_add(1),
+                    instructions::Increment::Decrement => addr.wrapping_sub(1),
+                };
+                self.write_register_u8(br::A, value);
+                self.write_register_u16(wr::HL, new_addr);
+                self.cycle();
+            }
         }
 
         Ok(())
