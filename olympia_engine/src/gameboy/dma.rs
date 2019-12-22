@@ -1,3 +1,5 @@
+use crate::gameboy::memory;
+
 pub const OAM_BASE: u16 = 0xFE00;
 
 #[derive(PartialEq, Eq, Debug)]
@@ -21,15 +23,18 @@ impl DmaUnit {
         self.state = DmaState::Copying;
     }
 
-    pub(crate) fn run_cycle(gb: &mut super::GameBoy) -> super::MemoryResult<()> {
-        if gb.dma.state == DmaState::Copying {
-            let index_to_try = gb.dma.idx;
-            gb.dma.idx += 1;
-            if gb.dma.idx == 160 {
-                gb.dma.state = DmaState::Idle
+    pub(crate) fn run_cycle(&mut self, mem: &mut memory::Memory) -> memory::MemoryResult<()> {
+        if mem.registers.dma != self.register_value {
+            self.start(mem.registers.dma);
+        }
+        if self.state == DmaState::Copying {
+            let index_to_try = self.idx;
+            self.idx += 1;
+            if self.idx == 160 {
+                self.state = DmaState::Idle
             }
-            let mem_value = gb.read_memory_u8(gb.dma.offset + index_to_try)?;
-            gb.write_memory_u8(OAM_BASE + index_to_try, mem_value)?;
+            let mem_value = mem.read_u8(self.offset + index_to_try)?;
+            mem.write_u8(OAM_BASE + index_to_try, mem_value)?;
             Ok(())
         } else {
             Ok(())
@@ -72,7 +77,7 @@ mod test {
         let dma_data = vec![0x23; 160];
         let mut gameboy = make_gameboy_dma_data(0x2000, dma_data);
         for _ in 0..200 {
-            DmaUnit::run_cycle(&mut gameboy).unwrap();
+            gameboy.dma.run_cycle(&mut gameboy.mem).unwrap();
         }
 
         for i in 0xfe00..0xfea0 {
@@ -84,10 +89,10 @@ mod test {
     fn test_copy() {
         let dma_data = vec![0x23; 160];
         let mut gameboy = make_gameboy_dma_data(0x2000, dma_data);
-        gameboy.dma.start(0x20);
+        gameboy.mem.registers.dma = 0x20;
 
         for _ in 0..200 {
-            DmaUnit::run_cycle(&mut gameboy).unwrap();
+            gameboy.dma.run_cycle(&mut gameboy.mem).unwrap();
         }
 
         assert_eq!(gameboy.dma.state, DmaState::Idle);

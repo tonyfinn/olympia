@@ -5,6 +5,12 @@ use crate::rom;
 pub use crate::registers::{ByteRegister, WordRegister};
 use crate::registers::{ByteRegister as br, WordRegister as wr};
 
+/* pub(crate) enum InterruptState {
+    Pending,
+    Enabled,
+    Disabled,
+}*/
+
 #[derive(Debug, PartialEq, Eq)]
 struct Registers {
     af: u16,
@@ -129,6 +135,7 @@ struct AddressBus {
 
 pub(crate) struct Cpu {
     registers: Registers,
+    // interrupts_enabled: InterruptState,
     // address_bus: AddressBus
 }
 
@@ -136,6 +143,7 @@ impl Cpu {
     pub(crate) fn new(model: super::GameBoyModel, target: rom::TargetConsole) -> Cpu {
         Cpu {
             registers: Registers::default_for_model(model, target),
+            // interrupts_enabled: InterruptState::Disabled,
             // address_bus: AddressBus::default()
         }
     }

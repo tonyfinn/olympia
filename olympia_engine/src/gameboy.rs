@@ -1,5 +1,6 @@
 pub(crate) mod cpu;
 mod dma;
+pub(crate) mod memory;
 
 use crate::decoder;
 use crate::gameboy::cpu::Cpu;
@@ -9,29 +10,17 @@ use crate::registers;
 use crate::registers::{ByteRegister as br, WordRegister as wr};
 use crate::rom;
 use crate::rom::TargetConsole;
+use crate::types;
 
 use core::convert::TryFrom;
 
 pub struct GameBoy {
     cpu: Cpu,
     dma: DmaUnit,
-    cpuram: [u8; 127],
-    oamram: [u8; 160],
-    sysram: [u8; 0x2000],
-    vram: [u8; 0x2000],
-    cartridge: rom::Cartridge,
+    mem: memory::Memory,
     decoder: decoder::Decoder,
     clocks_elapsed: u64,
 }
-
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub enum MemoryError {
-    InvalidRomAddress(u16),
-    InvalidRamAddress(u16),
-    UnmappedAddress(u16),
-}
-
-pub type MemoryResult<T> = Result<T, MemoryError>;
 
 #[derive(PartialEq, Eq, Debug)]
 enum SetZeroMode {
@@ -41,13 +30,13 @@ enum SetZeroMode {
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum StepError {
-    Memory(MemoryError),
+    Memory(memory::MemoryError),
     Decode(decoder::DecodeError),
     Unimplemented(instructions::Instruction),
 }
 
-impl From<MemoryError> for StepError {
-    fn from(err: MemoryError) -> Self {
+impl From<memory::MemoryError> for StepError {
+    fn from(err: memory::MemoryError) -> Self {
         StepError::Memory(err)
     }
 }
@@ -60,128 +49,60 @@ impl From<decoder::DecodeError> for StepError {
 
 pub type StepResult<T> = Result<T, StepError>;
 
-struct MemoryIterator<'a> {
-    addr: u16,
-    gb: &'a GameBoy,
-}
-
-impl<'a> Iterator for MemoryIterator<'a> {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let val = self.gb.read_memory_u8(self.addr);
-        self.addr += 1;
-        Some(val.unwrap_or(0))
-    }
-}
-
 impl GameBoy {
     pub fn new(cartridge: rom::Cartridge, model: GameBoyModel) -> GameBoy {
         GameBoy {
             cpu: Cpu::new(model, cartridge.target),
             dma: Default::default(),
-            cpuram: [0u8; 127],
-            oamram: [0u8; 160],
-            sysram: [0u8; 0x2000],
-            vram: [0u8; 0x2000],
-            cartridge,
+            mem: memory::Memory::new(cartridge),
             decoder: decoder::Decoder::new(),
             clocks_elapsed: 0,
         }
     }
 
-    pub fn read_memory_u8(&self, addr: u16) -> MemoryResult<u8> {
-        if addr < 0x8000 {
-            self.cartridge
-                .read(addr)
-                .map_err(|_| MemoryError::InvalidRomAddress(addr))
-        } else if addr <= 0x9fff {
-            Ok(self.vram[(addr - 0x8000) as usize])
-        } else if addr <= 0xbfff {
-            self.cartridge
-                .read(addr)
-                .map_err(|_| MemoryError::InvalidRamAddress(addr))
-        } else if addr <= 0xdfff {
-            Ok(self.sysram[(addr - 0xc000) as usize])
-        } else if addr <= 0xfdff {
-            Ok(self.sysram[(addr - 0xe000) as usize])
-        } else if addr >= 0xfe00 && addr < 0xfea0 {
-            Ok(self.oamram[(addr - 0xfe00) as usize])
-        } else if addr >= 0xff80 && addr <= 0xfffe {
-            Ok(self.cpuram[(addr - 0xff80) as usize])
-        } else if GameBoy::is_mem_register(addr) {
-            Ok(self.read_mem_register(addr))
-        } else {
-            Err(MemoryError::UnmappedAddress(addr))
-        }
+    pub fn read_memory_u8<A: Into<types::LiteralAddress>>(
+        &self,
+        addr: A,
+    ) -> memory::MemoryResult<u8> {
+        self.mem.read_u8(addr)
     }
 
-    pub fn read_memory_i8(&self, addr: u16) -> MemoryResult<i8> {
-        Ok(i8::from_le_bytes([self.read_memory_u8(addr)?]))
+    pub fn write_memory_u8<A: Into<types::LiteralAddress>>(
+        &mut self,
+        addr: A,
+        val: u8,
+    ) -> memory::MemoryResult<()> {
+        self.mem.write_u8(addr, val)
     }
 
-    pub fn read_memory_u16(&self, addr: u16) -> MemoryResult<u16> {
+    pub fn read_memory_i8<A: Into<types::LiteralAddress>>(
+        &self,
+        addr: A,
+    ) -> memory::MemoryResult<i8> {
+        Ok(i8::from_le_bytes([self.mem.read_u8(addr)?]))
+    }
+
+    pub fn read_memory_u16<A: Into<types::LiteralAddress>>(
+        &self,
+        target: A,
+    ) -> memory::MemoryResult<u16> {
+        let addr = target.into();
         Ok(u16::from_le_bytes([
-            self.read_memory_u8(addr)?,
-            self.read_memory_u8(addr.wrapping_add(1))?,
+            self.mem.read_u8(addr)?,
+            self.mem.read_u8(addr.next())?,
         ]))
     }
 
-    pub fn write_memory_u8(&mut self, addr: u16, value: u8) -> MemoryResult<()> {
-        if addr < 0x8000 {
-            self.cartridge
-                .write(addr, value)
-                .map_err(|_| MemoryError::InvalidRomAddress(addr))
-        } else if addr <= 0x9fff {
-            self.vram[(addr - 0x8000) as usize] = value;
-            Ok(())
-        } else if addr <= 0xbfff {
-            self.cartridge
-                .write(addr, value)
-                .map_err(|_| MemoryError::InvalidRamAddress(addr))
-        } else if addr <= 0xdfff {
-            self.sysram[(addr - 0xc000) as usize] = value;
-            Ok(())
-        } else if addr <= 0xfdff {
-            self.sysram[(addr - 0xe000) as usize] = value;
-            Ok(())
-        } else if addr >= 0xfe00 && addr < 0xfea0 {
-            self.oamram[(addr - 0xfe00) as usize] = value;
-            Ok(())
-        } else if GameBoy::is_mem_register(addr) {
-            self.write_mem_register(addr, value);
-            Ok(())
-        } else if addr >= 0xff80 && addr <= 0xfffe {
-            self.cpuram[(addr - 0xff80) as usize] = value;
-            Ok(())
-        } else {
-            Err(MemoryError::UnmappedAddress(addr))
-        }
-    }
-
-    fn is_mem_register(addr: u16) -> bool {
-        (addr >= 0xff00 && addr < 0xff80) || addr == 0xffff
-    }
-
-    fn read_mem_register(&self, addr: u16) -> u8 {
-        if addr == 0xff46 {
-            self.dma.register_value
-        } else {
-            0
-        }
-    }
-
-    fn write_mem_register(&mut self, addr: u16, value: u8) {
-        if addr == 0xff46 {
-            self.dma.start(value);
-        }
-    }
-
-    pub fn write_memory_u16(&mut self, addr: u16, value: u16) -> MemoryResult<()> {
+    pub fn write_memory_u16<A: Into<types::LiteralAddress>>(
+        &mut self,
+        target: A,
+        value: u16,
+    ) -> memory::MemoryResult<()> {
+        let addr = target.into();
         let bytes = value.to_le_bytes();
 
-        self.write_memory_u8(addr, bytes[0])?;
-        self.write_memory_u8(addr.wrapping_add(1), bytes[1])?;
+        self.mem.write_u8(addr, bytes[0])?;
+        self.mem.write_u8(addr.next(), bytes[1])?;
         Ok(())
     }
 
@@ -201,11 +122,8 @@ impl GameBoy {
         self.cpu.write_register_u8(reg, val)
     }
 
-    fn memory_iter(&self, start: u16) -> MemoryIterator {
-        MemoryIterator {
-            addr: start,
-            gb: &self,
-        }
+    fn memory_iter(&self, start: u16) -> memory::MemoryIterator {
+        self.mem.offset_iter(start)
     }
 
     fn should_jump(&self, cond: instructions::Condition) -> bool {
@@ -216,6 +134,12 @@ impl GameBoy {
             Carry => self.cpu.read_flag(registers::Flag::Carry),
             NoCarry => !self.cpu.read_flag(registers::Flag::Carry),
         }
+    }
+
+    fn exec_read_instr_address(&mut self) -> StepResult<types::LiteralAddress> {
+        let low = self.exec_read_inc_pc()?;
+        let high = self.exec_read_inc_pc()?;
+        Ok([low, high].into())
     }
 
     fn exec_read_inc_pc(&mut self) -> StepResult<u8> {
@@ -296,32 +220,28 @@ impl GameBoy {
                 self.cycle();
             }
             Load::AMemoryOffset => {
-                let addr = u16::from(self.read_register_u8(br::C)) + 0xff00;
+                let addr = types::HighAddress(self.read_register_u8(br::C));
                 let value = self.read_memory_u8(addr)?;
                 self.cycle();
                 self.write_register_u8(br::A, value);
                 self.cycle();
             }
             Load::MemoryOffsetA => {
-                let addr = u16::from(self.read_register_u8(br::C)) + 0xff00;
+                let addr = types::HighAddress(self.read_register_u8(br::C));
                 let value = self.read_register_u8(br::A);
                 self.write_memory_u8(addr, value)?;
                 self.cycle();
                 self.cycle();
             }
             Load::AIndirect(_) => {
-                let addr_first_byte = self.exec_read_inc_pc()?;
-                let addr_second_byte = self.exec_read_inc_pc()?;
-                let addr = u16::from_le_bytes([addr_first_byte, addr_second_byte]);
+                let addr = self.exec_read_instr_address()?;
                 let value = self.read_memory_u8(addr)?;
                 self.cycle();
                 self.write_register_u8(br::A, value);
                 self.cycle();
             }
             Load::IndirectA(_) => {
-                let addr_first_byte = self.exec_read_inc_pc()?;
-                let addr_second_byte = self.exec_read_inc_pc()?;
-                let addr = u16::from_le_bytes([addr_first_byte, addr_second_byte]);
+                let addr = self.exec_read_instr_address()?;
                 let value = self.read_register_u8(br::A);
                 self.write_memory_u8(addr, value)?;
                 self.cycle();
@@ -329,7 +249,7 @@ impl GameBoy {
             }
             Load::AHighOffset(_) => {
                 let offset = self.exec_read_inc_pc()?;
-                let addr = u16::from(offset) + 0xff00;
+                let addr = types::HighAddress(offset);
                 let value = self.read_memory_u8(addr)?;
                 self.cycle();
                 self.write_register_u8(br::A, value);
@@ -337,7 +257,7 @@ impl GameBoy {
             }
             Load::HighOffsetA(_) => {
                 let offset = self.exec_read_inc_pc()?;
-                let addr = u16::from(offset) + 0xff00;
+                let addr = types::HighAddress(offset);
                 self.cycle();
                 let value = self.read_register_u8(br::A);
                 self.write_memory_u8(addr, value)?;
@@ -526,20 +446,25 @@ impl GameBoy {
         Ok(())
     }
 
+    fn set_pc<A: Into<types::LiteralAddress>>(&mut self, target: A) {
+        let types::LiteralAddress(addr) = target.into();
+        self.cpu.write_register_u16(wr::PC, addr);
+    }
+
     fn exec_jump(&mut self, instr: instructions::Jump) -> StepResult<()> {
         use instructions::Jump;
         match instr {
             Jump::Jump(_) => {
-                let addr = u16::from_le_bytes([self.exec_read_inc_pc()?, self.exec_read_inc_pc()?]);
-                self.cpu.write_register_u16(wr::PC, addr);
+                let addr = self.exec_read_instr_address()?;
+                self.set_pc(addr);
                 self.cycle();
                 self.cycle();
                 Ok(())
             }
             Jump::JumpIf(cond, _) => {
-                let addr = u16::from_le_bytes([self.exec_read_inc_pc()?, self.exec_read_inc_pc()?]);
+                let addr = self.exec_read_instr_address()?;
                 if self.should_jump(cond) {
-                    self.cpu.write_register_u16(wr::PC, addr);
+                    self.set_pc(addr);
                     self.cycle();
                 }
                 self.cycle();
@@ -581,29 +506,24 @@ impl GameBoy {
                 Ok(())
             }
             Jump::Call(_) => {
-                let low = self.exec_read_inc_pc()?;
-                let high = self.exec_read_inc_pc()?;
-                let addr = u16::from_le_bytes([low, high]);
+                let addr = self.exec_read_instr_address()?;
                 self.exec_push(self.cpu.read_register_u16(wr::PC))?;
-                self.cpu.write_register_u16(wr::PC, addr);
+                self.set_pc(addr);
                 self.cycle();
                 Ok(())
             }
             Jump::CallIf(cond, _) => {
-                let low = self.exec_read_inc_pc()?;
-                let high = self.exec_read_inc_pc()?;
-                let addr = u16::from_le_bytes([low, high]);
+                let addr = self.exec_read_instr_address()?;
                 if self.should_jump(cond) {
                     self.exec_push(self.cpu.read_register_u16(wr::PC))?;
-                    self.cpu.write_register_u16(wr::PC, addr);
+                    self.set_pc(addr);
                 }
                 self.cycle();
                 Ok(())
             }
-            Jump::CallSystem(addr_literal) => {
-                let crate::types::LiteralAddress(addr) = addr_literal;
+            Jump::CallSystem(addr) => {
                 self.exec_push(self.cpu.read_register_u16(wr::PC))?;
-                self.cpu.write_register_u16(wr::PC, addr);
+                self.set_pc(addr);
                 self.cycle();
                 Ok(())
             }
@@ -915,7 +835,7 @@ impl GameBoy {
         // write to cartridge RAM that is not present. As with actual hardware,
         // the DMA operation continues, and so we shouldn't abort emulation early,
         // but it would be useful to surface this information somewhere for ROM developers.
-        let _dma_result = DmaUnit::run_cycle(self);
+        let _dma_result = self.dma.run_cycle(&mut self.mem);
         self.clocks_elapsed += 4;
     }
 
@@ -990,6 +910,7 @@ impl GameBoyModel {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::gameboy::memory::MemoryResult;
 
     fn make_cartridge() -> rom::Cartridge {
         rom::Cartridge::from_data(vec![0u8; 0x8000]).unwrap()

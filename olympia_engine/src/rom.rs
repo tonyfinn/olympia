@@ -1,14 +1,8 @@
+use crate::gameboy::memory;
 use alloc::fmt;
 use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::ops::Range;
-
-const STATIC_ROM: Range<u16> = 0x0000..0x4000;
-const SWITCHABLE_ROM: Range<u16> = 0x4000..0x8000;
-const SWITCHABLE_RAM: Range<u16> = 0xA000..0xBFFF;
-
-const ROM_BANK_SIZE: u16 = 0x4000;
-const RAM_BANK_SIZE: u16 = 0x2000;
 
 const TARGET_CONSOLE_LOCATION: usize = 0x143;
 const CARTRIDGE_TYPE_LOCATION: usize = 0x147;
@@ -70,11 +64,11 @@ pub struct Cartridge {
 
 impl Cartridge {
     pub fn read(&self, loc: u16) -> CartridgeResult<u8> {
-        if STATIC_ROM.contains(&loc) {
+        if memory::STATIC_ROM.contains(loc) {
             self.controller.read_static_rom(loc, &self.data)
-        } else if SWITCHABLE_ROM.contains(&loc) {
+        } else if memory::SWITCHABLE_ROM.contains(loc) {
             self.controller.read_switchable_rom(loc, &self.data)
-        } else if SWITCHABLE_RAM.contains(&loc) {
+        } else if memory::CARTRIDGE_RAM.contains(loc) {
             self.controller.read_switchable_ram(loc)
         } else {
             Err(CartridgeError::NonCartAddress(loc))
@@ -288,16 +282,16 @@ impl MBC1 {
 impl CartridgeType for MBC1 {
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         let bank = u32::from(self.selected_static_rom_bank());
-        let rom_addr = (bank * u32::from(ROM_BANK_SIZE)) + u32::from(loc);
+        let rom_addr = (bank * u32::from(memory::STATIC_ROM.len)) + u32::from(loc);
         rom.get(usize::try_from(rom_addr).expect("ROM too large for host platform"))
             .copied()
             .ok_or(CartridgeError::NoDataInRom(loc))
     }
 
     fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
-        let bank_addr = loc - SWITCHABLE_ROM.start;
+        let bank_addr = loc - memory::SWITCHABLE_ROM.start;
         let bank = u32::from(self.selected_rom_bank());
-        let rom_addr = (bank * u32::from(ROM_BANK_SIZE)) + u32::from(bank_addr);
+        let rom_addr = (bank * u32::from(memory::SWITCHABLE_ROM.start)) + u32::from(bank_addr);
         rom.get(usize::try_from(rom_addr).expect("ROM too large for host platform"))
             .copied()
             .ok_or(CartridgeError::NoDataInRom(loc))
@@ -306,7 +300,7 @@ impl CartridgeType for MBC1 {
     fn read_switchable_ram(&self, loc: u16) -> CartridgeResult<u8> {
         if self.has_ram && self.ram_enabled {
             let bank = u16::from(self.selected_ram_bank());
-            let ram_addr = (bank * RAM_BANK_SIZE) + (loc - SWITCHABLE_RAM.start);
+            let ram_addr = (bank * memory::CARTRIDGE_RAM.len) + (loc - memory::CARTRIDGE_RAM.start);
             Ok(self.ram[usize::from(ram_addr)])
         } else if self.has_ram {
             Err(CartridgeError::CartridgeRamDisabled)
@@ -335,9 +329,9 @@ impl CartridgeType for MBC1 {
                 self.page_mode = MBC1PageMode::LargeRam
             }
             Ok(())
-        } else if SWITCHABLE_RAM.contains(&loc) {
+        } else if memory::CARTRIDGE_RAM.contains(loc) {
             if self.ram_enabled {
-                let ram_addr = loc - SWITCHABLE_RAM.start;
+                let ram_addr = loc - memory::CARTRIDGE_RAM.start;
                 self.ram[usize::from(ram_addr)] = value;
             }
             Ok(())
@@ -394,9 +388,9 @@ impl CartridgeType for MBC2 {
     }
 
     fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
-        let bank_addr = loc - SWITCHABLE_ROM.start;
+        let bank_addr = loc - memory::SWITCHABLE_ROM.start;
         let bank = u16::from(self.selected_rom_bank());
-        let rom_addr = (bank * ROM_BANK_SIZE) + bank_addr;
+        let rom_addr = (bank * memory::SWITCHABLE_ROM.len) + bank_addr;
         rom.get(usize::from(rom_addr))
             .copied()
             .ok_or(CartridgeError::NoDataInRom(loc))
@@ -406,21 +400,21 @@ impl CartridgeType for MBC2 {
         if !self.ram_enabled {
             Err(CartridgeError::CartridgeRamDisabled)
         } else {
-            let wrapped_ram_addr = (loc - SWITCHABLE_RAM.start) % 0x200;
+            let wrapped_ram_addr = (loc - memory::CARTRIDGE_RAM.start) % 0x200;
             Ok(self.ram[usize::from(wrapped_ram_addr)])
         }
     }
 
     fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()> {
-        if STATIC_ROM.contains(&loc) {
+        if memory::STATIC_ROM.contains(loc) {
             if loc & 0x100 == 0x100 {
                 self.selected_rom = value & 0xF;
             } else {
                 self.ram_enabled = value == 0b1010;
             }
             Ok(())
-        } else if SWITCHABLE_RAM.contains(&loc) && self.ram_enabled {
-            let ram_addr = loc - SWITCHABLE_RAM.start;
+        } else if memory::CARTRIDGE_RAM.contains(loc) && self.ram_enabled {
+            let ram_addr = loc - memory::CARTRIDGE_RAM.start;
             let wrapped_ram_addr = ram_addr % 0x200;
             self.ram[usize::from(wrapped_ram_addr)] = value & 0xF;
             Ok(())
