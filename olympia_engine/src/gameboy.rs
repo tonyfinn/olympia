@@ -251,31 +251,26 @@ impl GameBoy {
             Load::RegisterRegister(dest, src) => {
                 let value = self.cpu.read_register_u8(src);
                 self.cpu.write_register_u8(dest, value);
-                self.cycle();
             }
             Load::MemoryRegister(dest, src) => {
                 let value = self.cpu.read_register_u8(src);
                 let target_addr = self.cpu.read_register_u16(dest);
                 self.write_memory_u8(target_addr, value)?;
                 self.cycle();
-                self.cycle();
             }
             Load::Constant(dest, _) => {
                 let val = self.exec_read_inc_pc()?;
                 self.cpu.write_register_u8(dest, val);
-                self.cycle();
             }
             Load::Constant16(reg, _) => {
                 let first_byte = self.exec_read_inc_pc()?;
                 let second_byte = self.exec_read_inc_pc()?;
                 let value = u16::from_le_bytes([first_byte, second_byte]);
                 self.write_register_u16(reg.into(), value);
-                self.cycle();
             }
             Load::RegisterMemory(dest, src) => {
                 let addr = self.cpu.read_register_u16(src);
                 let value = self.read_memory_u8(addr)?;
-                self.cycle();
                 self.cpu.write_register_u8(dest, value);
                 self.cycle();
             }
@@ -284,20 +279,17 @@ impl GameBoy {
                 let addr = self.cpu.read_register_u16(wr::HL);
                 self.write_memory_u8(addr, val)?;
                 self.cycle();
-                self.cycle();
             }
             Load::AMemoryOffset => {
                 let addr = types::HighAddress(self.read_register_u8(br::C));
                 let value = self.read_memory_u8(addr)?;
                 self.cycle();
                 self.write_register_u8(br::A, value);
-                self.cycle();
             }
             Load::MemoryOffsetA => {
                 let addr = types::HighAddress(self.read_register_u8(br::C));
                 let value = self.read_register_u8(br::A);
                 self.write_memory_u8(addr, value)?;
-                self.cycle();
                 self.cycle();
             }
             Load::AIndirect(_) => {
@@ -305,13 +297,11 @@ impl GameBoy {
                 let value = self.read_memory_u8(addr)?;
                 self.cycle();
                 self.write_register_u8(br::A, value);
-                self.cycle();
             }
             Load::IndirectA(_) => {
                 let addr = self.exec_read_instr_address()?;
                 let value = self.read_register_u8(br::A);
                 self.write_memory_u8(addr, value)?;
-                self.cycle();
                 self.cycle();
             }
             Load::AHighOffset(_) => {
@@ -320,12 +310,10 @@ impl GameBoy {
                 let value = self.read_memory_u8(addr)?;
                 self.cycle();
                 self.write_register_u8(br::A, value);
-                self.cycle();
             }
             Load::HighOffsetA(_) => {
                 let offset = self.exec_read_inc_pc()?;
                 let addr = types::HighAddress(offset);
-                self.cycle();
                 let value = self.read_register_u8(br::A);
                 self.write_memory_u8(addr, value)?;
                 self.cycle();
@@ -333,7 +321,6 @@ impl GameBoy {
             Load::Increment16A(inc) => {
                 let addr = self.read_register_u16(wr::HL);
                 self.write_memory_u8(addr, self.read_register_u8(br::A))?;
-                self.cycle();
                 let new_addr = match inc {
                     instructions::Increment::Increment => addr.wrapping_add(1),
                     instructions::Increment::Decrement => addr.wrapping_sub(1),
@@ -344,7 +331,6 @@ impl GameBoy {
             Load::AIncrement16(inc) => {
                 let addr = self.read_register_u16(wr::HL);
                 let value = self.read_memory_u8(addr)?;
-                self.cycle();
                 let new_addr = match inc {
                     instructions::Increment::Increment => addr.wrapping_add(1),
                     instructions::Increment::Decrement => addr.wrapping_sub(1),
@@ -501,7 +487,6 @@ impl GameBoy {
                 self.cycle();
             }
         };
-        self.cycle();
         Ok(())
     }
 
@@ -509,7 +494,6 @@ impl GameBoy {
         let arg = self.exec_read_inc_pc()?;
         let new_value = self.exec_al(op, arg);
         self.cpu.write_register_u8(br::A, new_value);
-        self.cycle();
         Ok(())
     }
 
@@ -530,7 +514,6 @@ impl GameBoy {
                 let addr = self.exec_read_instr_address()?;
                 self.set_pc(addr);
                 self.cycle();
-                self.cycle();
                 Ok(())
             }
             Jump::JumpIf(cond, _) => {
@@ -539,13 +522,11 @@ impl GameBoy {
                     self.set_pc(addr);
                     self.cycle();
                 }
-                self.cycle();
                 Ok(())
             }
             Jump::RegisterJump => {
                 let addr = self.cpu.read_register_u16(wr::HL);
                 self.set_pc(addr);
-                self.cycle();
                 Ok(())
             }
             Jump::RelativeJump(_) => {
@@ -558,7 +539,6 @@ impl GameBoy {
                 };
                 self.cycle();
                 self.set_pc(new_pc);
-                self.cycle();
                 Ok(())
             }
             Jump::RelativeJumpIf(cond, _) => {
@@ -573,14 +553,12 @@ impl GameBoy {
                     self.cycle();
                     self.set_pc(new_pc);
                 }
-                self.cycle();
                 Ok(())
             }
             Jump::Call(_) => {
                 let addr = self.exec_read_instr_address()?;
                 self.exec_push(self.read_pc())?;
                 self.set_pc(addr);
-                self.cycle();
                 Ok(())
             }
             Jump::CallIf(cond, _) => {
@@ -589,19 +567,16 @@ impl GameBoy {
                     self.exec_push(self.read_pc())?;
                     self.set_pc(addr);
                 }
-                self.cycle();
                 Ok(())
             }
             Jump::CallSystem(addr) => {
                 self.exec_push(self.read_pc())?;
                 self.set_pc(addr);
-                self.cycle();
                 Ok(())
             }
             Jump::Return => {
                 let return_addr: types::LiteralAddress = self.exec_pop()?;
                 self.set_pc(return_addr);
-                self.cycle();
                 self.cycle();
                 Ok(())
             }
@@ -612,10 +587,15 @@ impl GameBoy {
                     self.cycle();
                 }
                 self.cycle();
+                Ok(())
+            }
+            Jump::ReturnInterrupt => {
+                let return_addr: types::LiteralAddress = self.exec_pop()?;
+                self.set_pc(return_addr);
+                self.cpu.interrupts_enabled = cpu::InterruptState::Enabled;
                 self.cycle();
                 Ok(())
             }
-            Jump::ReturnInterrupt => Err(StepError::Unimplemented(instr.into())),
         }
     }
 
@@ -625,13 +605,11 @@ impl GameBoy {
             Stack::Push(reg) => {
                 let value = self.cpu.read_register_u16(reg.into());
                 self.exec_push(value)?;
-                self.cycle();
                 Ok(())
             }
             Stack::Pop(reg) => {
                 let val = self.exec_pop()?;
                 self.cpu.write_register_u16(reg.into(), val);
-                self.cycle();
                 Ok(())
             }
             _ => Err(StepError::Unimplemented(instr.into())),
@@ -672,7 +650,6 @@ impl GameBoy {
         self.cpu.set_flag_to(registers::Flag::Zero, zero_flag);
         self.cpu.reset_flag(registers::Flag::HalfCarry);
         self.cpu.reset_flag(registers::Flag::AddSubtract);
-        self.cycle();
         Ok(())
     }
 
@@ -692,12 +669,10 @@ impl GameBoy {
                 let val = self.cpu.read_register_u8(reg);
                 let new_val = val | (1 << bit);
                 self.cpu.write_register_u8(reg, new_val);
-                self.cycle();
                 Ok(())
             }
             Extended::SetMemoryBit(bit) => {
                 let addr = self.cpu.read_register_u16(wr::HL);
-                self.cycle();
                 let val = self.read_memory_u8(addr)?;
                 self.cycle();
                 let new_val = val | (1 << bit);
@@ -709,12 +684,10 @@ impl GameBoy {
                 let val = self.cpu.read_register_u8(reg);
                 let new_val = val & !(1 << bit);
                 self.cpu.write_register_u8(reg, new_val);
-                self.cycle();
                 Ok(())
             }
             Extended::ResetMemoryBit(bit) => {
                 let addr = self.cpu.read_register_u16(wr::HL);
-                self.cycle();
                 let val = self.read_memory_u8(addr)?;
                 self.cycle();
                 let new_val = val & !(1 << bit);
@@ -728,12 +701,10 @@ impl GameBoy {
                 self.cpu.set_flag_to(registers::Flag::Zero, bit_test == 0);
                 self.cpu.set_flag(registers::Flag::HalfCarry);
                 self.cpu.set_flag_to(registers::Flag::AddSubtract, false);
-                self.cycle();
                 Ok(())
             }
             Extended::TestMemoryBit(bit) => {
                 let addr = self.cpu.read_register_u16(wr::HL);
-                self.cycle();
                 let val = self.read_memory_u8(addr)?;
                 self.cycle();
                 let bit_test = val & (1 << bit);
@@ -748,7 +719,6 @@ impl GameBoy {
             }
             Extended::RotateMemory(dir, carry) => {
                 let addr = self.cpu.read_register_u16(wr::HL);
-                self.cycle();
                 let current_value = self.read_memory_u8(addr)?;
                 self.cycle();
                 let high_byte = if carry != Carry {
@@ -782,12 +752,10 @@ impl GameBoy {
                 let high_nibble = value & 0xF0;
                 let new_value = (low_nibble.rotate_left(4)) + (high_nibble.rotate_right(4));
                 self.cpu.write_register_u8(reg, new_value);
-                self.cycle();
                 Ok(())
             }
             Extended::SwapMemory => {
                 let addr = self.cpu.read_register_u16(registers::WordRegister::HL);
-                self.cycle();
                 let value = self.read_memory_u8(addr)?;
                 let low_nibble = value & 0x0F;
                 let high_nibble = value & 0xF0;
@@ -805,7 +773,6 @@ impl GameBoy {
                 };
                 self.cpu.set_flag_to(registers::Flag::Carry, carry);
                 self.cpu.write_register_u8(reg, shifted_value);
-                self.cycle();
                 Ok(())
             }
             Extended::ShiftRightExtend(reg) => {
@@ -815,12 +782,10 @@ impl GameBoy {
                 let shifted_value = (extra_bit + value16) >> 1;
                 let actual_byte = shifted_value.to_le_bytes()[0];
                 self.cpu.write_register_u8(reg, actual_byte);
-                self.cycle();
                 Ok(())
             }
             Extended::ShiftMemoryRightExtend => {
                 let addr = self.cpu.read_register_u16(registers::WordRegister::HL);
-                self.cycle();
                 let value = self.read_memory_u8(addr)?;
                 self.cycle();
                 let value16 = u16::from(value);
@@ -833,7 +798,6 @@ impl GameBoy {
             }
             Extended::ShiftMemoryZero(dir) => {
                 let addr = self.cpu.read_register_u16(registers::WordRegister::HL);
-                self.cycle();
                 let value = self.read_memory_u8(addr)?;
                 let (shifted_value, carry) = match dir {
                     Left => (value << 1, value & 0x80 != 0),
@@ -857,28 +821,56 @@ impl GameBoy {
             Instruction::ConstantAL(op, _) => self.exec_constant_al(op),
             Instruction::Stack(s) => self.exec_stack(s),
             Instruction::Extended(ex) => self.exec_extended(ex),
-            Instruction::NOP => {
-                self.cycle();
-                Ok(())
-            }
+            Instruction::NOP => Ok(()),
             Instruction::InvertCarry => {
                 self.cpu.invert_flag(registers::Flag::Carry);
                 self.cpu.reset_flag(registers::Flag::HalfCarry);
                 self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cycle();
                 Ok(())
             }
             Instruction::SetCarry => {
                 self.cpu.set_flag(registers::Flag::Carry);
                 self.cpu.reset_flag(registers::Flag::HalfCarry);
                 self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cycle();
                 Ok(())
             }
             Instruction::Rotate(dir, carry) => {
                 self.exec_rotate(dir, carry, br::A, SetZeroMode::Clear)
             }
+            Instruction::EnableInterrupts => {
+                self.cpu.interrupts_enabled = cpu::InterruptState::Pending;
+                Ok(())
+            }
+            Instruction::DisableInterrupts => {
+                self.cpu.interrupts_enabled = cpu::InterruptState::Disabled;
+                Ok(())
+            }
             _ => Err(StepError::Unimplemented(instr)),
+        }
+    }
+
+    fn check_interrupts(&mut self) -> StepResult<bool> {
+        use cpu::InterruptState::{Disabled, Enabled, Pending};
+        match self.cpu.interrupts_enabled {
+            Pending => {
+                self.cpu.interrupts_enabled = Enabled;
+                Ok(false)
+            }
+            Disabled => Ok(false),
+            Enabled => {
+                let itest = cpu::Interrupt::test(self.mem.registers.ie, self.mem.registers.iflag);
+                if let Some(interrupt) = itest {
+                    self.cycle();
+                    self.cycle();
+                    self.cpu.interrupts_enabled = Disabled;
+                    let addr = interrupt.handler_address();
+                    self.exec_push(self.read_pc())?;
+                    self.set_pc(addr);
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
         }
     }
 
@@ -890,8 +882,12 @@ impl GameBoy {
     pub fn step(&mut self) -> StepResult<()> {
         let instruction = self.current_instruction()?;
         let pc_value = self.read_pc();
-        self.set_pc(pc_value.next());
-        self.exec(instruction)?;
+        self.cycle();
+        let interrupted = self.check_interrupts()?;
+        if !interrupted {
+            self.set_pc(pc_value.next());
+            self.exec(instruction)?;
+        }
         Ok(())
     }
 

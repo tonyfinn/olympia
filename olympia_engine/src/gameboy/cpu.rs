@@ -5,11 +5,49 @@ use crate::rom;
 pub use crate::registers::{ByteRegister, WordRegister};
 use crate::registers::{ByteRegister as br, WordRegister as wr};
 
-/* pub(crate) enum InterruptState {
+pub(crate) enum InterruptState {
     Pending,
     Enabled,
     Disabled,
-}*/
+}
+
+pub enum Interrupt {
+    VBlank,
+    LCDStatus,
+    Timer,
+    Serial,
+    Input,
+}
+
+impl Interrupt {
+    pub(crate) fn test(ie: u8, iflag: u8) -> Option<Interrupt> {
+        let pending_interrupts = ie & iflag;
+        if pending_interrupts & 1 != 0 {
+            Some(Interrupt::VBlank)
+        } else if pending_interrupts & 2 != 0 {
+            Some(Interrupt::LCDStatus)
+        } else if pending_interrupts & 4 != 0 {
+            Some(Interrupt::Timer)
+        } else if pending_interrupts & 8 != 0 {
+            Some(Interrupt::Serial)
+        } else if pending_interrupts & 16 != 0 {
+            Some(Interrupt::Input)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn handler_address(&self) -> crate::types::LiteralAddress {
+        match self {
+            Interrupt::VBlank => 0x40,
+            Interrupt::LCDStatus => 0x48,
+            Interrupt::Timer => 0x50,
+            Interrupt::Serial => 0x58,
+            Interrupt::Input => 0x60,
+        }
+        .into()
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 struct Registers {
@@ -135,7 +173,7 @@ struct AddressBus {
 
 pub(crate) struct Cpu {
     registers: Registers,
-    // interrupts_enabled: InterruptState,
+    pub(crate) interrupts_enabled: InterruptState,
     // address_bus: AddressBus
 }
 
@@ -143,7 +181,7 @@ impl Cpu {
     pub(crate) fn new(model: super::GameBoyModel, target: rom::TargetConsole) -> Cpu {
         Cpu {
             registers: Registers::default_for_model(model, target),
-            // interrupts_enabled: InterruptState::Disabled,
+            interrupts_enabled: InterruptState::Disabled,
             // address_bus: AddressBus::default()
         }
     }
@@ -199,6 +237,9 @@ mod extended_opcode_tests;
 mod jump_tests;
 
 #[cfg(test)]
+mod interrupt_tests;
+
+#[cfg(test)]
 mod load_tests;
 
 #[cfg(test)]
@@ -211,24 +252,39 @@ mod misc_tests;
 pub(crate) mod testutils {
     use super::*;
     use crate::gameboy;
+    use crate::types::LiteralAddress;
 
     pub const PROGRAM_START: u16 = 0x200;
-    pub const PROG_MEMORY_OFFSET: usize = 0x200;
+    pub const PROG_MEMORY_OFFSET: LiteralAddress = LiteralAddress(0x200);
 
-    pub fn make_cartridge_with(program: &[u8]) -> rom::Cartridge {
+    type ProgramSegment<'a> = (LiteralAddress, &'a [u8]);
+
+    pub fn make_cartridge_with(segments: &[ProgramSegment]) -> rom::Cartridge {
         let mut data = vec![0u8; 0x8000];
-        data[PROG_MEMORY_OFFSET..PROG_MEMORY_OFFSET + program.len()].clone_from_slice(program);
+        for segment in segments {
+            let (start, segment_data) = segment;
+            let LiteralAddress(raw_addr) = start;
+            let offset = *raw_addr as usize;
+            data[offset..offset + segment_data.len()].clone_from_slice(segment_data);
+        }
         rom::Cartridge::from_data(data).unwrap()
     }
 
-    pub fn run_program(steps: u64, program: &[u8]) -> gameboy::StepResult<gameboy::GameBoy> {
-        let cartridge = make_cartridge_with(program);
+    pub fn run_program_with(
+        steps: u64,
+        segments: &[ProgramSegment],
+    ) -> gameboy::StepResult<gameboy::GameBoy> {
+        let cartridge = make_cartridge_with(segments);
         let mut gb = gameboy::GameBoy::new(cartridge, gameboy::GameBoyModel::GameBoy);
         gb.write_register_u16(registers::WordRegister::PC, PROGRAM_START);
         for _ in 0..steps {
             gb.step()?
         }
         Ok(gb)
+    }
+
+    pub fn run_program(steps: u64, program: &[u8]) -> gameboy::StepResult<gameboy::GameBoy> {
+        run_program_with(steps, &[(PROG_MEMORY_OFFSET, program)])
     }
 }
 
