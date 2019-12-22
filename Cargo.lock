@@ -394,15 +394,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "olympia_disassembler"
-version = "0.1.1"
-dependencies = [
- "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "olympia_engine 0.1.2",
- "structopt 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "olympia_engine"
 version = "0.1.2"
 

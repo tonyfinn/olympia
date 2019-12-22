@@ -10,8 +10,6 @@ Currently it is in a very early stage, with mostly basic CPU instruction set emu
 
 `olympia_cli` - This provides a CLI that currently allows you to print ROM metadata or interactively debug execution.
 
-`olympia_disassembler` - This provides a command line utility to disassemble a ROM.
-
 `olympia_native` - This provides a native UI to run the emulator
 
 ## License
