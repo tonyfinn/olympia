@@ -994,7 +994,7 @@ impl GameBoyModel {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::gameboy::memory::MemoryResult;
+    use crate::gameboy::memory;
 
     fn make_cartridge() -> rom::Cartridge {
         rom::Cartridge::from_data(vec![0u8; 0x8000]).unwrap()
@@ -1137,7 +1137,7 @@ mod test {
     }
 
     #[test]
-    fn test_mem_write_u8_read_u8_sysram() -> MemoryResult<()> {
+    fn test_mem_write_u8_read_u8_sysram() -> memory::MemoryResult<()> {
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
 
         gb.write_memory_u8(0xc100, 0x32)?;
@@ -1146,7 +1146,7 @@ mod test {
     }
 
     #[test]
-    fn test_mem_write_u16_read_u16_sysram() -> MemoryResult<()> {
+    fn test_mem_write_u16_read_u16_sysram() -> memory::MemoryResult<()> {
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
 
         gb.write_memory_u16(0xc100, 0x1032)?;
@@ -1155,7 +1155,7 @@ mod test {
     }
 
     #[test]
-    fn test_mem_write_u8_read_u16_sysram() -> MemoryResult<()> {
+    fn test_mem_write_u8_read_u16_sysram() -> memory::MemoryResult<()> {
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
 
         gb.write_memory_u8(0xc100, 0x48)?;
@@ -1166,7 +1166,7 @@ mod test {
     }
 
     #[test]
-    fn test_mem_write_u16_read_u8_sysram() -> MemoryResult<()> {
+    fn test_mem_write_u16_read_u8_sysram() -> memory::MemoryResult<()> {
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
 
         gb.write_memory_u16(0xc200, 0x1345)?;
@@ -1177,7 +1177,7 @@ mod test {
     }
 
     #[test]
-    fn test_write_u8_read_i8_sysram() -> MemoryResult<()> {
+    fn test_write_u8_read_i8_sysram() -> memory::MemoryResult<()> {
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
         let signed_value = i8::from_le_bytes([0xa2]);
 
@@ -1188,7 +1188,7 @@ mod test {
     }
 
     #[test]
-    fn test_mem_write_u8_read_u8_vram() -> MemoryResult<()> {
+    fn test_mem_write_u8_read_u8_vram() -> memory::MemoryResult<()> {
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
 
         gb.write_memory_u8(0x8100, 0x32)?;
@@ -1197,11 +1197,40 @@ mod test {
     }
 
     #[test]
-    fn test_mem_write_u8_read_u8_cpuram() -> MemoryResult<()> {
+    fn test_mem_write_u8_read_u8_cpuram() -> memory::MemoryResult<()> {
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
 
         gb.write_memory_u8(0xff80, 0x32)?;
         assert_eq!(gb.read_memory_u8(0xff80), Ok(0x32));
         Ok(())
+    }
+
+    #[test]
+    fn test_cycle_count() {
+        let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
+        gb.clocks_elapsed = 16;
+        assert_eq!(gb.cycles_elapsed(), 4);
+    }
+
+    #[test]
+    fn test_convert_memory_error() {
+        let error = memory::MemoryError::InvalidRomAddress(0x7999);
+        let mapped_error: StepError = error.into();
+
+        assert_eq!(
+            mapped_error,
+            StepError::Memory(memory::MemoryError::InvalidRomAddress(0x7999))
+        );
+    }
+
+    #[test]
+    fn test_convert_decode_error() {
+        let error = decoder::DecodeError::IncompleteInstruction;
+        let mapped_error: StepError = error.into();
+
+        assert_eq!(
+            mapped_error,
+            StepError::Decode(decoder::DecodeError::IncompleteInstruction)
+        );
     }
 }
