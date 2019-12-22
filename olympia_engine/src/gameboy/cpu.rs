@@ -197,6 +197,9 @@ mod load_tests;
 mod stack_tests;
 
 #[cfg(test)]
+mod misc_tests;
+
+#[cfg(test)]
 pub(crate) mod testutils {
     use super::*;
     use crate::gameboy;
@@ -223,9 +226,8 @@ pub(crate) mod testutils {
 
 #[cfg(test)]
 mod tests {
-    use super::testutils::*;
     use super::*;
-    use crate::gameboy::{GameBoyModel, StepResult};
+    use crate::gameboy::GameBoyModel;
 
     #[test]
     fn test_reg_write_u8_read_u8() {
@@ -339,19 +341,5 @@ mod tests {
         cpu.write_register_u16(registers::WordRegister::HL, 0x9573);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::H), 0x95);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::L), 0x73);
-    }
-
-    #[test]
-    fn test_nop() -> StepResult<()> {
-        let gb = run_program(
-            1,
-            &[
-                0x00, // NOP - 4 clocks
-            ],
-        )?;
-
-        assert_eq!(gb.clocks_elapsed(), 4);
-
-        Ok(())
     }
 }

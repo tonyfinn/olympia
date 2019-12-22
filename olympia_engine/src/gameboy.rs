@@ -34,6 +34,12 @@ pub enum MemoryError {
 pub type MemoryResult<T> = Result<T, MemoryError>;
 
 #[derive(PartialEq, Eq, Debug)]
+enum SetZeroMode {
+    Test,
+    Clear,
+}
+
+#[derive(PartialEq, Eq, Debug)]
 pub enum StepError {
     Memory(MemoryError),
     Decode(decoder::DecodeError),
@@ -641,6 +647,44 @@ impl GameBoy {
         }
     }
 
+    fn exec_rotate(
+        &mut self,
+        dir: instructions::RotateDirection,
+        carry: instructions::Carry,
+        reg: registers::ByteRegister,
+        set_zero: SetZeroMode,
+    ) -> StepResult<()> {
+        let current_value = self.cpu.read_register_u8(reg);
+        let high_byte = if carry != instructions::Carry::Carry {
+            if self.cpu.read_flag(registers::Flag::Carry) {
+                0x81
+            } else {
+                0x00
+            }
+        } else {
+            current_value
+        };
+        let value_to_rotate = u16::from_le_bytes([current_value, high_byte]);
+        let (rotated, carry) = if dir == instructions::RotateDirection::Left {
+            let rotated = value_to_rotate.rotate_left(1);
+            (rotated.to_le_bytes()[0], (rotated & 0x0100) != 0)
+        } else {
+            let rotated = value_to_rotate.rotate_right(1);
+            (rotated.to_le_bytes()[0], (rotated & 0x8000) != 0)
+        };
+        self.cpu.write_register_u8(reg, rotated);
+        self.cpu.set_flag_to(registers::Flag::Carry, carry);
+        let zero_flag = match set_zero {
+            SetZeroMode::Test => rotated == 0,
+            SetZeroMode::Clear => false,
+        };
+        self.cpu.set_flag_to(registers::Flag::Zero, zero_flag);
+        self.cpu.reset_flag(registers::Flag::HalfCarry);
+        self.cpu.reset_flag(registers::Flag::AddSubtract);
+        self.cycle();
+        Ok(())
+    }
+
     fn exec_extended(&mut self, _instr: instructions::Extended) -> StepResult<()> {
         use decoder::{idecoders, TwoByteDataDecoder};
         use instructions::Carry::Carry;
@@ -709,28 +753,7 @@ impl GameBoy {
                 Ok(())
             }
             Extended::Rotate(dir, carry, reg) => {
-                let current_value = self.cpu.read_register_u8(reg);
-                let high_byte = if carry != Carry {
-                    if self.cpu.read_flag(registers::Flag::Carry) {
-                        0x81
-                    } else {
-                        0x00
-                    }
-                } else {
-                    current_value
-                };
-                let value_to_rotate = u16::from_le_bytes([current_value, high_byte]);
-                let (rotated, carry) = if dir == Left {
-                    let rotated = value_to_rotate.rotate_left(1);
-                    (rotated.to_le_bytes()[0], (rotated & 0x0100) != 0)
-                } else {
-                    let rotated = value_to_rotate.rotate_right(1);
-                    (rotated.to_le_bytes()[0], (rotated & 0x8000) != 0)
-                };
-                self.cpu.write_register_u8(reg, rotated);
-                self.cpu.set_flag_to(registers::Flag::Carry, carry);
-                self.cycle();
-                Ok(())
+                self.exec_rotate(dir, carry, reg, SetZeroMode::Test)
             }
             Extended::RotateMemory(dir, carry) => {
                 let addr = self.cpu.read_register_u16(wr::HL);
@@ -756,6 +779,9 @@ impl GameBoy {
                 };
                 self.write_memory_u8(addr, rotated)?;
                 self.cpu.set_flag_to(registers::Flag::Carry, carry);
+                self.cpu.set_flag_to(registers::Flag::Zero, rotated == 0);
+                self.cpu.reset_flag(registers::Flag::HalfCarry);
+                self.cpu.reset_flag(registers::Flag::AddSubtract);
                 self.cycle();
                 Ok(())
             }
@@ -857,6 +883,9 @@ impl GameBoy {
                 self.cpu.reset_flag(registers::Flag::AddSubtract);
                 self.cycle();
                 Ok(())
+            }
+            Instruction::Rotate(dir, carry) => {
+                self.exec_rotate(dir, carry, br::A, SetZeroMode::Clear)
             }
             _ => Err(StepError::Unimplemented(instr)),
         }
