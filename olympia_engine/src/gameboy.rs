@@ -122,7 +122,7 @@ impl GameBoy {
         self.cpu.write_register_u8(reg, val)
     }
 
-    fn memory_iter(&self, start: u16) -> memory::MemoryIterator {
+    fn memory_iter(&self, start: types::LiteralAddress) -> memory::MemoryIterator {
         self.mem.offset_iter(start)
     }
 
@@ -151,9 +151,9 @@ impl GameBoy {
         Ok(val)
     }
 
-    fn exec_push(&mut self, value: u16) -> StepResult<()> {
+    fn exec_push<T: Into<u16>>(&mut self, value: T) -> StepResult<()> {
         let stack_addr = self.cpu.read_register_u16(registers::WordRegister::SP);
-        let [low, high] = value.to_le_bytes();
+        let [low, high] = value.into().to_le_bytes();
         let stack_addr = stack_addr.wrapping_sub(1);
         self.write_memory_u8(stack_addr, high)?;
         self.cycle();
@@ -166,7 +166,7 @@ impl GameBoy {
         Ok(())
     }
 
-    fn exec_pop(&mut self) -> StepResult<u16> {
+    fn exec_pop<T: From<u16>>(&mut self) -> StepResult<T> {
         let stack_addr = self.cpu.read_register_u16(registers::WordRegister::SP);
         let low = self.read_memory_u8(stack_addr)?;
         self.cycle();
@@ -175,7 +175,8 @@ impl GameBoy {
         self.cycle();
         self.cpu
             .write_register_u16(registers::WordRegister::SP, stack_addr.wrapping_add(1));
-        Ok(u16::from_le_bytes([low, high]))
+        let value = u16::from_le_bytes([low, high]);
+        Ok(T::from(value))
     }
 
     fn exec_load(&mut self, instr: instructions::Load) -> StepResult<()> {
@@ -451,6 +452,11 @@ impl GameBoy {
         self.cpu.write_register_u16(wr::PC, addr);
     }
 
+    fn read_pc(&self) -> types::LiteralAddress {
+        let value = self.cpu.read_register_u16(wr::PC);
+        types::LiteralAddress(value)
+    }
+
     fn exec_jump(&mut self, instr: instructions::Jump) -> StepResult<()> {
         use instructions::Jump;
         match instr {
@@ -472,7 +478,7 @@ impl GameBoy {
             }
             Jump::RegisterJump => {
                 let addr = self.cpu.read_register_u16(wr::HL);
-                self.cpu.write_register_u16(wr::PC, addr);
+                self.set_pc(addr);
                 self.cycle();
                 Ok(())
             }
@@ -485,7 +491,7 @@ impl GameBoy {
                     pc.wrapping_sub(u16::try_from(offset.abs()).unwrap())
                 };
                 self.cycle();
-                self.cpu.write_register_u16(wr::PC, new_pc);
+                self.set_pc(new_pc);
                 self.cycle();
                 Ok(())
             }
@@ -499,15 +505,14 @@ impl GameBoy {
                         pc.wrapping_sub(u16::try_from(offset.abs()).unwrap())
                     };
                     self.cycle();
-
-                    self.cpu.write_register_u16(wr::PC, new_pc);
+                    self.set_pc(new_pc);
                 }
                 self.cycle();
                 Ok(())
             }
             Jump::Call(_) => {
                 let addr = self.exec_read_instr_address()?;
-                self.exec_push(self.cpu.read_register_u16(wr::PC))?;
+                self.exec_push(self.read_pc())?;
                 self.set_pc(addr);
                 self.cycle();
                 Ok(())
@@ -515,29 +520,29 @@ impl GameBoy {
             Jump::CallIf(cond, _) => {
                 let addr = self.exec_read_instr_address()?;
                 if self.should_jump(cond) {
-                    self.exec_push(self.cpu.read_register_u16(wr::PC))?;
+                    self.exec_push(self.read_pc())?;
                     self.set_pc(addr);
                 }
                 self.cycle();
                 Ok(())
             }
             Jump::CallSystem(addr) => {
-                self.exec_push(self.cpu.read_register_u16(wr::PC))?;
+                self.exec_push(self.read_pc())?;
                 self.set_pc(addr);
                 self.cycle();
                 Ok(())
             }
             Jump::Return => {
-                let return_addr = self.exec_pop()?;
-                self.cpu.write_register_u16(wr::PC, return_addr);
+                let return_addr: types::LiteralAddress = self.exec_pop()?;
+                self.set_pc(return_addr);
                 self.cycle();
                 self.cycle();
                 Ok(())
             }
             Jump::ReturnIf(cond) => {
                 if self.should_jump(cond) {
-                    let return_addr = self.exec_pop()?;
-                    self.cpu.write_register_u16(wr::PC, return_addr);
+                    let return_addr: types::LiteralAddress = self.exec_pop()?;
+                    self.set_pc(return_addr);
                     self.cycle();
                 }
                 self.cycle();
@@ -813,20 +818,18 @@ impl GameBoy {
 
     pub fn step(&mut self) -> StepResult<()> {
         let instruction = self.current_instruction()?;
-        let pc_value = self.cpu.read_register_u16(wr::PC);
-        self.cpu
-            .write_register_u16(wr::PC, pc_value.wrapping_add(1));
+        let pc_value = self.read_pc();
+        self.set_pc(pc_value.next());
         self.exec(instruction)?;
         Ok(())
     }
 
     pub fn current_instruction(&self) -> StepResult<instructions::Instruction> {
-        let pc_value = self.cpu.read_register_u16(wr::PC);
+        let pc_value = self.read_pc();
         let instruction_value = self.read_memory_u8(pc_value)?;
-        let next_pc = pc_value.wrapping_add(1);
         let instruction = self
             .decoder
-            .decode(instruction_value, &mut self.memory_iter(next_pc))?;
+            .decode(instruction_value, &mut self.memory_iter(pc_value.next()))?;
         Ok(instruction)
     }
 

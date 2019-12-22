@@ -14,6 +14,13 @@ impl From<u16> for LiteralAddress {
     }
 }
 
+impl Into<u16> for LiteralAddress {
+    fn into(self) -> u16 {
+        let LiteralAddress(addr) = self;
+        addr
+    }
+}
+
 impl From<[u8; 2]> for LiteralAddress {
     fn from(bytes: [u8; 2]) -> Self {
         LiteralAddress(u16::from_le_bytes(bytes))

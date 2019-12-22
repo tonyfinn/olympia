@@ -49,7 +49,7 @@ pub enum MemoryError {
 pub type MemoryResult<T> = Result<T, MemoryError>;
 
 pub(crate) struct MemoryIterator<'a> {
-    addr: u16,
+    addr: types::LiteralAddress,
     mem: &'a Memory,
 }
 
@@ -58,7 +58,7 @@ impl<'a> Iterator for MemoryIterator<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let val = self.mem.read_u8(self.addr);
-        self.addr += 1;
+        self.addr = self.addr.next();
         Some(val.unwrap_or(0))
     }
 }
@@ -186,7 +186,7 @@ impl Memory {
         }
     }
 
-    pub(crate) fn offset_iter(&self, start: u16) -> MemoryIterator {
+    pub(crate) fn offset_iter(&self, start: types::LiteralAddress) -> MemoryIterator {
         MemoryIterator {
             addr: start,
             mem: &self,
