@@ -1,25 +1,15 @@
 [package]
-name = "olympia_engine"
+name = "olympia"
 version = "0.1.1"
 edition = "2018"
 authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
 description = """
 Olympia is a gameboy emulator and toolkit, intended to run
 as a native or web assembly application targeting a cycle 
-count accurate emulation. olympia_engine is the reusable
-core for both native and wasm.
+count accurate emulation.  
 """
 license = "GPL-3.0-or-later"
-readme = "README.md"
+readme = "../README.md"
 homepage = "https://gitlab.com/tonyfinn/olympia"
 repository = "https://gitlab.com/tonyfinn/olympia"
-documentation = "https://docs.rs/olympia_engine"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[features]
-default = ["disassembler"]
-disassembler = []
-std = []
-
-[dependencies]
+documentation = "https://docs.rs/olympia"
