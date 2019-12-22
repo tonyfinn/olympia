@@ -1,6 +1,6 @@
 [package]
 name = "olympia_cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
 description = """
@@ -20,4 +20,4 @@ readme = "README.md"
 [dependencies]
 clap = "2.33.0"
 structopt = "0.3.3"
-olympia_engine = { version = "0.1.0", path = "../olympia_engine", features = ["disassembler", "std"] }
+olympia_engine = { version = "0.1.1", path = "../olympia_engine", features = ["disassembler", "std"] }

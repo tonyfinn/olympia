@@ -386,7 +386,7 @@ version = "0.1.1"
 
 [[package]]
 name = "olympia_cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "olympia_engine 0.1.1",
