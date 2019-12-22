@@ -15,6 +15,7 @@ repository = "https://gitlab.com/tonyfinn/olympia"
 documentation = "https://docs.rs/olympia_disassembler"
 readme = "README.md"
 autotests = false
+categories = ["emulators"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

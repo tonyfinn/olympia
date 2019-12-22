@@ -14,6 +14,7 @@ readme = "README.md"
 homepage = "https://gitlab.com/tonyfinn/olympia"
 repository = "https://gitlab.com/tonyfinn/olympia"
 documentation = "https://docs.rs/olympia_engine"
+categories = ["emulators", "no-std"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
