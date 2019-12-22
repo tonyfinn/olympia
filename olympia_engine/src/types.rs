@@ -2,7 +2,7 @@
 pub struct LiteralAddress(pub u16);
 
 impl LiteralAddress {
-    pub fn next(&self) -> LiteralAddress {
+    pub fn next(self) -> LiteralAddress {
         let LiteralAddress(addr) = self;
         LiteralAddress(addr.wrapping_add(1))
     }
