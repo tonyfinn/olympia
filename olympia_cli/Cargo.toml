@@ -1,6 +1,6 @@
 [package]
 name = "olympia_cli"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2018"
 authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
 description = """
@@ -15,10 +15,15 @@ repository = "https://gitlab.com/tonyfinn/olympia"
 documentation = "https://docs.rs/olympia_cli"
 readme = "README.md"
 categories = ["emulators"]
+autotests = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 clap = "2.33.0"
 structopt = "0.3.3"
-olympia_engine = { version = "0.1.1", path = "../olympia_engine", features = ["disassembler", "std"] }
+olympia_engine = { version = "0.1.2", path = "../olympia_engine", features = ["disassembler", "std"] }
+
+[[test]]
+name = "integration"
+path = "tests/tests.rs"

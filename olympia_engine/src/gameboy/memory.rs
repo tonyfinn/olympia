@@ -43,16 +43,16 @@ pub const CPU_RAM: MemoryRegion = MemoryRegion::new(0xFF80, 0x7F, "cpuram");
 /// Represents a failure to read from memory.
 pub enum MemoryError {
     /// The address maps to the Cartridge ROM area,
-    /// but the currently loaded cartridge does not have 
+    /// but the currently loaded cartridge does not have
     /// ROM at this address. This can happen for MBC1/SROM cartridges
     /// that have less than 8KB of storage
     InvalidRomAddress(u16),
     /// The address maps to the Cartridge RAM area,
-    /// but the currently loaded cartridge does not have 
+    /// but the currently loaded cartridge does not have
     /// RAM at this address. This can happen for cartridges
     /// that have < 2KB of RAM, including no RAM
     InvalidRamAddress(u16),
-    /// The address maps to an area that is unmapped for the 
+    /// The address maps to an area that is unmapped for the
     /// current gameboy model. This can include areas that are unmapped in
     /// all models, or registers that only exist on Game Boy Color
     UnmappedAddress(u16),

@@ -1,9 +1,11 @@
 [package]
 name = "olympia_disassembler"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
 description = """
+(DEPRECATED) Replaced by `olympia_cli disassemble`
+
 Olympia is a gameboy emulator and toolkit, intended to run
 as a native or web assembly application targeting a cycle 
 count accurate emulation. olympia_disassembler is a CLI

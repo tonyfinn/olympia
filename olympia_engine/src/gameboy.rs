@@ -1,22 +1,22 @@
-//! This crate represents the emulation core for a Gameboy. 
-//! 
+//! This crate represents the emulation core for a Gameboy.
+//!
 //! This crate implements all instructions and their effects on the gameboy,
 //! and provides methods to query the internal state of the gameboy for the frontend.
-//! 
+//!
 //! To instantiate a new gameboy, first decide what cartridge is inserted in
 //! the gameboy, and which model of gameboy is being emulated. Then you can use
 //! [`GameBoy::new(cartridge, model)`][Gameboy::new] to instantiate an emulated gameboy.
-//! 
+//!
 //! Note that at this early stage, the emulator focuses primarily on DMG emulation,
 //! and does not support CGB or SGB exclusive features. As such, these systems
 //! currently only run in the DMG-compatible mode.
-//! 
+//!
 //! [Gameboy::new]: struct.GameBoy.html#method.new
 pub(crate) mod cpu;
 mod dma;
 pub(crate) mod memory;
 
-pub use memory::{MemoryResult,MemoryError};
+pub use memory::{MemoryError, MemoryResult};
 
 use crate::decoder;
 use crate::gameboy::cpu::Cpu;
@@ -31,9 +31,9 @@ use crate::types;
 use core::convert::TryFrom;
 
 /// Primary struct for an emulated gameboy.
-/// 
+///
 /// # Example usage:
-/// 
+///
 /// ```
 /// # use olympia_engine::rom::Cartridge;
 /// # use olympia_engine::gameboy::{GameBoy,GameBoyModel};
@@ -41,7 +41,7 @@ use core::convert::TryFrom;
 /// // let cartridge_data: Vec<u8> = read_from_fs("my.rom");
 /// let cartridge = Cartridge::from_data(cartridge_data).unwrap();
 /// let mut gb = GameBoy::new(cartridge, GameBoyModel::GameBoy);
-/// 
+///
 /// // in your event loop or elsewhere, at a 4mhz interval
 /// gb.step();
 /// ```
@@ -61,7 +61,7 @@ enum SetZeroMode {
 
 #[derive(PartialEq, Eq, Debug)]
 /// Represents an error that occurred while performing
-/// an emulated instruction. 
+/// an emulated instruction.
 pub enum StepError {
     /// Errors related to memory access
     Memory(memory::MemoryError),
@@ -85,18 +85,18 @@ impl From<decoder::DecodeError> for StepError {
 
 pub type StepResult<T> = Result<T, StepError>;
 impl GameBoy {
-    /// Creates a new gameboy. 
-    /// 
+    /// Creates a new gameboy.
+    ///
     /// # Arguments
-    /// 
-    /// * `cartridge` is the currently inserted Cartridge 
+    ///
+    /// * `cartridge` is the currently inserted Cartridge
     /// * `model` is the model of gameboy this should represent. Note this
     ///   should be set to the actual hardware type desired, not it's target
     ///   mode. For a Game Boy Color in Game Boy mode, this should be set to
     ///   `GameBoyModel::GameBoyColor`. The actual emulated mode is detected
     ///   based on whether the ROM declares itself to be Game Boy Color enhanced
     ///   or exclusive.
-    /// 
+    ///
     pub fn new(cartridge: rom::Cartridge, model: GameBoyModel) -> GameBoy {
         GameBoy {
             cpu: Cpu::new(model, cartridge.target),
@@ -125,7 +125,7 @@ impl GameBoy {
     }
 
     /// Read an value at the given memory address as a signed integer.
-    /// 
+    ///
     /// This is primarily useful for reading the target of a JR instruction.
     pub fn read_memory_i8<A: Into<types::LiteralAddress>>(
         &self,
@@ -134,9 +134,8 @@ impl GameBoy {
         Ok(i8::from_le_bytes([self.mem.read_u8(addr)?]))
     }
 
-
     /// Read a 16-bit value from the address at `target`
-    /// 
+    ///
     /// Note that the value is read in little endian format.
     /// This means that given `0xC000` = `0x12` and `0xC001` = `0x45`,
     /// the value read will be `0x4512`
@@ -152,7 +151,7 @@ impl GameBoy {
     }
 
     /// Write a 16-bit value to the address at `target`
-    /// 
+    ///
     /// Note that the value is written in little endian format.
     /// This means that given value of `0xABCD` and `target` of `0xC000`
     /// then `0xC000` will be set to `0xCD` and `0xC001` will be set to `0xAB`
@@ -883,8 +882,8 @@ impl GameBoy {
         }
     }
 
-    /// Runs a single instruction. 
-    /// 
+    /// Runs a single instruction.
+    ///
     /// Note that this instruction may take multiple machine cycles to
     /// execute. All components of the gameboy will run for this many machine
     /// cycles. To find out how many clocks elapsed, use `GameBoy::clocks_elapsed`.
@@ -921,7 +920,7 @@ impl GameBoy {
     }
 
     /// Query how many machine cycles have elapsed since the emulator started
-    /// 
+    ///
     /// Each machine cycle represents 4 CPU clocks.
     pub fn cycles_elapsed(&self) -> u64 {
         self.clocks_elapsed() / 4
@@ -929,7 +928,7 @@ impl GameBoy {
 }
 
 /// Represents a hardware type running a gameboy game.
-/// 
+///
 /// Note that the presence of GBA models do not imply support
 /// for GBA ROMs. However, the GBA has some differing behaviors
 /// when running GB games compared to standard GB hardware.

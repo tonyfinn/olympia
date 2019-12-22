@@ -11,13 +11,13 @@ use crate::{instructions, instructions::Instruction, registers, types};
 
 #[derive(PartialEq, Eq, Debug)]
 /// Represents an error decoding a given instruction
-/// 
+///
 /// Apart from IncompleteInstruction, the remainder of these errors usually
 /// indicate a problem in the emulator frontend, passing invalid data for decoding,
-/// and should not occur normally when executing a given ROM. 
+/// and should not occur normally when executing a given ROM.
 pub enum DecodeError {
     /// The instruction requires additional bytes that were not present.assert_eq!
-    /// 
+    ///
     /// This will usually occur for a truncated ROM file
     IncompleteInstruction,
     UnknownOpcode(u8),
@@ -32,7 +32,7 @@ pub type DecodeResult<T> = Result<T, DecodeError>;
 
 #[derive(Default)]
 /// Struct that can be used to decode or disassemble instructions in a incremental fashion.
-/// 
+///
 /// See also [`decode`](fn.decode.html) and [`disassemble`](fn.disassemble.html)
 /// for helper methods to operate on an entire ROM.
 pub struct Decoder {
@@ -52,7 +52,7 @@ enum InstructionDecoder {
 #[cfg(feature = "disassembler")]
 #[derive(PartialEq, Eq, Debug)]
 /// Represents an instruction that has been disassembled.
-/// 
+///
 /// The first field indicates the numeric value of the instruction,
 /// while the second is a textual label corresponding to the instruction.
 pub enum DisassembledInstruction {
@@ -536,10 +536,10 @@ impl Decoder {
     }
 
     /// Decodes a given instruction.
-    /// 
+    ///
     /// The opcode should be the first byte of the instruction, while `iter`
     /// should be an iterator from the following byte, which will be used if needed.
-    /// 
+    ///
     /// This returns an internal representation of the instruction useful for emulation.
     pub fn decode(
         &self,
@@ -555,10 +555,10 @@ impl Decoder {
 
     #[cfg(feature = "disassembler")]
     /// Disassembles a given instruction.
-    /// 
+    ///
     /// The opcode should be the first byte of the instruction, while `iter`
     /// should be an iterator from the following byte, which will be used if needed.
-    /// 
+    ///
     /// This returns an representation of the instruction useful for display.
     pub fn disassemble(
         &self,
@@ -574,9 +574,9 @@ impl Decoder {
 }
 
 /// Decode an entire ROM or memory space in a single method.
-/// 
+///
 /// This returns an internal representation of the instructions useful for emulation.
-/// 
+///
 /// If you require more granular decoding, create a [`Decoder`](struct.Decoder.html) and
 /// use [`Decoder.decode`](struct.Decoder.html#method.decode)
 pub fn decode(data: &[u8]) -> DecodeResult<Vec<instructions::Instruction>> {
@@ -590,11 +590,10 @@ pub fn decode(data: &[u8]) -> DecodeResult<Vec<instructions::Instruction>> {
     Ok(output)
 }
 
-
 /// Disassemble an entire ROM or memory space in a single method.
-    /// 
-    /// This returns an representation of the instruction useful for display.
-/// 
+///
+/// This returns an representation of the instruction useful for display.
+///
 /// If you require more granular decoding, create a [`Decoder`](struct.Decoder.html) and
 /// use [`Decoder.disassemble`](struct.Decoder.html#method.disassemble)
 pub fn disassemble(data: &[u8]) -> DecodeResult<Vec<DisassembledInstruction>> {

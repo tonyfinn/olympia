@@ -21,6 +21,19 @@ Usage:
 
 Prints out the known information about a given ROM. Currently limited to controller type, RAM size and ROM size.
 
+### disassemble
+
+Usage:
+
+`olympia_cli disassemble [-v] <rom>`
+
+Prints out a disassembly of the given ROM. 
+
+If the verbose (`-v`) flag is specified, every line will contain an address, the numeric value of the
+opcode, and the textual value of the opcode. If the flag is not specified, then every 10th
+line will contain a label for the address, and every line will contain the textual value
+of the operation.
+
 
 ## Common Debugger Commands
 
