@@ -57,9 +57,9 @@ impl Disassemble for types::HighAddress {
     }
 }
 
-impl Disassemble for types::PCOffset {
+impl Disassemble for types::AddressOffset {
     fn disassemble(&self) -> String {
-        let types::PCOffset(raw_addr) = self;
+        let types::AddressOffset(raw_addr) = self;
         format!("PC+{:X}h", raw_addr)
     }
 }

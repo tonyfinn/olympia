@@ -50,10 +50,31 @@ impl From<u8> for HighAddress {
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 /// Represents an address that is offset from the program counter
-pub struct PCOffset(pub i8);
+pub struct AddressOffset(pub i8);
 
-impl From<u8> for PCOffset {
+impl From<u8> for AddressOffset {
     fn from(addr: u8) -> Self {
-        PCOffset(i8::from_le_bytes([addr]))
+        AddressOffset(i8::from_le_bytes([addr]))
+    }
+}
+
+impl AddressOffset {
+    /// Returns new address, half carry and carry flags
+    pub(crate) fn resolve(self, pc: LiteralAddress) -> (LiteralAddress, bool, bool) {
+        use std::convert::TryFrom;
+        let LiteralAddress(raw_pc) = pc;
+        let AddressOffset(offset) = self;
+        let (new_addr, half_carry, carry) = if offset < 0 {
+            let to_sub = u16::try_from(offset.abs()).unwrap();
+            let (new, carry) = raw_pc.overflowing_sub(to_sub);
+            let half_carry = (new & 0x10) != to_sub & 0x10;
+            (new, half_carry, carry)
+        } else {
+            let to_add = u16::try_from(offset.abs()).unwrap();
+            let half_add = ((raw_pc & 0xF) + (to_add & 0xF)) & 0xF0;
+            let (new, carry) = raw_pc.overflowing_add(to_add);
+            (new, half_add != 0, carry)
+        };
+        (LiteralAddress(new_addr), half_carry, carry)
     }
 }

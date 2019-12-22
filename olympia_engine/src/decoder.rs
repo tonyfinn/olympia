@@ -81,7 +81,7 @@ pub(crate) trait TwoByteDataDecoder {
 }
 
 trait TwoByteOffsetDecoder {
-    fn decode(&self, opcode: u8, data: types::PCOffset) -> DecodeResult<Instruction>;
+    fn decode(&self, opcode: u8, data: types::AddressOffset) -> DecodeResult<Instruction>;
 }
 
 trait TwoByteAddressDecoder {

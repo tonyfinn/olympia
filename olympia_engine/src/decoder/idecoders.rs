@@ -88,7 +88,7 @@ impl TwoByteDataDecoder for Stop {
 
 pub(super) struct RelativeJump;
 impl TwoByteOffsetDecoder for RelativeJump {
-    fn decode(&self, _opcode: u8, offset: types::PCOffset) -> DecodeResult<Instruction> {
+    fn decode(&self, _opcode: u8, offset: types::AddressOffset) -> DecodeResult<Instruction> {
         Ok(instructions::Jump::RelativeJump(offset).into())
     }
 }
@@ -127,7 +127,7 @@ impl TwoByteAddressDecoder for AHighOffset {
 
 pub(super) struct ConditionalRelativeJump;
 impl TwoByteOffsetDecoder for ConditionalRelativeJump {
-    fn decode(&self, opcode: u8, offset: types::PCOffset) -> DecodeResult<Instruction> {
+    fn decode(&self, opcode: u8, offset: types::AddressOffset) -> DecodeResult<Instruction> {
         let condition_bits = 0b0001_1000;
         let condition_value = (opcode & condition_bits) >> 3;
         let condition = condition_lookup(condition_value)
@@ -215,14 +215,14 @@ impl ThreeByteAddressDecoder for LoadAddress {
 
 pub(super) struct AddToStack;
 impl TwoByteOffsetDecoder for AddToStack {
-    fn decode(&self, _opcode: u8, offset: types::PCOffset) -> DecodeResult<Instruction> {
+    fn decode(&self, _opcode: u8, offset: types::AddressOffset) -> DecodeResult<Instruction> {
         Ok(instructions::Stack::AddStackPointer(offset).into())
     }
 }
 
 pub(super) struct CalcStackOffset;
 impl TwoByteOffsetDecoder for CalcStackOffset {
-    fn decode(&self, _opcode: u8, offset: types::PCOffset) -> DecodeResult<Instruction> {
+    fn decode(&self, _opcode: u8, offset: types::AddressOffset) -> DecodeResult<Instruction> {
         Ok(instructions::Stack::LoadStackOffset(offset).into())
     }
 }
@@ -291,7 +291,7 @@ mod test {
         use instructions::Jump::RelativeJumpIf;
         let idecoder = ConditionalRelativeJump {};
 
-        let addr: types::PCOffset = 0x12.into();
+        let addr: types::AddressOffset = 0x12.into();
 
         assert_eq!(
             idecoder.decode(0x20, addr),

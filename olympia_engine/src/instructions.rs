@@ -41,17 +41,17 @@ pub enum ALOp {
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Jump {
-    RegisterJump,                               // JP (HL)
-    Jump(types::LiteralAddress),                // JP a16
-    JumpIf(Condition, types::LiteralAddress),   // JP <condition>, a16
-    RelativeJump(types::PCOffset),              // JR r8
-    RelativeJumpIf(Condition, types::PCOffset), // JR <condition>, r8
-    Call(types::LiteralAddress),                // CALL a16
-    CallIf(Condition, types::LiteralAddress),   // CALL <condition>, a16
-    CallSystem(types::LiteralAddress),          // RST a16
-    Return,                                     // RET
-    ReturnIf(Condition),                        // RET <condition>
-    ReturnInterrupt,                            // RETI
+    RegisterJump,                                    // JP (HL)
+    Jump(types::LiteralAddress),                     // JP a16
+    JumpIf(Condition, types::LiteralAddress),        // JP <condition>, a16
+    RelativeJump(types::AddressOffset),              // JR r8
+    RelativeJumpIf(Condition, types::AddressOffset), // JR <condition>, r8
+    Call(types::LiteralAddress),                     // CALL a16
+    CallIf(Condition, types::LiteralAddress),        // CALL <condition>, a16
+    CallSystem(types::LiteralAddress),               // RST a16
+    Return,                                          // RET
+    ReturnIf(Condition),                             // RET <condition>
+    ReturnInterrupt,                                 // RETI
 }
 
 impl From<Jump> for Instruction {
@@ -80,8 +80,8 @@ impl From<RegisterAL> for Instruction {
 pub enum Stack {
     Push(registers::AccRegister),                   // PUSH <reg>
     Pop(registers::AccRegister),                    // POP <reg>
-    AddStackPointer(types::PCOffset),               // ADD SP, r8
-    LoadStackOffset(types::PCOffset),               // LD HL, SP+r8
+    AddStackPointer(types::AddressOffset),          // ADD SP, r8
+    LoadStackOffset(types::AddressOffset),          // LD HL, SP+r8
     SetStackPointer,                                // LD SP, HL
     StoreStackPointerMemory(types::LiteralAddress), // LD (a16), SP
 }

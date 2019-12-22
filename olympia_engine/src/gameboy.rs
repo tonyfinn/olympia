@@ -168,6 +168,21 @@ impl GameBoy {
         Ok(())
     }
 
+    fn exec_write_memory_u16<A: Into<types::LiteralAddress>>(
+        &mut self,
+        target: A,
+        value: u16,
+    ) -> memory::MemoryResult<()> {
+        let addr = target.into();
+        let bytes = value.to_le_bytes();
+
+        self.mem.write_u8(addr, bytes[0])?;
+        self.cycle();
+        self.mem.write_u8(addr.next(), bytes[1])?;
+        self.cycle();
+        Ok(())
+    }
+
     /// Read a value from the given 16-bit CPU register
     pub fn read_register_u16(&self, reg: registers::WordRegister) -> u16 {
         self.cpu.read_register_u16(reg)
@@ -612,7 +627,43 @@ impl GameBoy {
                 self.cpu.write_register_u16(reg.into(), val);
                 Ok(())
             }
-            _ => Err(StepError::Unimplemented(instr.into())),
+            Stack::AddStackPointer(_) => {
+                let value: types::AddressOffset = self.exec_read_inc_pc()?.into();
+                let sp = self.cpu.read_register_u16(wr::SP);
+                let (address, half_carry, carry) = value.resolve(sp.into());
+                self.cpu.write_register_u16(wr::SP, address.into());
+                self.cpu.set_flag_to(registers::Flag::HalfCarry, half_carry);
+                self.cpu.set_flag_to(registers::Flag::Carry, carry);
+                self.cpu.reset_flag(registers::Flag::Zero);
+                self.cpu.reset_flag(registers::Flag::AddSubtract);
+                self.cycle();
+                self.cycle();
+                Ok(())
+            }
+            Stack::LoadStackOffset(_) => {
+                let value: types::AddressOffset = self.exec_read_inc_pc()?.into();
+                let sp = self.cpu.read_register_u16(wr::SP);
+                let (address, half_carry, carry) = value.resolve(sp.into());
+                self.cpu.write_register_u16(wr::HL, address.into());
+                self.cpu.set_flag_to(registers::Flag::HalfCarry, half_carry);
+                self.cpu.set_flag_to(registers::Flag::Carry, carry);
+                self.cpu.reset_flag(registers::Flag::Zero);
+                self.cpu.reset_flag(registers::Flag::AddSubtract);
+                self.cycle();
+                Ok(())
+            }
+            Stack::SetStackPointer => {
+                let val = self.cpu.read_register_u16(wr::HL);
+                self.cpu.write_register_u16(wr::SP, val);
+                self.cycle();
+                Ok(())
+            }
+            Stack::StoreStackPointerMemory(_) => {
+                let target = self.exec_read_instr_address()?;
+                let sp_val = self.read_register_u16(wr::SP);
+                self.exec_write_memory_u16(target, sp_val)?;
+                Ok(())
+            }
         }
     }
 
