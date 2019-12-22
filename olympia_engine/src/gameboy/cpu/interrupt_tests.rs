@@ -5,7 +5,7 @@ use crate::gameboy::StepResult;
 use registers::{ByteRegister as br, WordRegister as wr};
 
 #[test]
-fn test_vlank_handling() -> StepResult<()> {
+fn test_vblank_handling() -> StepResult<()> {
     let gb = run_program_with(
         6,
         &[
@@ -17,9 +17,9 @@ fn test_vlank_handling() -> StepResult<()> {
                     0x3E, 0x1, // LD A, 1 - 8 clocks
                     0xEA, 0xFF, 0xFF, // LD (0xFFFF), A - 16 clocks
                     0xEA, 0x0F, 0xFF, // LD (0xFF0F), A - 16 clocks
-                    // Read PC - 4 clocks
-                    // Interrupted - 20 clocks
                 ],
+                // Read PC - 4 clocks
+                // Interrupted - 20 clocks
             ),
             (
                 Interrupt::VBlank.handler_address(),
@@ -49,9 +49,9 @@ fn test_lcdstatus_handling() -> StepResult<()> {
                     0x3E, 0x2, // LD A, 2 - 8 clocks
                     0xEA, 0xFF, 0xFF, // LD (0xFFFF), A - 16 clocks
                     0xEA, 0x0F, 0xFF, // LD (0xFF0F), A - 16 clocks
-                    // Read PC - 4 clocks
-                    // Interrupted - 20 clocks
                 ],
+                // Read PC - 4 clocks
+                // Interrupted - 20 clocks
             ),
             (
                 Interrupt::LCDStatus.handler_address(),
@@ -81,9 +81,9 @@ fn test_timer_handling() -> StepResult<()> {
                     0x3E, 0x4, // LD A, 4 - 8 clocks
                     0xEA, 0xFF, 0xFF, // LD (0xFFFF), A - 16 clocks
                     0xEA, 0x0F, 0xFF, // LD (0xFF0F), A - 16 clocks
-                    // Read PC - 4 clocks
-                    // Interrupted - 20 clocks
                 ],
+                // Read PC - 4 clocks
+                // Interrupted - 20 clocks
             ),
             (
                 Interrupt::Timer.handler_address(),
@@ -113,9 +113,9 @@ fn test_serial_handling() -> StepResult<()> {
                     0x3E, 0x8, // LD A, 8 - 8 clocks
                     0xEA, 0xFF, 0xFF, // LD (0xFFFF), A - 16 clocks
                     0xEA, 0x0F, 0xFF, // LD (0xFF0F), A - 16 clocks
-                    // Read PC - 4 clocks
-                    // Interrupted - 20 clocks
                 ],
+                // Read PC - 4 clocks
+                // Interrupted - 20 clocks
             ),
             (
                 Interrupt::Serial.handler_address(),
@@ -145,9 +145,9 @@ fn test_input_handling() -> StepResult<()> {
                     0x3E, 0x10, // LD A, 16 - 8 clocks
                     0xEA, 0xFF, 0xFF, // LD (0xFFFF), A - 16 clocks
                     0xEA, 0x0F, 0xFF, // LD (0xFF0F), A - 16 clocks
-                    // Read PC - 4 clocks
-                    // Interrupted - 20 clocks
                 ],
+                // Read PC - 4 clocks
+                // Interrupted - 20 clocks
             ),
             (
                 Interrupt::Input.handler_address(),
