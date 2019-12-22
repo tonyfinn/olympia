@@ -1,7 +1,11 @@
+//! Represents a variety of fundamental types for emulation.
+
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
+/// Represents a literal memory address
 pub struct LiteralAddress(pub u16);
 
 impl LiteralAddress {
+    /// Get the address immediately following this one, wrapping if needed
     pub fn next(self) -> LiteralAddress {
         let LiteralAddress(addr) = self;
         LiteralAddress(addr.wrapping_add(1))
@@ -35,6 +39,7 @@ impl From<HighAddress> for LiteralAddress {
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
+/// Represents an address in high memory (offset from 0xFF00)
 pub struct HighAddress(pub u8);
 
 impl From<u8> for HighAddress {
@@ -44,6 +49,7 @@ impl From<u8> for HighAddress {
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
+/// Represents an address that is offset from the program counter
 pub struct PCOffset(pub i8);
 
 impl From<u8> for PCOffset {

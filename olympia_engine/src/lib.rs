@@ -24,7 +24,7 @@ pub mod gameboy;
 mod instructions;
 pub mod registers;
 pub mod rom;
-mod types;
+pub mod types;
 
 #[cfg(feature = "disassembler")]
 pub mod disassembler;
