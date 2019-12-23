@@ -863,6 +863,106 @@ impl GameBoy {
         }
     }
 
+    fn a_to_bcd_add(
+        &mut self,
+        carry: bool,
+        half_carry: bool,
+        top_nibble: u8,
+        bottom_nibble: u8,
+    ) -> (u8, bool) {
+        match (carry, half_carry) {
+            (false, false) => {
+                if bottom_nibble <= 9 {
+                    if top_nibble <= 9 {
+                        (0, false)
+                    } else {
+                        (0x60, true)
+                    }
+                } else if top_nibble <= 8 {
+                    (6, false)
+                } else {
+                    (0x66, true)
+                }
+            }
+            (false, true) => {
+                if bottom_nibble <= 0x3 {
+                    if top_nibble <= 0x9 {
+                        (0x6, false)
+                    } else {
+                        (0x66, true)
+                    }
+                } else {
+                    (0, carry)
+                }
+            }
+            (true, false) => {
+                if top_nibble <= 2 {
+                    if bottom_nibble <= 9 {
+                        (0x60, true)
+                    } else {
+                        (0x66, true)
+                    }
+                } else {
+                    (0, carry)
+                }
+            }
+            (true, true) => {
+                if top_nibble <= 3 && bottom_nibble <= 3 {
+                    (0x66, true)
+                } else {
+                    (0, carry)
+                }
+            }
+        }
+    }
+
+    #[allow(clippy::collapsible_if)]
+    fn a_to_bcd_subtract(
+        &mut self,
+        carry: bool,
+        half_carry: bool,
+        top_nibble: u8,
+        bottom_nibble: u8,
+    ) -> (u8, bool) {
+        if carry {
+            if top_nibble >= 7 && bottom_nibble <= 9 && !half_carry {
+                (0xA0, true)
+            } else if top_nibble >= 6 && bottom_nibble >= 6 && half_carry {
+                (0x9A, true)
+            } else {
+                (0, carry)
+            }
+        } else {
+            if top_nibble <= 9 && bottom_nibble <= 9 && !half_carry {
+                (0, false)
+            } else if top_nibble <= 8 && bottom_nibble >= 6 && half_carry {
+                (0xFA, false)
+            } else {
+                (0, carry)
+            }
+        }
+    }
+
+    fn exec_a_to_bcd(&mut self) -> StepResult<()> {
+        let carry = self.cpu.read_flag(registers::Flag::Carry);
+        let half_carry = self.cpu.read_flag(registers::Flag::HalfCarry);
+        let add_subtract = self.cpu.read_flag(registers::Flag::AddSubtract);
+        let val = self.cpu.read_register_u8(br::A);
+        let top_nibble = (val & 0xF0) >> 4;
+        let bottom_nibble = val & 0x0F;
+        let (add, carry) = if add_subtract {
+            self.a_to_bcd_subtract(carry, half_carry, top_nibble, bottom_nibble)
+        } else {
+            self.a_to_bcd_add(carry, half_carry, top_nibble, bottom_nibble)
+        };
+        let result = val.wrapping_add(add);
+        self.write_register_u8(br::A, result);
+        self.cpu.set_flag_to(registers::Flag::Carry, carry);
+        self.cpu.set_flag_to(registers::Flag::Zero, result == 0);
+        self.cpu.reset_flag(registers::Flag::HalfCarry);
+        Ok(())
+    }
+
     fn exec(&mut self, instr: instructions::Instruction) -> StepResult<()> {
         use instructions::Instruction;
         match instr {
@@ -885,6 +985,14 @@ impl GameBoy {
                 self.cpu.reset_flag(registers::Flag::AddSubtract);
                 Ok(())
             }
+            Instruction::InvertA => {
+                self.cpu.set_flag(registers::Flag::AddSubtract);
+                self.cpu.set_flag(registers::Flag::HalfCarry);
+                let val = self.read_register_u8(br::A);
+                self.write_register_u8(br::A, !val);
+                Ok(())
+            }
+            Instruction::AToBCD => self.exec_a_to_bcd(),
             Instruction::Rotate(dir, carry) => {
                 self.exec_rotate(dir, carry, br::A, SetZeroMode::Clear)
             }
