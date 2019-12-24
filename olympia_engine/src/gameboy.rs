@@ -26,9 +26,9 @@ use crate::registers;
 use crate::registers::{ByteRegister as br, WordRegister as wr};
 use crate::rom;
 use crate::rom::TargetConsole;
-use crate::types;
 
 use core::convert::TryFrom;
+use olympia_core::address;
 
 /// Primary struct for an emulated gameboy.
 ///
@@ -108,7 +108,7 @@ impl GameBoy {
     }
 
     /// Read a value from the given memory address.
-    pub fn read_memory_u8<A: Into<types::LiteralAddress>>(
+    pub fn read_memory_u8<A: Into<address::LiteralAddress>>(
         &self,
         addr: A,
     ) -> memory::MemoryResult<u8> {
@@ -116,7 +116,7 @@ impl GameBoy {
     }
 
     /// Write a value to the given memory address.
-    pub fn write_memory_u8<A: Into<types::LiteralAddress>>(
+    pub fn write_memory_u8<A: Into<address::LiteralAddress>>(
         &mut self,
         addr: A,
         val: u8,
@@ -127,7 +127,7 @@ impl GameBoy {
     /// Read an value at the given memory address as a signed integer.
     ///
     /// This is primarily useful for reading the target of a JR instruction.
-    pub fn read_memory_i8<A: Into<types::LiteralAddress>>(
+    pub fn read_memory_i8<A: Into<address::LiteralAddress>>(
         &self,
         addr: A,
     ) -> memory::MemoryResult<i8> {
@@ -139,7 +139,7 @@ impl GameBoy {
     /// Note that the value is read in little endian format.
     /// This means that given `0xC000` = `0x12` and `0xC001` = `0x45`,
     /// the value read will be `0x4512`
-    pub fn read_memory_u16<A: Into<types::LiteralAddress>>(
+    pub fn read_memory_u16<A: Into<address::LiteralAddress>>(
         &self,
         target: A,
     ) -> memory::MemoryResult<u16> {
@@ -155,7 +155,7 @@ impl GameBoy {
     /// Note that the value is written in little endian format.
     /// This means that given value of `0xABCD` and `target` of `0xC000`
     /// then `0xC000` will be set to `0xCD` and `0xC001` will be set to `0xAB`
-    pub fn write_memory_u16<A: Into<types::LiteralAddress>>(
+    pub fn write_memory_u16<A: Into<address::LiteralAddress>>(
         &mut self,
         target: A,
         value: u16,
@@ -168,7 +168,7 @@ impl GameBoy {
         Ok(())
     }
 
-    fn exec_write_memory_u16<A: Into<types::LiteralAddress>>(
+    fn exec_write_memory_u16<A: Into<address::LiteralAddress>>(
         &mut self,
         target: A,
         value: u16,
@@ -203,7 +203,7 @@ impl GameBoy {
         self.cpu.write_register_u8(reg, val)
     }
 
-    fn memory_iter(&self, start: types::LiteralAddress) -> memory::MemoryIterator {
+    fn memory_iter(&self, start: address::LiteralAddress) -> memory::MemoryIterator {
         self.mem.offset_iter(start)
     }
 
@@ -217,7 +217,7 @@ impl GameBoy {
         }
     }
 
-    fn exec_read_instr_address(&mut self) -> StepResult<types::LiteralAddress> {
+    fn exec_read_instr_address(&mut self) -> StepResult<address::LiteralAddress> {
         let low = self.exec_read_inc_pc()?;
         let high = self.exec_read_inc_pc()?;
         Ok([low, high].into())
@@ -296,13 +296,13 @@ impl GameBoy {
                 self.cycle();
             }
             Load::AMemoryOffset => {
-                let addr = types::HighAddress(self.read_register_u8(br::C));
+                let addr = address::HighAddress(self.read_register_u8(br::C));
                 let value = self.read_memory_u8(addr)?;
                 self.cycle();
                 self.write_register_u8(br::A, value);
             }
             Load::MemoryOffsetA => {
-                let addr = types::HighAddress(self.read_register_u8(br::C));
+                let addr = address::HighAddress(self.read_register_u8(br::C));
                 let value = self.read_register_u8(br::A);
                 self.write_memory_u8(addr, value)?;
                 self.cycle();
@@ -321,14 +321,14 @@ impl GameBoy {
             }
             Load::AHighOffset(_) => {
                 let offset = self.exec_read_inc_pc()?;
-                let addr = types::HighAddress(offset);
+                let addr = address::HighAddress(offset);
                 let value = self.read_memory_u8(addr)?;
                 self.cycle();
                 self.write_register_u8(br::A, value);
             }
             Load::HighOffsetA(_) => {
                 let offset = self.exec_read_inc_pc()?;
-                let addr = types::HighAddress(offset);
+                let addr = address::HighAddress(offset);
                 let value = self.read_register_u8(br::A);
                 self.write_memory_u8(addr, value)?;
                 self.cycle();
@@ -512,14 +512,14 @@ impl GameBoy {
         Ok(())
     }
 
-    fn set_pc<A: Into<types::LiteralAddress>>(&mut self, target: A) {
-        let types::LiteralAddress(addr) = target.into();
+    fn set_pc<A: Into<address::LiteralAddress>>(&mut self, target: A) {
+        let address::LiteralAddress(addr) = target.into();
         self.cpu.write_register_u16(wr::PC, addr);
     }
 
-    fn read_pc(&self) -> types::LiteralAddress {
+    fn read_pc(&self) -> address::LiteralAddress {
         let value = self.cpu.read_register_u16(wr::PC);
-        types::LiteralAddress(value)
+        address::LiteralAddress(value)
     }
 
     fn exec_jump(&mut self, instr: instructions::Jump) -> StepResult<()> {
@@ -590,14 +590,14 @@ impl GameBoy {
                 Ok(())
             }
             Jump::Return => {
-                let return_addr: types::LiteralAddress = self.exec_pop()?;
+                let return_addr: address::LiteralAddress = self.exec_pop()?;
                 self.set_pc(return_addr);
                 self.cycle();
                 Ok(())
             }
             Jump::ReturnIf(cond) => {
                 if self.should_jump(cond) {
-                    let return_addr: types::LiteralAddress = self.exec_pop()?;
+                    let return_addr: address::LiteralAddress = self.exec_pop()?;
                     self.set_pc(return_addr);
                     self.cycle();
                 }
@@ -605,7 +605,7 @@ impl GameBoy {
                 Ok(())
             }
             Jump::ReturnInterrupt => {
-                let return_addr: types::LiteralAddress = self.exec_pop()?;
+                let return_addr: address::LiteralAddress = self.exec_pop()?;
                 self.set_pc(return_addr);
                 self.cpu.interrupts_enabled = cpu::InterruptState::Enabled;
                 self.cycle();
@@ -628,10 +628,14 @@ impl GameBoy {
                 Ok(())
             }
             Stack::AddStackPointer(_) => {
-                let value: types::AddressOffset = self.exec_read_inc_pc()?.into();
+                let value: address::AddressOffset = self.exec_read_inc_pc()?.into();
                 let sp = self.cpu.read_register_u16(wr::SP);
-                let (address, half_carry, carry) = value.resolve(sp.into());
-                self.cpu.write_register_u16(wr::SP, address.into());
+                let address::OffsetResolveResult {
+                    addr,
+                    half_carry,
+                    carry,
+                } = value.resolve(sp.into());
+                self.cpu.write_register_u16(wr::SP, addr.into());
                 self.cpu.set_flag_to(registers::Flag::HalfCarry, half_carry);
                 self.cpu.set_flag_to(registers::Flag::Carry, carry);
                 self.cpu.reset_flag(registers::Flag::Zero);
@@ -641,10 +645,14 @@ impl GameBoy {
                 Ok(())
             }
             Stack::LoadStackOffset(_) => {
-                let value: types::AddressOffset = self.exec_read_inc_pc()?.into();
+                let value: address::AddressOffset = self.exec_read_inc_pc()?.into();
                 let sp = self.cpu.read_register_u16(wr::SP);
-                let (address, half_carry, carry) = value.resolve(sp.into());
-                self.cpu.write_register_u16(wr::HL, address.into());
+                let address::OffsetResolveResult {
+                    addr,
+                    half_carry,
+                    carry,
+                } = value.resolve(sp.into());
+                self.cpu.write_register_u16(wr::HL, addr.into());
                 self.cpu.set_flag_to(registers::Flag::HalfCarry, half_carry);
                 self.cpu.set_flag_to(registers::Flag::Carry, carry);
                 self.cpu.reset_flag(registers::Flag::Zero);

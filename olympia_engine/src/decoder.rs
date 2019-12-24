@@ -7,7 +7,9 @@ use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::{instructions, instructions::Instruction, registers, types};
+use crate::{instructions, instructions::Instruction, registers};
+
+use olympia_core::address;
 
 #[derive(PartialEq, Eq, Debug)]
 /// Represents an error decoding a given instruction
@@ -81,15 +83,15 @@ pub(crate) trait TwoByteDataDecoder {
 }
 
 trait TwoByteOffsetDecoder {
-    fn decode(&self, opcode: u8, data: types::AddressOffset) -> DecodeResult<Instruction>;
+    fn decode(&self, opcode: u8, data: address::AddressOffset) -> DecodeResult<Instruction>;
 }
 
 trait TwoByteAddressDecoder {
-    fn decode(&self, opcode: u8, data: types::HighAddress) -> DecodeResult<Instruction>;
+    fn decode(&self, opcode: u8, data: address::HighAddress) -> DecodeResult<Instruction>;
 }
 
 trait ThreeByteAddressDecoder {
-    fn decode(&self, opcode: u8, data: types::LiteralAddress) -> DecodeResult<Instruction>;
+    fn decode(&self, opcode: u8, data: address::LiteralAddress) -> DecodeResult<Instruction>;
 }
 
 trait ThreeByteDataDecoder {

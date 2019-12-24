@@ -1,0 +1,21 @@
+[package]
+name = "olympia_core"
+version = "0.1.0"
+authors = ["Tony Finn <git@tonyfinn.com>"]
+edition = "2018"
+description = """
+Olympia is a gameboy emulator and toolkit, intended to run
+as a native or web assembly application targeting a cycle 
+count accurate emulation. olympia_core defines fundamental
+data types for use across emulator components.
+
+Frontends and other users should instead rely on `olympia_engine`
+"""
+license = "GPL-3.0-or-later"
+readme = "README.md"
+homepage = "https://gitlab.com/tonyfinn/olympia"
+repository = "https://gitlab.com/tonyfinn/olympia"
+documentation = "https://docs.rs/olympia_core"
+
+
+[dependencies]

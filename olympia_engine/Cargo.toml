@@ -1,6 +1,6 @@
 [package]
 name = "olympia_engine"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2018"
 authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
 description = """
@@ -24,3 +24,4 @@ disassembler = []
 std = []
 
 [dependencies]
+olympia_core = { version = "0.1.0", path = "../olympia_core" }

@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "olympia_core",
     "olympia_engine",
     "olympia_native",
     "olympia_cli",

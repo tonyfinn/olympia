@@ -1,4 +1,7 @@
+//! Contains operations on CPU registers
+
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+/// All 8-bit registers
 pub enum ByteRegister {
     A,
     F,
@@ -11,6 +14,7 @@ pub enum ByteRegister {
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+/// All 16-bit registers
 pub enum WordRegister {
     AF,
     BC,
@@ -21,6 +25,13 @@ pub enum WordRegister {
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+/// 16bit Register group that includes the accumalator
+/// register.
+///
+/// This is mainly used for operatiions that target the
+/// stack as it gives extra flexibility for targeting the
+/// stack. Note that writing to the F register in this manner
+/// only sets the high nibble of the F register.
 pub enum AccRegister {
     BC,
     DE,
@@ -40,6 +51,12 @@ impl From<AccRegister> for WordRegister {
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+/// Registers group that includes the stack register
+///
+/// This is mainly used for operations that do not operate on the stack,
+/// such as 16-bit transfers. This is because
+/// the stack target is implicit in operations that do
+/// operate on the stack
 pub enum StackRegister {
     BC,
     DE,
@@ -59,13 +76,15 @@ impl From<StackRegister> for WordRegister {
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub(crate) enum WordByte {
+pub enum WordByte {
     High,
     Low,
 }
 
 impl ByteRegister {
-    pub(crate) fn lookup_byte(self) -> WordByte {
+    /// Returns whether this 8-bit register is the high or low byte
+    /// of its 16bit register
+    pub fn lookup_byte(self) -> WordByte {
         match self {
             ByteRegister::A => WordByte::High,
             ByteRegister::F => WordByte::Low,
@@ -78,7 +97,9 @@ impl ByteRegister {
         }
     }
 
-    pub(crate) fn lookup_word_register(self) -> WordRegister {
+    /// Returns which 16-bit register this 8-bit register
+    /// is part of
+    pub fn lookup_word_register(self) -> WordRegister {
         match self {
             ByteRegister::A => WordRegister::AF,
             ByteRegister::F => WordRegister::AF,
@@ -92,14 +113,24 @@ impl ByteRegister {
     }
 }
 
+/// Represents a CPU flag set after some instructions.
+///
+/// Note that many instructions leave flags alone,
+/// and others may repurpose them for side channel information.
 pub enum Flag {
+    /// The last arithmetic operation resulted in 0
     Zero,
+    /// The last arithmetic operation was a subtract type operation
+    /// 0 = Add, 1 = Sub
     AddSubtract,
+    /// The last arithmetic operation contained a carry between nibbles
     HalfCarry,
+    /// The last arithmetic operation overflowed or underflowed
     Carry,
 }
 
 impl Flag {
+    /// Returns which bit of the flag register represents this flag
     pub fn bit(&self) -> u8 {
         match self {
             Flag::Zero => 7,

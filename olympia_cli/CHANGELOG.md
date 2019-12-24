@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+Updated to `olympia_engine` 0.2.0
+
 ## 0.2.0
 
 Integrate disassembly via `olympia_cli disassemble` command.

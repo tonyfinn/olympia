@@ -1,57 +1,21 @@
 use crate::registers;
-use crate::types;
+use olympia_core::address;
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum Condition {
-    NonZero,
-    Zero,
-    NoCarry,
-    Carry,
-}
-
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum Carry {
-    Carry,
-    NoCarry,
-}
-
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum RotateDirection {
-    Left,
-    Right,
-}
-
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum Increment {
-    Increment,
-    Decrement,
-}
-
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum ALOp {
-    Add,
-    AddCarry,
-    Sub,
-    SubCarry,
-    And,
-    Xor,
-    Or,
-    Compare,
-}
+pub use olympia_core::instructions::{ALOp, Carry, Condition, Increment, RotateDirection};
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Jump {
-    RegisterJump,                                    // JP (HL)
-    Jump(types::LiteralAddress),                     // JP a16
-    JumpIf(Condition, types::LiteralAddress),        // JP <condition>, a16
-    RelativeJump(types::AddressOffset),              // JR r8
-    RelativeJumpIf(Condition, types::AddressOffset), // JR <condition>, r8
-    Call(types::LiteralAddress),                     // CALL a16
-    CallIf(Condition, types::LiteralAddress),        // CALL <condition>, a16
-    CallSystem(types::LiteralAddress),               // RST a16
-    Return,                                          // RET
-    ReturnIf(Condition),                             // RET <condition>
-    ReturnInterrupt,                                 // RETI
+    RegisterJump,                                      // JP (HL)
+    Jump(address::LiteralAddress),                     // JP a16
+    JumpIf(Condition, address::LiteralAddress),        // JP <condition>, a16
+    RelativeJump(address::AddressOffset),              // JR r8
+    RelativeJumpIf(Condition, address::AddressOffset), // JR <condition>, r8
+    Call(address::LiteralAddress),                     // CALL a16
+    CallIf(Condition, address::LiteralAddress),        // CALL <condition>, a16
+    CallSystem(address::LiteralAddress),               // RST a16
+    Return,                                            // RET
+    ReturnIf(Condition),                               // RET <condition>
+    ReturnInterrupt,                                   // RETI
 }
 
 impl From<Jump> for Instruction {
@@ -78,12 +42,12 @@ impl From<RegisterAL> for Instruction {
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Stack {
-    Push(registers::AccRegister),                   // PUSH <reg>
-    Pop(registers::AccRegister),                    // POP <reg>
-    AddStackPointer(types::AddressOffset),          // ADD SP, r8
-    LoadStackOffset(types::AddressOffset),          // LD HL, SP+r8
-    SetStackPointer,                                // LD SP, HL
-    StoreStackPointerMemory(types::LiteralAddress), // LD (a16), SP
+    Push(registers::AccRegister),                     // PUSH <reg>
+    Pop(registers::AccRegister),                      // POP <reg>
+    AddStackPointer(address::AddressOffset),          // ADD SP, r8
+    LoadStackOffset(address::AddressOffset),          // LD HL, SP+r8
+    SetStackPointer,                                  // LD SP, HL
+    StoreStackPointerMemory(address::LiteralAddress), // LD (a16), SP
 }
 
 impl From<Stack> for Instruction {
@@ -102,10 +66,10 @@ pub enum Load {
     MemoryRegister(registers::WordRegister, registers::ByteRegister), // LD (<dest>), <src>
     AMemoryOffset,                             // LD A, (C)
     MemoryOffsetA,                             // LD (C), A
-    AIndirect(types::LiteralAddress),          // LD A, (a16)
-    IndirectA(types::LiteralAddress),          // LD (a16), A
-    AHighOffset(types::HighAddress),           // LDH A, (a8)
-    HighOffsetA(types::HighAddress),           // LDH (a8), A
+    AIndirect(address::LiteralAddress),        // LD A, (a16)
+    IndirectA(address::LiteralAddress),        // LD (a16), A
+    AHighOffset(address::HighAddress),         // LDH A, (a8)
+    HighOffsetA(address::HighAddress),         // LDH (a8), A
     Increment16A(Increment),                   // LD (HL+), A / LD (HL-), A
     AIncrement16(Increment),                   // LD A, (HL+) / LD A, (HL-)
 }

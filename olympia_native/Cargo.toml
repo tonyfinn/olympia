@@ -13,4 +13,4 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 pixels = "0.0.2"
-olympia_engine = { version = "0.1.0", path = "../olympia_engine", features = ["std"] }
+olympia_engine = { version = "0.2.0", path = "../olympia_engine", features = ["std"] }

@@ -1,10 +1,13 @@
 use alloc::string::{String, ToString};
 
 use crate::instructions::{ALOp, Condition};
-use crate::{instructions, registers, types};
+use crate::{instructions, registers};
+use olympia_core::address;
 
-pub trait Disassemble {
-    fn disassemble(&self) -> String;
+pub trait Disassemble: alloc::fmt::Debug {
+    fn disassemble(&self) -> String {
+        format!("{:?}", self)
+    }
 }
 
 impl Disassemble for ALOp {
@@ -35,16 +38,16 @@ impl Disassemble for Condition {
     }
 }
 
-impl Disassemble for types::LiteralAddress {
+impl Disassemble for address::LiteralAddress {
     fn disassemble(&self) -> String {
-        let types::LiteralAddress(raw_addr) = self;
+        let address::LiteralAddress(raw_addr) = self;
         format!("${:X}h", raw_addr)
     }
 }
 
-impl Disassemble for types::HighAddress {
+impl Disassemble for address::HighAddress {
     fn disassemble(&self) -> String {
-        let types::HighAddress(raw_addr) = self;
+        let address::HighAddress(raw_addr) = self;
         let value = i8::from_le_bytes([*raw_addr]);
         let addr = if value > 0 {
             let val_u16 = value as u16;
@@ -57,27 +60,17 @@ impl Disassemble for types::HighAddress {
     }
 }
 
-impl Disassemble for types::AddressOffset {
+impl Disassemble for address::AddressOffset {
     fn disassemble(&self) -> String {
-        let types::AddressOffset(raw_addr) = self;
+        let address::AddressOffset(raw_addr) = self;
         format!("PC+{:X}h", raw_addr)
     }
 }
 
-impl<T> Disassemble for T
-where
-    T: Copy + Into<registers::WordRegister>,
-{
-    fn disassemble(&self) -> String {
-        format!("{:?}", self.clone().into())
-    }
-}
-
-impl Disassemble for registers::ByteRegister {
-    fn disassemble(&self) -> String {
-        format!("{:?}", self)
-    }
-}
+impl Disassemble for registers::WordRegister {}
+impl Disassemble for registers::StackRegister {}
+impl Disassemble for registers::AccRegister {}
+impl Disassemble for registers::ByteRegister {}
 
 impl Disassemble for instructions::Stack {
     fn disassemble(&self) -> String {

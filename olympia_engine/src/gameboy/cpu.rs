@@ -37,7 +37,7 @@ impl Interrupt {
         }
     }
 
-    pub(crate) fn handler_address(&self) -> crate::types::LiteralAddress {
+    pub(crate) fn handler_address(&self) -> crate::address::LiteralAddress {
         match self {
             Interrupt::VBlank => 0x40,
             Interrupt::LCDStatus => 0x48,
@@ -251,8 +251,8 @@ mod misc_tests;
 #[cfg(test)]
 pub(crate) mod testutils {
     use super::*;
+    use crate::address::LiteralAddress;
     use crate::gameboy;
-    use crate::types::LiteralAddress;
 
     pub const PROGRAM_START: u16 = 0x200;
     pub const PROG_MEMORY_OFFSET: LiteralAddress = LiteralAddress(0x200);

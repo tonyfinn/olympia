@@ -1,5 +1,6 @@
 use crate::rom::Cartridge;
-use crate::types;
+
+use olympia_core::address;
 
 pub(crate) const DMA_REGISTER_ADDR: u16 = 0xff46;
 pub(crate) const INTERRUPT_ENABLE_ADDR: u16 = 0xffff;
@@ -61,7 +62,7 @@ pub enum MemoryError {
 pub type MemoryResult<T> = Result<T, MemoryError>;
 
 pub(crate) struct MemoryIterator<'a> {
-    addr: types::LiteralAddress,
+    addr: address::LiteralAddress,
     mem: &'a Memory,
 }
 
@@ -134,8 +135,8 @@ impl Memory {
         }
     }
 
-    pub fn read_u8<A: Into<types::LiteralAddress>>(&self, target: A) -> MemoryResult<u8> {
-        let types::LiteralAddress(addr) = target.into();
+    pub fn read_u8<A: Into<address::LiteralAddress>>(&self, target: A) -> MemoryResult<u8> {
+        let address::LiteralAddress(addr) = target.into();
         if CARTRIDGE_ROM.contains(addr) {
             self.cartridge
                 .read(addr)
@@ -161,12 +162,12 @@ impl Memory {
         }
     }
 
-    pub fn write_u8<A: Into<types::LiteralAddress>>(
+    pub fn write_u8<A: Into<address::LiteralAddress>>(
         &mut self,
         target: A,
         value: u8,
     ) -> MemoryResult<()> {
-        let types::LiteralAddress(addr) = target.into();
+        let address::LiteralAddress(addr) = target.into();
         if CARTRIDGE_ROM.contains(addr) {
             self.cartridge
                 .write(addr, value)
@@ -198,7 +199,7 @@ impl Memory {
         }
     }
 
-    pub(crate) fn offset_iter(&self, start: types::LiteralAddress) -> MemoryIterator {
+    pub(crate) fn offset_iter(&self, start: address::LiteralAddress) -> MemoryIterator {
         MemoryIterator {
             addr: start,
             mem: &self,
