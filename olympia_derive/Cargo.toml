@@ -1,0 +1,29 @@
+[package]
+name = "olympia_derive"
+version = "0.1.0"
+authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
+description = """
+Olympia is a gameboy emulator and toolkit, intended to run
+as a native or web assembly application targeting a cycle 
+count accurate emulation. olympia_derive provides a couple
+of proc macros used for olympia implementation.
+"""
+license = "GPL-3.0-or-later"
+readme = "README.md"
+homepage = "https://gitlab.com/tonyfinn/olympia"
+repository = "https://gitlab.com/tonyfinn/olympia"
+documentation = "https://docs.rs/olympia_derive"
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0.2"
+syn = {version = "1.0.11", features = ["extra-traits", "full"]}
+thiserror = "1.0.9"
+olympia_core = { version = "0.1.0", path = "../olympia_core" }
+
+[dev-dependencies]
+runtime-macros = { git = "https://github.com/tonyfinn/runtime-macros", branch = "derive_support" }

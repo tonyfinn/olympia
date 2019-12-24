@@ -69,7 +69,7 @@ impl AddressOffset {
     /// gameboy instruction set is based on the PC or SP
     /// register, depending on the instruction
     pub fn resolve(self, base: LiteralAddress) -> OffsetResolveResult {
-        use std::convert::TryFrom;
+        use core::convert::TryFrom;
         let raw_base = base.0;
         let offset = self.0;
         let (new_addr, half_carry, carry) = if offset < 0 {

@@ -7,6 +7,7 @@ Olympia is a gameboy emulator and toolkit, intended to run
 as a native or web assembly application targeting a cycle 
 count accurate emulation. olympia_native is the WIP native UI
 """
+edition = "2018"
 license = "GPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,3 +15,4 @@ license = "GPL-3.0-or-later"
 [dependencies]
 pixels = "0.0.2"
 olympia_engine = { version = "0.2.0", path = "../olympia_engine", features = ["std"] }
+winit = "0.20.0-alpha4"

@@ -2,8 +2,13 @@
 
 members = [
     "olympia_core",
+    "olympia_derive",
     "olympia_engine",
     "olympia_native",
     "olympia_cli",
     "olympia"
+]
+
+exclude = [
+    "runtime-macros"
 ]

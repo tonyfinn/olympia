@@ -1,5 +1,13 @@
 //! Contains operations on CPU registers
 
+pub use crate::instructions::{AccRegister, ByteRegisterTarget, StackRegister};
+
+use core::convert::TryFrom;
+
+use alloc::string::String;
+
+pub struct RegisterParseError(String);
+
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 /// All 8-bit registers
 pub enum ByteRegister {
@@ -13,6 +21,24 @@ pub enum ByteRegister {
     L,
 }
 
+impl core::str::FromStr for ByteRegister {
+    type Err = RegisterParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "A" => Ok(ByteRegister::A),
+            "B" => Ok(ByteRegister::B),
+            "C" => Ok(ByteRegister::C),
+            "D" => Ok(ByteRegister::D),
+            "E" => Ok(ByteRegister::E),
+            "F" => Ok(ByteRegister::F),
+            "H" => Ok(ByteRegister::H),
+            "L" => Ok(ByteRegister::L),
+            _ => Err(RegisterParseError(String::from(s))),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 /// All 16-bit registers
 pub enum WordRegister {
@@ -24,19 +50,20 @@ pub enum WordRegister {
     PC,
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-/// 16bit Register group that includes the accumalator
-/// register.
-///
-/// This is mainly used for operatiions that target the
-/// stack as it gives extra flexibility for targeting the
-/// stack. Note that writing to the F register in this manner
-/// only sets the high nibble of the F register.
-pub enum AccRegister {
-    BC,
-    DE,
-    HL,
-    AF,
+impl core::str::FromStr for WordRegister {
+    type Err = RegisterParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "AF" => Ok(WordRegister::AF),
+            "BC" => Ok(WordRegister::BC),
+            "DE" => Ok(WordRegister::DE),
+            "HL" => Ok(WordRegister::HL),
+            "SP" => Ok(WordRegister::SP),
+            "PC" => Ok(WordRegister::PC),
+            _ => Err(RegisterParseError(String::from(s))),
+        }
+    }
 }
 
 impl From<AccRegister> for WordRegister {
@@ -48,20 +75,6 @@ impl From<AccRegister> for WordRegister {
             AccRegister::HL => WordRegister::HL,
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-/// Registers group that includes the stack register
-///
-/// This is mainly used for operations that do not operate on the stack,
-/// such as 16-bit transfers. This is because
-/// the stack target is implicit in operations that do
-/// operate on the stack
-pub enum StackRegister {
-    BC,
-    DE,
-    HL,
-    SP,
 }
 
 impl From<StackRegister> for WordRegister {
@@ -109,6 +122,23 @@ impl ByteRegister {
             ByteRegister::E => WordRegister::DE,
             ByteRegister::H => WordRegister::HL,
             ByteRegister::L => WordRegister::HL,
+        }
+    }
+}
+
+impl TryFrom<ByteRegisterTarget> for ByteRegister {
+    type Error = ();
+
+    fn try_from(lookup: ByteRegisterTarget) -> Result<ByteRegister, ()> {
+        match lookup {
+            ByteRegisterTarget::A => Ok(ByteRegister::A),
+            ByteRegisterTarget::B => Ok(ByteRegister::B),
+            ByteRegisterTarget::C => Ok(ByteRegister::C),
+            ByteRegisterTarget::D => Ok(ByteRegister::D),
+            ByteRegisterTarget::E => Ok(ByteRegister::E),
+            ByteRegisterTarget::H => Ok(ByteRegister::H),
+            ByteRegisterTarget::L => Ok(ByteRegister::L),
+            ByteRegisterTarget::HLIndirect => Err(()),
         }
     }
 }
