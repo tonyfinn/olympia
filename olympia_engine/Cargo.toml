@@ -25,3 +25,4 @@ std = []
 
 [dependencies]
 olympia_core = { version = "0.1.0", path = "../olympia_core" }
+olympia_derive = { version = "0.1.0", path = "../olympia_derive" }

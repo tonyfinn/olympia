@@ -47,8 +47,8 @@ fn test_store_stack_pointer_memory() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_memory_u16(0xC000)?, 0x12AB);
     assert_eq!(gb.clocks_elapsed(), 32);
+    assert_eq!(gb.read_memory_u16(0xC000)?, 0x12AB);
 
     Ok(())
 }

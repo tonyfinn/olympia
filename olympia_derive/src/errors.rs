@@ -119,7 +119,7 @@ pub(crate) enum ParamError {
     InvalidParamMask(proc_macro2::Span),
     #[error("Constant Parameters should not have a mask")]
     MaskAndConstant(proc_macro2::Span),
-    #[error("Position not specified (use src, dest or single)")]
+    #[error("Position not specified (use src, dest, addsrc or single)")]
     MissingPosition(proc_macro2::Span),
     #[error("Unexpected literal {0:?}")]
     UnexpectedLiteral(syn::Lit),

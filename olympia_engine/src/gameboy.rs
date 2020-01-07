@@ -28,7 +28,11 @@ use crate::rom;
 use crate::rom::TargetConsole;
 
 use core::convert::TryFrom;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
 use olympia_core::address;
+use crate::instructionsn as new_instructions;
+use crate::instructionsn::ExecutableInstruction;
 
 /// Primary struct for an emulated gameboy.
 ///
@@ -46,10 +50,11 @@ use olympia_core::address;
 /// gb.step();
 /// ```
 pub struct GameBoy {
-    cpu: Cpu,
+    pub(crate) cpu: Cpu,
+    pub(crate) mem: memory::Memory,
     dma: DmaUnit,
-    mem: memory::Memory,
     decoder: decoder::Decoder,
+    runtime_decoder: Rc<new_instructions::RuntimeDecoder>,
     clocks_elapsed: u64,
 }
 
@@ -103,6 +108,7 @@ impl GameBoy {
             dma: Default::default(),
             mem: memory::Memory::new(cartridge),
             decoder: decoder::Decoder::new(),
+            runtime_decoder: Rc::new(new_instructions::RuntimeDecoder::new()),
             clocks_elapsed: 0,
         }
     }
@@ -168,7 +174,7 @@ impl GameBoy {
         Ok(())
     }
 
-    fn exec_write_memory_u16<A: Into<address::LiteralAddress>>(
+    pub(crate) fn exec_write_memory_u16<A: Into<address::LiteralAddress>>(
         &mut self,
         target: A,
         value: u16,
@@ -203,6 +209,24 @@ impl GameBoy {
         self.cpu.write_register_u8(reg, val)
     }
 
+    pub fn set_flag_to(&mut self, flag: registers::Flag, value: bool) {
+        self.cpu.set_flag_to(flag, value);
+    }
+
+    pub(crate) fn set_flag(&mut self, flag: registers::Flag) {
+        self.cpu.set_flag(flag);
+    }
+
+    pub(crate) fn reset_flag(&mut self, flag: registers::Flag) {
+        self.cpu.reset_flag(flag);
+    }
+
+    pub(crate) fn cycling_memory_iter(&mut self) -> CyclingMemoryIterator {
+        CyclingMemoryIterator {
+            gb: self
+        }
+    }
+
     fn memory_iter(&self, start: address::LiteralAddress) -> memory::MemoryIterator {
         self.mem.offset_iter(start)
     }
@@ -232,7 +256,7 @@ impl GameBoy {
         Ok(val)
     }
 
-    fn exec_push<T: Into<u16>>(&mut self, value: T) -> StepResult<()> {
+    pub(crate) fn exec_push<T: Into<u16>>(&mut self, value: T) -> StepResult<()> {
         let stack_addr = self.cpu.read_register_u16(registers::WordRegister::SP);
         let [low, high] = value.into().to_le_bytes();
         let stack_addr = stack_addr.wrapping_sub(1);
@@ -247,7 +271,7 @@ impl GameBoy {
         Ok(())
     }
 
-    fn exec_pop<T: From<u16>>(&mut self) -> StepResult<T> {
+    pub(crate) fn exec_pop<T: From<u16>>(&mut self) -> StepResult<T> {
         let stack_addr = self.cpu.read_register_u16(registers::WordRegister::SP);
         let low = self.read_memory_u8(stack_addr)?;
         self.cycle();
@@ -614,67 +638,6 @@ impl GameBoy {
         }
     }
 
-    fn exec_stack(&mut self, instr: instructions::Stack) -> StepResult<()> {
-        use instructions::Stack;
-        match instr {
-            Stack::Push(reg) => {
-                let value = self.cpu.read_register_u16(reg.into());
-                self.exec_push(value)?;
-                Ok(())
-            }
-            Stack::Pop(reg) => {
-                let val = self.exec_pop()?;
-                self.cpu.write_register_u16(reg.into(), val);
-                Ok(())
-            }
-            Stack::AddStackPointer(_) => {
-                let value: address::AddressOffset = self.exec_read_inc_pc()?.into();
-                let sp = self.cpu.read_register_u16(wr::SP);
-                let address::OffsetResolveResult {
-                    addr,
-                    half_carry,
-                    carry,
-                } = value.resolve(sp.into());
-                self.cpu.write_register_u16(wr::SP, addr.into());
-                self.cpu.set_flag_to(registers::Flag::HalfCarry, half_carry);
-                self.cpu.set_flag_to(registers::Flag::Carry, carry);
-                self.cpu.reset_flag(registers::Flag::Zero);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cycle();
-                self.cycle();
-                Ok(())
-            }
-            Stack::LoadStackOffset(_) => {
-                let value: address::AddressOffset = self.exec_read_inc_pc()?.into();
-                let sp = self.cpu.read_register_u16(wr::SP);
-                let address::OffsetResolveResult {
-                    addr,
-                    half_carry,
-                    carry,
-                } = value.resolve(sp.into());
-                self.cpu.write_register_u16(wr::HL, addr.into());
-                self.cpu.set_flag_to(registers::Flag::HalfCarry, half_carry);
-                self.cpu.set_flag_to(registers::Flag::Carry, carry);
-                self.cpu.reset_flag(registers::Flag::Zero);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cycle();
-                Ok(())
-            }
-            Stack::SetStackPointer => {
-                let val = self.cpu.read_register_u16(wr::HL);
-                self.cpu.write_register_u16(wr::SP, val);
-                self.cycle();
-                Ok(())
-            }
-            Stack::StoreStackPointerMemory(_) => {
-                let target = self.exec_read_instr_address()?;
-                let sp_val = self.read_register_u16(wr::SP);
-                self.exec_write_memory_u16(target, sp_val)?;
-                Ok(())
-            }
-        }
-    }
-
     fn exec_rotate(
         &mut self,
         dir: instructions::RotateDirection,
@@ -978,7 +941,7 @@ impl GameBoy {
             Instruction::Jump(j) => self.exec_jump(j),
             Instruction::RegisterAL(reg) => self.exec_register_al(reg),
             Instruction::ConstantAL(op, _) => self.exec_constant_al(op),
-            Instruction::Stack(s) => self.exec_stack(s),
+            Instruction::Stack(_) => panic!("Stack instructions should be in the new handler"),
             Instruction::Extended(ex) => self.exec_extended(ex),
             Instruction::NOP => Ok(()),
             Instruction::InvertCarry => {
@@ -1047,13 +1010,27 @@ impl GameBoy {
     /// execute. All components of the gameboy will run for this many machine
     /// cycles. To find out how many clocks elapsed, use `GameBoy::clocks_elapsed`.
     pub fn step(&mut self) -> StepResult<()> {
-        let instruction = self.current_instruction()?;
         let pc_value = self.read_pc();
-        self.cycle();
-        let interrupted = self.check_interrupts()?;
-        if !interrupted {
-            self.set_pc(pc_value.next());
-            self.exec(instruction)?;
+        let opcode = self.read_memory_u8(pc_value)?;
+        if self.runtime_decoder.has_opcode(opcode) {
+            self.cycle();
+            let interrupted = self.check_interrupts()?;
+            if !interrupted {
+                self.set_pc(pc_value.next());
+                let non_borrowing_decoder = self.runtime_decoder.clone();
+                non_borrowing_decoder.decode(opcode)
+                    .unwrap()
+                    .to_executable(&mut self.cycling_memory_iter())
+                    .execute(self)?;
+            }
+        } else {        
+            let instruction = self.current_instruction()?;
+            self.cycle();
+            let interrupted = self.check_interrupts()?;
+            if !interrupted {
+                self.set_pc(pc_value.next());
+                self.exec(instruction)?;
+            }
         }
         Ok(())
     }
@@ -1068,7 +1045,7 @@ impl GameBoy {
         Ok(instruction)
     }
 
-    fn cycle(&mut self) {
+    pub(crate) fn cycle(&mut self) {
         // TODO: Use this. a memory error can occur if the DMA operation tries to
         // write to cartridge RAM that is not present. As with actual hardware,
         // the DMA operation continues, and so we shouldn't abort emulation early,
@@ -1087,6 +1064,22 @@ impl GameBoy {
     /// Each machine cycle represents 4 CPU clocks.
     pub fn cycles_elapsed(&self) -> u64 {
         self.clocks_elapsed() / 4
+    }
+}
+
+pub(crate) struct CyclingMemoryIterator<'a> {
+    gb: &'a mut GameBoy
+}
+
+impl<'a> Iterator for CyclingMemoryIterator<'a> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        let addr = self.gb.read_pc();
+        let value = self.gb.read_memory_u8(addr).ok();
+        self.gb.cycle();
+        self.gb.set_pc(addr.next());
+        value
     }
 }
 

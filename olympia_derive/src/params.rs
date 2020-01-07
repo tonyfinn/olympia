@@ -210,6 +210,8 @@ fn parse_param_path(pb: &mut ParamBuilder, path: &syn::Path) {
         pb.pos = Some(ParamPosition::Src);
     } else if path.is_ident("single") {
         pb.pos = Some(ParamPosition::Single);
+    }else if path.is_ident("addsrc") {
+        pb.pos = Some(ParamPosition::AddSrc);
     }
 }
 
@@ -349,24 +351,25 @@ pub(crate) fn build_into_instruction_appended_params(params: &[ParsedParam]) -> 
         .iter()
         .filter_map(|param| {
             let name = &param.name;
+            let ty = &param.declared_type;
             match param.param_type {
                 ParsedParamType::Appended(AppendedParam::LiteralAddress)
                 | ParsedParamType::Appended(AppendedParam::Literal16) => Some(quote! {
-                    let #name = u16::from_le_bytes([
+                    let #name: #ty = u16::from_le_bytes([
                         iter.next().unwrap_or(0), iter.next().unwrap_or(0)
                     ]).into();
                 }),
                 ParsedParamType::Appended(AppendedParam::Literal8) => Some(quote! {
-                    let #name = iter.next().unwrap_or(0);
+                    let #name: #ty = iter.next().unwrap_or(0);
                 }),
                 ParsedParamType::Appended(AppendedParam::LiteralSigned8) => Some(quote! {
-                    let #name = i8::from_le_bytes([
+                    let #name: #ty = i8::from_le_bytes([
                         iter.next().unwrap_or(0)
                     ]);
                 }),
                 ParsedParamType::Appended(AppendedParam::HighAddress)
                 | ParsedParamType::Appended(AppendedParam::AddressOffset) => Some(quote! {
-                    let #name = iter.next().unwrap_or(0).into();
+                    let #name: #ty = iter.next().unwrap_or(0).into();
                 }),
                 _ => None,
             }

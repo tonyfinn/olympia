@@ -44,7 +44,7 @@ fn constant_args_expansion() {
 
     let data = vec![];
     assert_eq!(
-        opcode.into_instruction(&mut data.into_iter()),
+        opcode.build_instruction(&mut data.into_iter()),
         LoadStackPointer {
             dest: WordRegister::SP,
             src: WordRegister::HL,

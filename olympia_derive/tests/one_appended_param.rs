@@ -33,7 +33,7 @@ fn appended_parsing() {
     let data = vec![0xFEu8];
     let opcode = JumpRelativeOpcode::from_opcode(0x18);
     assert_eq!(
-        opcode.into_instruction(&mut data.into_iter()),
+        opcode.build_instruction(&mut data.into_iter()),
         JumpRelative {
             addr: AddressOffset(-2)
         }

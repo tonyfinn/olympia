@@ -192,12 +192,12 @@ fn build_into_instruction(instruction_name: &syn::Ident, instr: &ParsedInstructi
     let constant_param_extractors = params::build_into_instruction_constant_params(&instr.params);
     let appended_param_extractors = params::build_into_instruction_appended_params(&instr.params);
     quote! {
-        fn into_instruction(self, iter: &mut dyn Iterator<Item=u8>) -> Self::FullInstruction {
+        fn build_instruction(&self, iter: &mut dyn Iterator<Item=u8>) -> Self::FullInstruction {
             #opcode_extractor
             #(#appended_param_extractors)*
             #(#constant_param_extractors)*
             #instruction_name {
-                #(#param_names),*
+                #(#param_names: #param_names.clone()),*
             }
         }
     }
@@ -235,7 +235,7 @@ fn build_opcode_struct(
         impl ::olympia_core::derive::InstructionOpcode for #name {
             type FullInstruction = #instruction_name;
 
-            fn definition(&self) -> &::olympia_core::derive::InstructionDefinition {
+            fn definition() -> &'static ::olympia_core::derive::InstructionDefinition {
                 &#definition_ident
             }
 
@@ -413,10 +413,22 @@ mod coverage_tests {
     }
 
     #[test]
-    fn two_constant_args_coverage() {
+    fn two_constant_params_coverage() {
         let mut path = env::current_dir().unwrap();
         path.push("tests");
-        path.push("two_constant_args.rs");
+        path.push("two_constant_params.rs");
+        let file = fs::File::open(path).unwrap();
+        runtime_macros::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
+            olympia_instruction_inner(input).unwrap()
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn three_params_coverage() {
+        let mut path = env::current_dir().unwrap();
+        path.push("tests");
+        path.push("three_params.rs");
         let file = fs::File::open(path).unwrap();
         runtime_macros::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
             olympia_instruction_inner(input).unwrap()

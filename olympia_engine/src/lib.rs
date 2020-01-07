@@ -25,6 +25,7 @@ pub use olympia_core::registers;
 pub mod decoder;
 pub mod gameboy;
 mod instructions;
+mod instructionsn;
 pub mod rom;
 
 #[cfg(feature = "disassembler")]

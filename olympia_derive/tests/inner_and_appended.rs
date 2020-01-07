@@ -51,7 +51,7 @@ fn mixed_inner_appended_expansion() {
     assert_eq!(opcode.dest, ByteRegisterTarget::D);
 
     let data = vec![0x12, 0x34];
-    let instruction = opcode.into_instruction(&mut data.into_iter());
+    let instruction = opcode.build_instruction(&mut data.into_iter());
 
     assert_eq!(
         instruction,

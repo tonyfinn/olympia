@@ -378,6 +378,7 @@ pub enum ParamPosition {
     Dest,
     Src,
     Single,
+    AddSrc,
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
@@ -398,15 +399,15 @@ pub struct InstructionDefinition {
 /// An instruction with embedded opcode parameters
 /// included, but not those parameters that are in
 /// subsequent instructions
-pub trait InstructionOpcode: Sized {
+pub trait InstructionOpcode {
     type FullInstruction: Instruction;
-    fn definition(&self) -> &InstructionDefinition;
-    fn from_opcode(opcode: u8) -> Self;
-    fn into_instruction(self, data: &mut dyn Iterator<Item = u8>) -> Self::FullInstruction;
+    fn definition() -> &'static InstructionDefinition where Self: Sized;
+    fn from_opcode(opcode: u8) -> Self where Self: Sized;
+    fn build_instruction(&self, data: &mut dyn Iterator<Item = u8>) -> Self::FullInstruction;
 }
 
 pub trait Instruction {
-    fn definition() -> &'static InstructionDefinition;
+    fn definition() -> &'static InstructionDefinition where Self: Sized;
 }
 
 #[cfg(test)]
