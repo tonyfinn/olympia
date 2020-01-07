@@ -1,7 +1,6 @@
 use crate::registers;
 use olympia_core::address;
-
-pub use olympia_core::instructions::{ALOp, Carry, Condition, Increment, RotateDirection};
+pub use olympia_core::instructions::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Jump {

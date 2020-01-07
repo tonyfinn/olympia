@@ -28,11 +28,9 @@ use crate::rom;
 use crate::rom::TargetConsole;
 
 use core::convert::TryFrom;
-use alloc::boxed::Box;
 use alloc::rc::Rc;
 use olympia_core::address;
 use crate::instructionsn as new_instructions;
-use crate::instructionsn::ExecutableInstruction;
 
 /// Primary struct for an emulated gameboy.
 ///
@@ -209,6 +207,40 @@ impl GameBoy {
         self.cpu.write_register_u8(reg, val)
     }
 
+    pub(crate) fn exec_read_register_target(&mut self, target: instructions::ByteRegisterTarget) -> StepResult<u8> {
+        match registers::ByteRegister::try_from(target) {
+            Ok(reg) => Ok(self.read_register_u8(reg)),
+            Err(_) => {
+                let addr = self.read_register_u16(wr::HL);
+                let value = self.read_memory_u8(addr)?;
+                self.cycle();
+                Ok(value)
+            }
+        }
+    }
+
+    pub(crate) fn exec_write_register_target(&mut self, target: instructions::ByteRegisterTarget, value: u8) -> StepResult<()> {
+        match registers::ByteRegister::try_from(target) {
+            Ok(reg) => {
+                self.write_register_u8(reg, value);
+                Ok(())
+            },
+            Err(_) => {
+                let addr = self.read_register_u16(wr::HL);
+                self.write_memory_u8(addr, value)?;
+                Ok(())
+            }
+        }
+    }
+
+    pub(crate) fn set_interrupt_state(&mut self, state: cpu::InterruptState) {
+        self.cpu.interrupts_enabled = state;
+    }
+
+    pub fn read_flag(&self, flag: registers::Flag) -> bool {
+        self.cpu.read_flag(flag)
+    }
+
     pub fn set_flag_to(&mut self, flag: registers::Flag, value: bool) {
         self.cpu.set_flag_to(flag, value);
     }
@@ -380,159 +412,6 @@ impl GameBoy {
             }
         }
 
-        Ok(())
-    }
-
-    fn exec_al(&mut self, op: instructions::ALOp, arg: u8) -> u8 {
-        let current_value = self.cpu.read_register_u8(br::A);
-        use instructions::ALOp;
-        match op {
-            ALOp::Add => {
-                let (new, overflow) = current_value.overflowing_add(arg);
-                self.cpu.set_flag_to(registers::Flag::Carry, overflow);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                self.set_add_half_carry(current_value, arg);
-                new
-            }
-            ALOp::AddCarry => {
-                let carry_bit = u8::from(self.cpu.read_flag(registers::Flag::Carry));
-                let (tmp, overflow) = current_value.overflowing_add(arg);
-                let (new, overflow_carry) = tmp.overflowing_add(carry_bit);
-                self.cpu
-                    .set_flag_to(registers::Flag::Carry, overflow | overflow_carry);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                self.set_add_half_carry(current_value, arg + carry_bit);
-                new
-            }
-            ALOp::Sub => {
-                let (new, overflow) = current_value.overflowing_sub(arg);
-                self.cpu.set_flag_to(registers::Flag::Carry, overflow);
-                self.cpu.set_flag(registers::Flag::AddSubtract);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                self.set_sub_half_carry(current_value, arg);
-                new
-            }
-            ALOp::SubCarry => {
-                let carry_bit = u8::from(self.cpu.read_flag(registers::Flag::Carry));
-                let (tmp, overflow) = current_value.overflowing_sub(arg);
-                let (new, overflow_carry) = tmp.overflowing_sub(carry_bit);
-                self.cpu
-                    .set_flag_to(registers::Flag::Carry, overflow | overflow_carry);
-                self.cpu.set_flag(registers::Flag::AddSubtract);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                self.set_sub_half_carry(current_value, arg + carry_bit);
-                new
-            }
-            ALOp::Compare => {
-                let (new, overflow) = current_value.overflowing_sub(arg);
-                self.cpu.set_flag_to(registers::Flag::Carry, overflow);
-                self.cpu.set_flag(registers::Flag::AddSubtract);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                self.set_sub_half_carry(current_value, arg);
-                current_value
-            }
-            ALOp::And => {
-                let new = current_value & arg;
-                self.cpu.reset_flag(registers::Flag::Carry);
-                self.cpu.set_flag(registers::Flag::HalfCarry);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                new
-            }
-            ALOp::Or => {
-                let new = current_value | arg;
-                self.cpu.reset_flag(registers::Flag::Carry);
-                self.cpu.reset_flag(registers::Flag::HalfCarry);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                new
-            }
-            ALOp::Xor => {
-                let new = current_value ^ arg;
-                self.cpu.reset_flag(registers::Flag::Carry);
-                self.cpu.reset_flag(registers::Flag::HalfCarry);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                new
-            }
-        }
-    }
-
-    fn set_add_half_carry(&mut self, a: u8, b: u8) {
-        let half_add = ((a & 0xF) + (b & 0xF)) & 0xF0;
-        self.cpu
-            .set_flag_to(registers::Flag::HalfCarry, half_add != 0);
-    }
-
-    fn set_sub_half_carry(&mut self, a: u8, b: u8) {
-        let sub = (a & 0x1F).wrapping_sub(b & 0x0F);
-        let half_carry = (sub & 0x10) != a & 0x10;
-        self.cpu.set_flag_to(registers::Flag::HalfCarry, half_carry);
-    }
-
-    fn exec_register_al(&mut self, instr: instructions::RegisterAL) -> StepResult<()> {
-        use instructions::RegisterAL;
-        match instr {
-            RegisterAL::ByteOp(op, reg) => {
-                let reg_value = self.cpu.read_register_u8(reg);
-                let new_value = self.exec_al(op, reg_value);
-                self.cpu.write_register_u8(br::A, new_value);
-            }
-            RegisterAL::Increment(reg) => {
-                let reg_value = self.cpu.read_register_u8(reg);
-                let (new, carry) = reg_value.overflowing_add(1);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                self.cpu.set_flag_to(registers::Flag::Carry, carry);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.set_add_half_carry(reg_value, 1);
-                self.cpu.write_register_u8(reg, new);
-            }
-            RegisterAL::Decrement(reg) => {
-                let reg_value = self.cpu.read_register_u8(reg);
-                let (new, carry) = reg_value.overflowing_sub(1);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                self.cpu.set_flag_to(registers::Flag::Carry, carry);
-                self.cpu.set_flag(registers::Flag::AddSubtract);
-                self.set_sub_half_carry(reg_value, 1);
-                self.cpu.write_register_u8(reg, new);
-            }
-            RegisterAL::Decrement16(reg) => {
-                let reg_value = self.cpu.read_register_u16(reg.into());
-                let (new, _carry) = reg_value.overflowing_sub(1);
-                self.cpu.write_register_u16(reg.into(), new);
-                self.cycle();
-            }
-            RegisterAL::Increment16(reg) => {
-                let reg_value = self.cpu.read_register_u16(reg.into());
-                let (new, _carry) = reg_value.overflowing_add(1);
-                self.cpu.write_register_u16(reg.into(), new);
-                self.cycle();
-            }
-            RegisterAL::Add16(reg) => {
-                let current_value = self.cpu.read_register_u16(registers::WordRegister::HL);
-                let value_to_add = self.cpu.read_register_u16(reg.into());
-                let (new, carry) = current_value.overflowing_add(value_to_add);
-                self.cpu.set_flag_to(registers::Flag::Zero, new == 0);
-                self.cpu.set_flag_to(registers::Flag::Carry, carry);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                let has_half_carry =
-                    (((current_value & 0x0FFF) + (value_to_add & 0x0FFF)) & 0xF000) != 0;
-                self.cpu
-                    .set_flag_to(registers::Flag::HalfCarry, has_half_carry);
-                self.cpu
-                    .write_register_u16(registers::WordRegister::HL, new);
-                self.cycle();
-            }
-        };
-        Ok(())
-    }
-
-    fn exec_constant_al(&mut self, op: instructions::ALOp) -> StepResult<()> {
-        let arg = self.exec_read_inc_pc()?;
-        let new_value = self.exec_al(op, arg);
-        self.cpu.write_register_u8(br::A, new_value);
         Ok(())
     }
 
@@ -834,148 +713,30 @@ impl GameBoy {
         }
     }
 
-    fn a_to_bcd_add(
-        &mut self,
-        carry: bool,
-        half_carry: bool,
-        top_nibble: u8,
-        bottom_nibble: u8,
-    ) -> (u8, bool) {
-        match (carry, half_carry) {
-            (false, false) => {
-                if bottom_nibble <= 9 {
-                    if top_nibble <= 9 {
-                        (0, false)
-                    } else {
-                        (0x60, true)
-                    }
-                } else if top_nibble <= 8 {
-                    (6, false)
-                } else {
-                    (0x66, true)
-                }
-            }
-            (false, true) => {
-                if bottom_nibble <= 0x3 {
-                    if top_nibble <= 0x9 {
-                        (0x6, false)
-                    } else {
-                        (0x66, true)
-                    }
-                } else {
-                    (0, carry)
-                }
-            }
-            (true, false) => {
-                if top_nibble <= 2 {
-                    if bottom_nibble <= 9 {
-                        (0x60, true)
-                    } else {
-                        (0x66, true)
-                    }
-                } else {
-                    (0, carry)
-                }
-            }
-            (true, true) => {
-                if top_nibble <= 3 && bottom_nibble <= 3 {
-                    (0x66, true)
-                } else {
-                    (0, carry)
-                }
-            }
-        }
-    }
-
-    #[allow(clippy::collapsible_if)]
-    fn a_to_bcd_subtract(
-        &mut self,
-        carry: bool,
-        half_carry: bool,
-        top_nibble: u8,
-        bottom_nibble: u8,
-    ) -> (u8, bool) {
-        if carry {
-            if top_nibble >= 7 && bottom_nibble <= 9 && !half_carry {
-                (0xA0, true)
-            } else if top_nibble >= 6 && bottom_nibble >= 6 && half_carry {
-                (0x9A, true)
-            } else {
-                (0, carry)
-            }
-        } else {
-            if top_nibble <= 9 && bottom_nibble <= 9 && !half_carry {
-                (0, false)
-            } else if top_nibble <= 8 && bottom_nibble >= 6 && half_carry {
-                (0xFA, false)
-            } else {
-                (0, carry)
-            }
-        }
-    }
-
-    fn exec_a_to_bcd(&mut self) -> StepResult<()> {
-        let carry = self.cpu.read_flag(registers::Flag::Carry);
-        let half_carry = self.cpu.read_flag(registers::Flag::HalfCarry);
-        let add_subtract = self.cpu.read_flag(registers::Flag::AddSubtract);
-        let val = self.cpu.read_register_u8(br::A);
-        let top_nibble = (val & 0xF0) >> 4;
-        let bottom_nibble = val & 0x0F;
-        let (add, carry) = if add_subtract {
-            self.a_to_bcd_subtract(carry, half_carry, top_nibble, bottom_nibble)
-        } else {
-            self.a_to_bcd_add(carry, half_carry, top_nibble, bottom_nibble)
-        };
-        let result = val.wrapping_add(add);
-        self.write_register_u8(br::A, result);
-        self.cpu.set_flag_to(registers::Flag::Carry, carry);
-        self.cpu.set_flag_to(registers::Flag::Zero, result == 0);
-        self.cpu.reset_flag(registers::Flag::HalfCarry);
-        Ok(())
-    }
-
     fn exec(&mut self, instr: instructions::Instruction) -> StepResult<()> {
         use instructions::Instruction;
         match instr {
-            Instruction::Load(l) => self.exec_load(l),
             Instruction::Jump(j) => self.exec_jump(j),
-            Instruction::RegisterAL(reg) => self.exec_register_al(reg),
-            Instruction::ConstantAL(op, _) => self.exec_constant_al(op),
+            Instruction::RegisterAL(_) => panic!("ALU instructions should be in the new handler"),
+            Instruction::MemoryAL(_) => panic!("ALU instructions should be in the new handler"),
+            Instruction::ConstantAL(_, _) => panic!("ALU instructions should be in the new handler"),
+            Instruction::MemoryIncrement(_) => panic!("ALU instructions should be in the new handler"),
             Instruction::Stack(_) => panic!("Stack instructions should be in the new handler"),
+            Instruction::Load(l) => self.exec_load(l),
             Instruction::Extended(ex) => self.exec_extended(ex),
-            Instruction::NOP => Ok(()),
-            Instruction::InvertCarry => {
-                self.cpu.invert_flag(registers::Flag::Carry);
-                self.cpu.reset_flag(registers::Flag::HalfCarry);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                Ok(())
-            }
-            Instruction::SetCarry => {
-                self.cpu.set_flag(registers::Flag::Carry);
-                self.cpu.reset_flag(registers::Flag::HalfCarry);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                Ok(())
-            }
-            Instruction::InvertA => {
-                self.cpu.set_flag(registers::Flag::AddSubtract);
-                self.cpu.set_flag(registers::Flag::HalfCarry);
-                let val = self.read_register_u8(br::A);
-                self.write_register_u8(br::A, !val);
-                Ok(())
-            }
-            Instruction::AToBCD => self.exec_a_to_bcd(),
+            Instruction::Literal(_) => Err(StepError::Unimplemented(instr)),
+            Instruction::NOP  
+            | Instruction::InvertCarry 
+            | Instruction::SetCarry 
+            | Instruction::InvertA 
+            | Instruction::AToBCD
+            | Instruction::EnableInterrupts  
+            | Instruction::DisableInterrupts => panic!("Misc instructions should be in the new handler"),
             Instruction::Rotate(dir, carry) => {
                 self.exec_rotate(dir, carry, br::A, SetZeroMode::Clear)
             }
-            Instruction::EnableInterrupts => {
-                self.cpu.interrupts_enabled = cpu::InterruptState::Pending;
-                Ok(())
-            }
-            Instruction::DisableInterrupts => {
-                self.cpu.interrupts_enabled = cpu::InterruptState::Disabled;
-                Ok(())
-            }
-            _ => Err(StepError::Unimplemented(instr)),
+            Instruction::Stop => Err(StepError::Unimplemented(instr)),
+            Instruction::Halt => Err(StepError::Unimplemented(instr)),
         }
     }
 
