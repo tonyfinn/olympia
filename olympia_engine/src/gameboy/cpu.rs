@@ -146,10 +146,6 @@ impl Registers {
     fn reset_flag(&mut self, flag: registers::Flag) {
         self.af &= !(1u16 << flag.bit());
     }
-
-    fn invert_flag(&mut self, flag: registers::Flag) {
-        self.af ^= 1u16 << flag.bit();
-    }
 }
 
 /*#[derive(PartialEq, Eq, Debug)]
@@ -220,10 +216,6 @@ impl Cpu {
 
     pub(crate) fn reset_flag(&mut self, flag: registers::Flag) {
         self.registers.reset_flag(flag)
-    }
-
-    pub(crate) fn invert_flag(&mut self, flag: registers::Flag) {
-        self.registers.invert_flag(flag)
     }
 }
 

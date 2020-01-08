@@ -334,6 +334,21 @@ pub enum AppendedParam {
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub struct ByteRegisterOffset(registers::ByteRegister);
+
+impl From<ByteRegisterOffset> for registers::ByteRegister {
+    fn from(offset: ByteRegisterOffset) -> registers::ByteRegister {
+        offset.0
+    }
+}
+
+impl From<registers::ByteRegister> for ByteRegisterOffset {
+    fn from(reg: registers::ByteRegister) -> ByteRegisterOffset {
+        ByteRegisterOffset(reg)
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 /// Represents a param that has a constant value
 pub enum ConstantParam {
     ByteRegister(registers::ByteRegister),

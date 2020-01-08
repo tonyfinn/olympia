@@ -333,11 +333,12 @@ pub(crate) fn build_into_instruction_constant_params(params: &[ParsedParam]) -> 
         .iter()
         .filter_map(|param| {
             let name = &param.name;
+            let declared_type = &param.declared_type;
             match &param.param_type {
                 ParsedParamType::Constant { value, .. } => {
                     let value_path = &value.0;
                     Some(quote! {
-                        let #name = #value_path;
+                        let #name: #declared_type = #value_path.into();
                     })
                 }
                 _ => None,

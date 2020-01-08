@@ -9,6 +9,9 @@ use crate::instructionsn::{
 };
 use crate::registers;
 
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+
 use olympia_derive::OlympiaInstruction;
 
 fn is_add_half_carry(a: u8, b: u8) -> bool {

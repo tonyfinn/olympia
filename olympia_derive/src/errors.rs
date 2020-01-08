@@ -178,6 +178,8 @@ pub(crate) enum InstructionError {
     MissingPrereq,
     #[error("Unexpected literal {0:?}")]
     UnexpectedLiteral(syn::Lit),
+    #[error("Can only exclude literal values, found {0:?}")]
+    InvalidExclude(syn::Meta),
     #[error("Error parsing instruction: '{0}'")]
     SynError(#[from] syn::Error),
     #[error("Errors encountered: {0}")]
@@ -192,6 +194,7 @@ impl DeriveError for InstructionError {
             InstructionError::UnknownField(path) => Some(path.span()),
             InstructionError::InvalidOpcodeMask(lit) => Some(lit.span()),
             InstructionError::UnexpectedLiteral(lit) => Some(lit.span()),
+            InstructionError::InvalidExclude(meta) => Some(meta.span()),
             InstructionError::SynError(err) => Some(err.span()),
             _ => None,
         }

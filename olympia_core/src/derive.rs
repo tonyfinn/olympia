@@ -3,7 +3,7 @@
 
 pub use crate::address::{AddressOffset, HighAddress, LiteralAddress};
 pub use crate::instructions::{
-    ALOp, AppendedParam, ByteRegisterTarget, Carry, Condition, ConstantParam, EmbeddableParam,
+    ALOp, AppendedParam, ByteRegisterOffset, ByteRegisterTarget, Carry, Condition, ConstantParam, EmbeddableParam,
     ExtensionType, Increment, InnerParam, Instruction, InstructionDefinition, InstructionOpcode,
     OpcodePosition, ParamDefinition, ParamPosition, ParamType, RotateDirection,
 };

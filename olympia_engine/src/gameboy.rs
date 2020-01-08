@@ -228,6 +228,7 @@ impl GameBoy {
             Err(_) => {
                 let addr = self.read_register_u16(wr::HL);
                 self.write_memory_u8(addr, value)?;
+                self.cycle();
                 Ok(())
             }
         }
@@ -314,105 +315,6 @@ impl GameBoy {
             .write_register_u16(registers::WordRegister::SP, stack_addr.wrapping_add(1));
         let value = u16::from_le_bytes([low, high]);
         Ok(T::from(value))
-    }
-
-    fn exec_load(&mut self, instr: instructions::Load) -> StepResult<()> {
-        use instructions::Load;
-        match instr {
-            Load::RegisterRegister(dest, src) => {
-                let value = self.cpu.read_register_u8(src);
-                self.cpu.write_register_u8(dest, value);
-            }
-            Load::MemoryRegister(dest, src) => {
-                let value = self.cpu.read_register_u8(src);
-                let target_addr = self.cpu.read_register_u16(dest);
-                self.write_memory_u8(target_addr, value)?;
-                self.cycle();
-            }
-            Load::Constant(dest, _) => {
-                let val = self.exec_read_inc_pc()?;
-                self.cpu.write_register_u8(dest, val);
-            }
-            Load::Constant16(reg, _) => {
-                let first_byte = self.exec_read_inc_pc()?;
-                let second_byte = self.exec_read_inc_pc()?;
-                let value = u16::from_le_bytes([first_byte, second_byte]);
-                self.write_register_u16(reg.into(), value);
-            }
-            Load::RegisterMemory(dest, src) => {
-                let addr = self.cpu.read_register_u16(src);
-                let value = self.read_memory_u8(addr)?;
-                self.cpu.write_register_u8(dest, value);
-                self.cycle();
-            }
-            Load::ConstantMemory(_) => {
-                let val = self.exec_read_inc_pc()?;
-                let addr = self.cpu.read_register_u16(wr::HL);
-                self.write_memory_u8(addr, val)?;
-                self.cycle();
-            }
-            Load::AMemoryOffset => {
-                let addr = address::HighAddress(self.read_register_u8(br::C));
-                let value = self.read_memory_u8(addr)?;
-                self.cycle();
-                self.write_register_u8(br::A, value);
-            }
-            Load::MemoryOffsetA => {
-                let addr = address::HighAddress(self.read_register_u8(br::C));
-                let value = self.read_register_u8(br::A);
-                self.write_memory_u8(addr, value)?;
-                self.cycle();
-            }
-            Load::AIndirect(_) => {
-                let addr = self.exec_read_instr_address()?;
-                let value = self.read_memory_u8(addr)?;
-                self.cycle();
-                self.write_register_u8(br::A, value);
-            }
-            Load::IndirectA(_) => {
-                let addr = self.exec_read_instr_address()?;
-                let value = self.read_register_u8(br::A);
-                self.write_memory_u8(addr, value)?;
-                self.cycle();
-            }
-            Load::AHighOffset(_) => {
-                let offset = self.exec_read_inc_pc()?;
-                let addr = address::HighAddress(offset);
-                let value = self.read_memory_u8(addr)?;
-                self.cycle();
-                self.write_register_u8(br::A, value);
-            }
-            Load::HighOffsetA(_) => {
-                let offset = self.exec_read_inc_pc()?;
-                let addr = address::HighAddress(offset);
-                let value = self.read_register_u8(br::A);
-                self.write_memory_u8(addr, value)?;
-                self.cycle();
-            }
-            Load::Increment16A(inc) => {
-                let addr = self.read_register_u16(wr::HL);
-                self.write_memory_u8(addr, self.read_register_u8(br::A))?;
-                let new_addr = match inc {
-                    instructions::Increment::Increment => addr.wrapping_add(1),
-                    instructions::Increment::Decrement => addr.wrapping_sub(1),
-                };
-                self.write_register_u16(wr::HL, new_addr);
-                self.cycle();
-            }
-            Load::AIncrement16(inc) => {
-                let addr = self.read_register_u16(wr::HL);
-                let value = self.read_memory_u8(addr)?;
-                let new_addr = match inc {
-                    instructions::Increment::Increment => addr.wrapping_add(1),
-                    instructions::Increment::Decrement => addr.wrapping_sub(1),
-                };
-                self.write_register_u8(br::A, value);
-                self.write_register_u16(wr::HL, new_addr);
-                self.cycle();
-            }
-        }
-
-        Ok(())
     }
 
     fn set_pc<A: Into<address::LiteralAddress>>(&mut self, target: A) {
@@ -722,7 +624,7 @@ impl GameBoy {
             Instruction::ConstantAL(_, _) => panic!("ALU instructions should be in the new handler"),
             Instruction::MemoryIncrement(_) => panic!("ALU instructions should be in the new handler"),
             Instruction::Stack(_) => panic!("Stack instructions should be in the new handler"),
-            Instruction::Load(l) => self.exec_load(l),
+            Instruction::Load(_) => panic!("Load instructions should be in the new handler"),
             Instruction::Extended(ex) => self.exec_extended(ex),
             Instruction::Literal(_) => Err(StepError::Unimplemented(instr)),
             Instruction::NOP  

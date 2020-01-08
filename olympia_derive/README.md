@@ -9,7 +9,7 @@ A usage example for a two argument instruction is below:
 #[olympia(
     opcode=0x00AA_A111,
     label="LD", 
-    excluded=[0b1010_1100]
+    excluded(0b1010_1100)
 )]
 struct LoadRegisterConstant8 {
     #[olympia(dest, mask=0xA)]

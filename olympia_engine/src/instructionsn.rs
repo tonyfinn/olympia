@@ -1,4 +1,5 @@
 mod alu;
+mod load;
 mod misc;
 mod stack;
 
@@ -48,7 +49,8 @@ impl RuntimeDecoder {
         }
         let input_codes = stack::all_stack_opcodes().into_iter()
             .chain(alu::all_alu_opcodes())
-            .chain(misc::opcodes());
+            .chain(misc::opcodes())
+            .chain(load::opcodes());
 
         for (value, executable) in input_codes {
             opcodes[value as usize] = Some(executable);

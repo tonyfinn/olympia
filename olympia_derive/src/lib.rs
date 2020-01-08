@@ -128,6 +128,32 @@ fn parse_instruction_path(
     }
 }
 
+fn parse_instruction_meta_list(
+    ib: &mut InstructionBuilder,
+    ml: &syn::MetaList,
+) -> errors::InstructionResult<()> {
+    if ml.path.is_ident("excluded") {
+        let mut excluded: Vec<u8> = Vec::new();
+        for nested in ml.nested.iter() {
+            match nested {
+                syn::NestedMeta::Lit(syn::Lit::Int(li)) => {
+                    excluded.push(li.base10_parse()?);
+                },
+                syn::NestedMeta::Lit(lit) => {
+                    return Err(errors::InstructionError::UnexpectedLiteral(lit.clone()))
+                }
+                syn::NestedMeta::Meta(meta) => {
+                    return Err(errors::InstructionError::InvalidExclude(meta.clone()))
+                }
+            }
+        }
+        ib.excluded_opcodes = excluded;
+        Ok(())
+    } else {
+        Err(errors::InstructionError::UnknownField(ml.path.clone()))
+    }
+}
+
 fn build_definition(instr: &ParsedInstruction) -> errors::InstructionResult<TokenStream> {
     let opcodes = build_opcodes(instr.opcode_mask, &instr.excluded_opcodes);
     let label = &instr.label;
@@ -168,8 +194,8 @@ fn parse_instruction(
                     syn::NestedMeta::Meta(syn::Meta::Path(path)) => {
                         parse_instruction_path(ib, path)
                     }
-                    syn::NestedMeta::Meta(meta) => {
-                        Err(errors::InstructionError::UnknownField(meta.path().clone()))
+                    syn::NestedMeta::Meta(syn::Meta::List(ml)) => {
+                        parse_instruction_meta_list(ib, ml)
                     }
                     syn::NestedMeta::Lit(lit) => {
                         Err(errors::InstructionError::UnexpectedLiteral(lit.clone()))
