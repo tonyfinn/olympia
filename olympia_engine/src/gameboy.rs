@@ -23,7 +23,7 @@ use crate::gameboy::cpu::Cpu;
 use crate::gameboy::dma::DmaUnit;
 use crate::instructions;
 use crate::registers;
-use crate::registers::{ByteRegister as br, WordRegister as wr};
+use crate::registers::WordRegister as wr;
 use crate::rom;
 use crate::rom::TargetConsole;
 
@@ -66,6 +66,8 @@ pub enum StepError {
     Decode(decoder::DecodeError),
     /// Gameboy features that are not yet implemented in this emulator
     Unimplemented(instructions::Instruction),
+    /// Opcodes that don't map to a valid instruction
+    InvalidOpcode(u8),
 }
 
 impl From<memory::MemoryError> for StepError {
@@ -263,7 +265,7 @@ impl GameBoy {
         self.mem.offset_iter(start)
     }
 
-    fn exec_read_inc_pc(&mut self) -> StepResult<u8> {
+    pub(crate) fn exec_read_inc_pc(&mut self) -> StepResult<u8> {
         let pc_value = self.cpu.read_register_u16(wr::PC);
         let val = self.read_memory_u8(pc_value)?;
         self.cpu
@@ -310,188 +312,6 @@ impl GameBoy {
         address::LiteralAddress(value)
     }
 
-    fn exec_extended(&mut self, _instr: instructions::Extended) -> StepResult<()> {
-        use decoder::{idecoders, TwoByteDataDecoder};
-        use instructions::Extended;
-        use instructions::RotateDirection::{Left, Right};
-        let data_byte = self.exec_read_inc_pc()?;
-        let actual_instruction = idecoders::Extended.decode(0xCB, data_byte).unwrap();
-        let ext = match actual_instruction {
-            instructions::Instruction::Extended(ex) => ex,
-            _ => unreachable!(),
-        };
-        match ext {
-            Extended::SetBit(bit, reg) => {
-                let val = self.cpu.read_register_u8(reg);
-                let new_val = val | (1 << bit);
-                self.cpu.write_register_u8(reg, new_val);
-                Ok(())
-            }
-            Extended::SetMemoryBit(bit) => {
-                let addr = self.cpu.read_register_u16(wr::HL);
-                let val = self.read_memory_u8(addr)?;
-                self.cycle();
-                let new_val = val | (1 << bit);
-                self.write_memory_u8(addr, new_val)?;
-                self.cycle();
-                Ok(())
-            }
-            Extended::ResetBit(bit, reg) => {
-                let val = self.cpu.read_register_u8(reg);
-                let new_val = val & !(1 << bit);
-                self.cpu.write_register_u8(reg, new_val);
-                Ok(())
-            }
-            Extended::ResetMemoryBit(bit) => {
-                let addr = self.cpu.read_register_u16(wr::HL);
-                let val = self.read_memory_u8(addr)?;
-                self.cycle();
-                let new_val = val & !(1 << bit);
-                self.write_memory_u8(addr, new_val)?;
-                self.cycle();
-                Ok(())
-            }
-            Extended::TestBit(bit, reg) => {
-                let val = self.cpu.read_register_u8(reg);
-                let bit_test = val & (1 << bit);
-                self.cpu.set_flag_to(registers::Flag::Zero, bit_test == 0);
-                self.cpu.set_flag(registers::Flag::HalfCarry);
-                self.cpu.set_flag_to(registers::Flag::AddSubtract, false);
-                Ok(())
-            }
-            Extended::TestMemoryBit(bit) => {
-                let addr = self.cpu.read_register_u16(wr::HL);
-                let val = self.read_memory_u8(addr)?;
-                self.cycle();
-                let bit_test = val & (1 << bit);
-                self.cpu.set_flag_to(registers::Flag::Zero, bit_test == 0);
-                self.cpu.set_flag(registers::Flag::HalfCarry);
-                self.cpu.set_flag_to(registers::Flag::AddSubtract, false);
-
-                Ok(())
-            }
-            Extended::Rotate(dir, carry, reg) => {
-                use instructions::ByteRegisterTarget as brt;
-                let target = match reg {
-                    br::A => brt::A,
-                    br::B => brt::B,
-                    br::C => brt::C,
-                    br::D => brt::D,
-                    br::E => brt::E,
-                    br::H => brt::H,
-                    br::L => brt::L,
-                    br::F => panic!("Can't rotate flag register"),
-                };
-                new_instructions::misc::exec_rotate(
-                    self,
-                    dir,
-                    carry,
-                    target,
-                    new_instructions::misc::SetZeroMode::Test,
-                )
-            }
-            Extended::RotateMemory(dir, carry) => new_instructions::misc::exec_rotate(
-                self,
-                dir,
-                carry,
-                registers::ByteRegisterTarget::HLIndirect,
-                new_instructions::misc::SetZeroMode::Test,
-            ),
-            Extended::Swap(reg) => {
-                let value = self.cpu.read_register_u8(reg);
-                let low_nibble = value & 0x0F;
-                let high_nibble = value & 0xF0;
-                let new_value = (low_nibble.rotate_left(4)) + (high_nibble.rotate_right(4));
-                self.cpu.write_register_u8(reg, new_value);
-                Ok(())
-            }
-            Extended::SwapMemory => {
-                let addr = self.cpu.read_register_u16(registers::WordRegister::HL);
-                let value = self.read_memory_u8(addr)?;
-                let low_nibble = value & 0x0F;
-                let high_nibble = value & 0xF0;
-                let new_value = (low_nibble.rotate_left(4)) + (high_nibble.rotate_right(4));
-                self.cycle();
-                self.write_memory_u8(addr, new_value)?;
-                self.cycle();
-                Ok(())
-            }
-            Extended::ShiftZero(dir, reg) => {
-                let value = self.cpu.read_register_u8(reg);
-                let (shifted_value, carry) = match dir {
-                    Left => (value << 1, value & 0x80 != 0),
-                    Right => (value >> 1, value & 0x01 != 0),
-                };
-                self.cpu.set_flag_to(registers::Flag::Carry, carry);
-                self.cpu.write_register_u8(reg, shifted_value);
-                Ok(())
-            }
-            Extended::ShiftRightExtend(reg) => {
-                let value = self.cpu.read_register_u8(reg);
-                let value16 = u16::from(value);
-                let extra_bit = (value16 << 1) & 0xff00;
-                let shifted_value = (extra_bit + value16) >> 1;
-                let actual_byte = shifted_value.to_le_bytes()[0];
-                self.cpu.write_register_u8(reg, actual_byte);
-                Ok(())
-            }
-            Extended::ShiftMemoryRightExtend => {
-                let addr = self.cpu.read_register_u16(registers::WordRegister::HL);
-                let value = self.read_memory_u8(addr)?;
-                self.cycle();
-                let value16 = u16::from(value);
-                let extra_bit = (value16 << 1) & 0xff00;
-                let shifted_value = (extra_bit + value16) >> 1;
-                let actual_byte = shifted_value.to_le_bytes()[0];
-                self.write_memory_u8(addr, actual_byte)?;
-                self.cycle();
-                Ok(())
-            }
-            Extended::ShiftMemoryZero(dir) => {
-                let addr = self.cpu.read_register_u16(registers::WordRegister::HL);
-                let value = self.read_memory_u8(addr)?;
-                let (shifted_value, carry) = match dir {
-                    Left => (value << 1, value & 0x80 != 0),
-                    Right => (value >> 1, value & 0x01 != 0),
-                };
-                self.cpu.set_flag_to(registers::Flag::Carry, carry);
-                self.cycle();
-                self.write_memory_u8(addr, shifted_value)?;
-                self.cycle();
-                Ok(())
-            }
-        }
-    }
-
-    fn exec(&mut self, instr: instructions::Instruction) -> StepResult<()> {
-        use instructions::Instruction;
-        match instr {
-            Instruction::Jump(_) => panic!("Jump instructions should be in the new handler"),
-            Instruction::RegisterAL(_) => panic!("ALU instructions should be in the new handler"),
-            Instruction::MemoryAL(_) => panic!("ALU instructions should be in the new handler"),
-            Instruction::ConstantAL(_, _) => {
-                panic!("ALU instructions should be in the new handler")
-            }
-            Instruction::MemoryIncrement(_) => {
-                panic!("ALU instructions should be in the new handler")
-            }
-            Instruction::Stack(_) => panic!("Stack instructions should be in the new handler"),
-            Instruction::Load(_) => panic!("Load instructions should be in the new handler"),
-            Instruction::Extended(ex) => self.exec_extended(ex),
-            Instruction::Literal(_) => Err(StepError::Unimplemented(instr)),
-            Instruction::NOP
-            | Instruction::InvertCarry
-            | Instruction::SetCarry
-            | Instruction::InvertA
-            | Instruction::AToBCD
-            | Instruction::EnableInterrupts
-            | Instruction::DisableInterrupts
-            | Instruction::Rotate(_, _) => panic!("Misc instructions should be in the new handler"),
-            Instruction::Stop => Err(StepError::Unimplemented(instr)),
-            Instruction::Halt => Err(StepError::Unimplemented(instr)),
-        }
-    }
-
     fn check_interrupts(&mut self) -> StepResult<bool> {
         use cpu::InterruptState::{Disabled, Enabled, Pending};
         match self.cpu.interrupts_enabled {
@@ -525,26 +345,22 @@ impl GameBoy {
     pub fn step(&mut self) -> StepResult<()> {
         let pc_value = self.read_pc();
         let opcode = self.read_memory_u8(pc_value)?;
-        if self.runtime_decoder.has_opcode(opcode) {
-            self.cycle();
-            let interrupted = self.check_interrupts()?;
-            if !interrupted {
-                self.set_pc(pc_value.next());
-                let non_borrowing_decoder = self.runtime_decoder.clone();
-                non_borrowing_decoder
-                    .decode(opcode)
-                    .unwrap()
-                    .to_executable(&mut self.cycling_memory_iter())
-                    .execute(self)?;
-            }
-        } else {
-            let instruction = self.current_instruction()?;
-            self.cycle();
-            let interrupted = self.check_interrupts()?;
-            if !interrupted {
-                self.set_pc(pc_value.next());
-                self.exec(instruction)?;
-            }
+        self.cycle();
+        let interrupted = self.check_interrupts()?;
+        if !interrupted {
+            self.set_pc(pc_value.next());
+            let non_borrowing_decoder = self.runtime_decoder.clone();
+            let exe_code = if non_borrowing_decoder.is_extended(opcode) {
+                let extended_opcode = self.exec_read_inc_pc()?;
+                non_borrowing_decoder.decode_extended(extended_opcode)
+            } else if let Some(exe_code) = non_borrowing_decoder.decode(opcode) {
+                exe_code
+            } else {
+                return Err(StepError::InvalidOpcode(opcode));
+            };
+            exe_code
+                .to_executable(&mut self.cycling_memory_iter())
+                .execute(self)?;
         }
         Ok(())
     }

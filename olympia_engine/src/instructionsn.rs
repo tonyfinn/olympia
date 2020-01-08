@@ -1,4 +1,5 @@
 mod alu;
+mod extended;
 mod jump;
 mod load;
 pub(crate) mod misc;
@@ -43,13 +44,16 @@ where
 
 pub(crate) struct RuntimeDecoder {
     opcodes: Vec<Option<Box<dyn ExecutableOpcode>>>,
+    extended_opcodes: Vec<Option<Box<dyn ExecutableOpcode>>>,
 }
 
 impl RuntimeDecoder {
     pub fn new() -> RuntimeDecoder {
         let mut opcodes = Vec::with_capacity(256);
+        let mut extended_opcodes = Vec::with_capacity(256);
         for _ in 0..256 {
             opcodes.push(None);
+            extended_opcodes.push(None);
         }
         let input_codes = stack::opcodes()
             .into_iter()
@@ -62,14 +66,25 @@ impl RuntimeDecoder {
             opcodes[value as usize] = Some(executable);
         }
 
-        RuntimeDecoder { opcodes }
+        for (value, executable) in extended::opcodes() {
+            extended_opcodes[value as usize] = Some(executable);
+        }
+
+        RuntimeDecoder {
+            opcodes,
+            extended_opcodes,
+        }
+    }
+
+    pub fn is_extended(&self, value: u8) -> bool {
+        value == 0xCB
     }
 
     pub fn decode(&self, value: u8) -> Option<&dyn ExecutableOpcode> {
         self.opcodes[value as usize].as_deref()
     }
 
-    pub(crate) fn has_opcode(&self, value: u8) -> bool {
-        self.opcodes[value as usize].is_some()
+    pub fn decode_extended(&self, value: u8) -> &dyn ExecutableOpcode {
+        self.extended_opcodes[value as usize].as_deref().unwrap()
     }
 }
