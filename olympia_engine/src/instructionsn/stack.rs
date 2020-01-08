@@ -131,7 +131,7 @@ impl ExecutableInstruction for StoreStackPointerMemory {
     }
 }
 
-pub(crate) fn all_stack_opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
+pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
     vec![
         PushOpcode::all(),
         PopOpcode::all(),

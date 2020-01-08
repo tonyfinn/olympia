@@ -41,6 +41,16 @@ pub trait EmbeddableParam: Sized {
     }
 }
 
+impl EmbeddableParam for u8 {
+    fn extract(value: u8) -> Result<u8, ParseError> {
+        Ok(value)
+    }
+
+    fn embed(&self) -> u8 {
+        *self
+    }
+}
+
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 /// Checks for conditional instructions
 pub enum Condition {
@@ -319,6 +329,7 @@ pub enum InnerParam {
     ByteRegisterTarget,
     AccRegister,
     StackRegister,
+    Literal8,
 }
 
 /// All types of param that can be expected in

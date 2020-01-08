@@ -270,7 +270,7 @@ impl ExecutableInstruction for Add16 {
     }
 }
 
-pub(crate) fn all_alu_opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
+pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
     vec![
         AddRegisterTargetOpcode::all(),
         AddCarryRegisterTargetOpcode::all(),

@@ -59,7 +59,7 @@ fn test_jump_if_nocarry() -> StepResult<()> {
         2,
         &[
             0x37, // SCF - 4 clocks
-            0xD2, 0x13, 0x20, // JP C, 0x2013 - 16/12 clocks
+            0xD2, 0x13, 0x20, // JP NC, 0x2013 - 16/12 clocks
         ],
     )?;
 
@@ -73,7 +73,7 @@ fn test_jump_if_nocarry() -> StepResult<()> {
         2,
         &[
             0x3F, // CCF - 4 clocks
-            0xD2, 0x13, 0x20, // JP C, 0x2013 - 16/12 clocks
+            0xD2, 0x13, 0x20, // JP NC, 0x2013 - 16/12 clocks
         ],
     )?;
 

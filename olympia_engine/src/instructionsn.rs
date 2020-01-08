@@ -1,6 +1,7 @@
 mod alu;
+mod jump;
 mod load;
-mod misc;
+pub(crate) mod misc;
 mod stack;
 
 use crate::gameboy::StepResult;
@@ -50,9 +51,10 @@ impl RuntimeDecoder {
         for _ in 0..256 {
             opcodes.push(None);
         }
-        let input_codes = stack::all_stack_opcodes()
+        let input_codes = stack::opcodes()
             .into_iter()
-            .chain(alu::all_alu_opcodes())
+            .chain(alu::opcodes())
+            .chain(jump::opcodes())
             .chain(misc::opcodes())
             .chain(load::opcodes());
 

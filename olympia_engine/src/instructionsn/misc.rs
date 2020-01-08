@@ -1,10 +1,104 @@
 use crate::gameboy::{cpu::InterruptState, GameBoy, StepResult};
+use crate::instructions::{Carry, RotateDirection};
 use crate::instructionsn::{ExecutableInstruction, ExecutableOpcode};
 use crate::registers;
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use olympia_derive::OlympiaInstruction;
+
+#[derive(PartialEq, Eq, Debug)]
+pub(crate) enum SetZeroMode {
+    Test,
+    Clear,
+}
+
+pub(crate) fn exec_rotate(
+    gb: &mut GameBoy,
+    dir: RotateDirection,
+    carry: Carry,
+    reg: registers::ByteRegisterTarget,
+    set_zero: SetZeroMode,
+) -> StepResult<()> {
+    let current_value = gb.exec_read_register_target(reg)?;
+    let high_byte = if carry != Carry::Carry {
+        if gb.read_flag(registers::Flag::Carry) {
+            0x81
+        } else {
+            0x00
+        }
+    } else {
+        current_value
+    };
+    let value_to_rotate = u16::from_le_bytes([current_value, high_byte]);
+    let (rotated, carry) = if dir == RotateDirection::Left {
+        let rotated = value_to_rotate.rotate_left(1);
+        (rotated.to_le_bytes()[0], (rotated & 0x0100) != 0)
+    } else {
+        let rotated = value_to_rotate.rotate_right(1);
+        (rotated.to_le_bytes()[0], (rotated & 0x8000) != 0)
+    };
+    gb.exec_write_register_target(reg, rotated)?;
+    gb.set_flag_to(registers::Flag::Carry, carry);
+    let zero_flag = match set_zero {
+        SetZeroMode::Test => rotated == 0,
+        SetZeroMode::Clear => false,
+    };
+    gb.set_flag_to(registers::Flag::Zero, zero_flag);
+    gb.reset_flag(registers::Flag::HalfCarry);
+    gb.reset_flag(registers::Flag::AddSubtract);
+    Ok(())
+}
+
+macro_rules! rotate_instruction {
+    ($name:ident, $label:literal, $opcode:literal, $dir:path, $carry:path, $target:path) => {
+        #[derive(OlympiaInstruction)]
+        #[olympia(opcode = $opcode, label = $label)]
+        struct $name {}
+        impl ExecutableInstruction for $name {
+            fn execute(&self, gb: &mut GameBoy) -> StepResult<()> {
+                exec_rotate(gb, $dir, $carry, $target, SetZeroMode::Clear)?;
+                Ok(())
+            }
+        }
+    };
+}
+
+rotate_instruction!(
+    RLCA,
+    "RLCA",
+    0x0000_0111,
+    RotateDirection::Left,
+    Carry::Carry,
+    registers::ByteRegisterTarget::A
+);
+
+rotate_instruction!(
+    RLA,
+    "RLA",
+    0x0001_0111,
+    RotateDirection::Left,
+    Carry::NoCarry,
+    registers::ByteRegisterTarget::A
+);
+
+rotate_instruction!(
+    RRCA,
+    "RRCA",
+    0x0000_1111,
+    RotateDirection::Right,
+    Carry::Carry,
+    registers::ByteRegisterTarget::A
+);
+
+rotate_instruction!(
+    RRA,
+    "RRA",
+    0x0001_1111,
+    RotateDirection::Right,
+    Carry::NoCarry,
+    registers::ByteRegisterTarget::A
+);
 
 #[derive(OlympiaInstruction)]
 #[olympia(opcode = 0x1111_1011, label = "EI")]
@@ -185,6 +279,10 @@ pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
         SetCarryOpcode::all(),
         InvertAOpcode::all(),
         AToBCDOpcode::all(),
+        RRCAOpcode::all(),
+        RRAOpcode::all(),
+        RLCAOpcode::all(),
+        RLAOpcode::all(),
     ]
     .into_iter()
     .flatten()

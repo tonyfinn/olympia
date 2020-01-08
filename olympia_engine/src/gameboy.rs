@@ -57,12 +57,6 @@ pub struct GameBoy {
 }
 
 #[derive(PartialEq, Eq, Debug)]
-enum SetZeroMode {
-    Test,
-    Clear,
-}
-
-#[derive(PartialEq, Eq, Debug)]
 /// Represents an error that occurred while performing
 /// an emulated instruction.
 pub enum StepError {
@@ -269,22 +263,6 @@ impl GameBoy {
         self.mem.offset_iter(start)
     }
 
-    fn should_jump(&self, cond: instructions::Condition) -> bool {
-        use instructions::Condition::*;
-        match cond {
-            Zero => self.cpu.read_flag(registers::Flag::Zero),
-            NonZero => !self.cpu.read_flag(registers::Flag::Zero),
-            Carry => self.cpu.read_flag(registers::Flag::Carry),
-            NoCarry => !self.cpu.read_flag(registers::Flag::Carry),
-        }
-    }
-
-    fn exec_read_instr_address(&mut self) -> StepResult<address::LiteralAddress> {
-        let low = self.exec_read_inc_pc()?;
-        let high = self.exec_read_inc_pc()?;
-        Ok([low, high].into())
-    }
-
     fn exec_read_inc_pc(&mut self) -> StepResult<u8> {
         let pc_value = self.cpu.read_register_u16(wr::PC);
         let val = self.read_memory_u8(pc_value)?;
@@ -322,148 +300,18 @@ impl GameBoy {
         Ok(T::from(value))
     }
 
-    fn set_pc<A: Into<address::LiteralAddress>>(&mut self, target: A) {
+    pub(crate) fn set_pc<A: Into<address::LiteralAddress>>(&mut self, target: A) {
         let address::LiteralAddress(addr) = target.into();
         self.cpu.write_register_u16(wr::PC, addr);
     }
 
-    fn read_pc(&self) -> address::LiteralAddress {
+    pub(crate) fn read_pc(&self) -> address::LiteralAddress {
         let value = self.cpu.read_register_u16(wr::PC);
         address::LiteralAddress(value)
     }
 
-    fn exec_jump(&mut self, instr: instructions::Jump) -> StepResult<()> {
-        use instructions::Jump;
-        match instr {
-            Jump::Jump(_) => {
-                let addr = self.exec_read_instr_address()?;
-                self.set_pc(addr);
-                self.cycle();
-                Ok(())
-            }
-            Jump::JumpIf(cond, _) => {
-                let addr = self.exec_read_instr_address()?;
-                if self.should_jump(cond) {
-                    self.set_pc(addr);
-                    self.cycle();
-                }
-                Ok(())
-            }
-            Jump::RegisterJump => {
-                let addr = self.cpu.read_register_u16(wr::HL);
-                self.set_pc(addr);
-                Ok(())
-            }
-            Jump::RelativeJump(_) => {
-                let offset = i8::from_le_bytes([self.exec_read_inc_pc()?]);
-                let pc = self.cpu.read_register_u16(wr::PC);
-                let new_pc = if offset > 0 {
-                    pc.wrapping_add(u16::try_from(offset).unwrap())
-                } else {
-                    pc.wrapping_sub(u16::try_from(offset.abs()).unwrap())
-                };
-                self.cycle();
-                self.set_pc(new_pc);
-                Ok(())
-            }
-            Jump::RelativeJumpIf(cond, _) => {
-                let offset = i8::from_le_bytes([self.exec_read_inc_pc()?]);
-                let pc = self.cpu.read_register_u16(wr::PC);
-                if self.should_jump(cond) {
-                    let new_pc = if offset > 0 {
-                        pc.wrapping_add(u16::try_from(offset).unwrap())
-                    } else {
-                        pc.wrapping_sub(u16::try_from(offset.abs()).unwrap())
-                    };
-                    self.cycle();
-                    self.set_pc(new_pc);
-                }
-                Ok(())
-            }
-            Jump::Call(_) => {
-                let addr = self.exec_read_instr_address()?;
-                self.exec_push(self.read_pc())?;
-                self.set_pc(addr);
-                Ok(())
-            }
-            Jump::CallIf(cond, _) => {
-                let addr = self.exec_read_instr_address()?;
-                if self.should_jump(cond) {
-                    self.exec_push(self.read_pc())?;
-                    self.set_pc(addr);
-                }
-                Ok(())
-            }
-            Jump::CallSystem(addr) => {
-                self.exec_push(self.read_pc())?;
-                self.set_pc(addr);
-                Ok(())
-            }
-            Jump::Return => {
-                let return_addr: address::LiteralAddress = self.exec_pop()?;
-                self.set_pc(return_addr);
-                self.cycle();
-                Ok(())
-            }
-            Jump::ReturnIf(cond) => {
-                if self.should_jump(cond) {
-                    let return_addr: address::LiteralAddress = self.exec_pop()?;
-                    self.set_pc(return_addr);
-                    self.cycle();
-                }
-                self.cycle();
-                Ok(())
-            }
-            Jump::ReturnInterrupt => {
-                let return_addr: address::LiteralAddress = self.exec_pop()?;
-                self.set_pc(return_addr);
-                self.cpu.interrupts_enabled = cpu::InterruptState::Enabled;
-                self.cycle();
-                Ok(())
-            }
-        }
-    }
-
-    fn exec_rotate(
-        &mut self,
-        dir: instructions::RotateDirection,
-        carry: instructions::Carry,
-        reg: registers::ByteRegister,
-        set_zero: SetZeroMode,
-    ) -> StepResult<()> {
-        let current_value = self.cpu.read_register_u8(reg);
-        let high_byte = if carry != instructions::Carry::Carry {
-            if self.cpu.read_flag(registers::Flag::Carry) {
-                0x81
-            } else {
-                0x00
-            }
-        } else {
-            current_value
-        };
-        let value_to_rotate = u16::from_le_bytes([current_value, high_byte]);
-        let (rotated, carry) = if dir == instructions::RotateDirection::Left {
-            let rotated = value_to_rotate.rotate_left(1);
-            (rotated.to_le_bytes()[0], (rotated & 0x0100) != 0)
-        } else {
-            let rotated = value_to_rotate.rotate_right(1);
-            (rotated.to_le_bytes()[0], (rotated & 0x8000) != 0)
-        };
-        self.cpu.write_register_u8(reg, rotated);
-        self.cpu.set_flag_to(registers::Flag::Carry, carry);
-        let zero_flag = match set_zero {
-            SetZeroMode::Test => rotated == 0,
-            SetZeroMode::Clear => false,
-        };
-        self.cpu.set_flag_to(registers::Flag::Zero, zero_flag);
-        self.cpu.reset_flag(registers::Flag::HalfCarry);
-        self.cpu.reset_flag(registers::Flag::AddSubtract);
-        Ok(())
-    }
-
     fn exec_extended(&mut self, _instr: instructions::Extended) -> StepResult<()> {
         use decoder::{idecoders, TwoByteDataDecoder};
-        use instructions::Carry::Carry;
         use instructions::Extended;
         use instructions::RotateDirection::{Left, Right};
         let data_byte = self.exec_read_inc_pc()?;
@@ -523,37 +371,32 @@ impl GameBoy {
                 Ok(())
             }
             Extended::Rotate(dir, carry, reg) => {
-                self.exec_rotate(dir, carry, reg, SetZeroMode::Test)
-            }
-            Extended::RotateMemory(dir, carry) => {
-                let addr = self.cpu.read_register_u16(wr::HL);
-                let current_value = self.read_memory_u8(addr)?;
-                self.cycle();
-                let high_byte = if carry != Carry {
-                    if self.cpu.read_flag(registers::Flag::Carry) {
-                        0x81
-                    } else {
-                        0x00
-                    }
-                } else {
-                    current_value
+                use instructions::ByteRegisterTarget as brt;
+                let target = match reg {
+                    br::A => brt::A,
+                    br::B => brt::B,
+                    br::C => brt::C,
+                    br::D => brt::D,
+                    br::E => brt::E,
+                    br::H => brt::H,
+                    br::L => brt::L,
+                    br::F => panic!("Can't rotate flag register"),
                 };
-                let value_to_rotate = u16::from_le_bytes([current_value, high_byte]);
-                let (rotated, carry) = if dir == Left {
-                    let rotated = value_to_rotate.rotate_left(1);
-                    (rotated.to_le_bytes()[0], (rotated & 0x0100) != 0)
-                } else {
-                    let rotated = value_to_rotate.rotate_right(1);
-                    (rotated.to_le_bytes()[0], (rotated & 0x8000) != 0)
-                };
-                self.write_memory_u8(addr, rotated)?;
-                self.cpu.set_flag_to(registers::Flag::Carry, carry);
-                self.cpu.set_flag_to(registers::Flag::Zero, rotated == 0);
-                self.cpu.reset_flag(registers::Flag::HalfCarry);
-                self.cpu.reset_flag(registers::Flag::AddSubtract);
-                self.cycle();
-                Ok(())
+                new_instructions::misc::exec_rotate(
+                    self,
+                    dir,
+                    carry,
+                    target,
+                    new_instructions::misc::SetZeroMode::Test,
+                )
             }
+            Extended::RotateMemory(dir, carry) => new_instructions::misc::exec_rotate(
+                self,
+                dir,
+                carry,
+                registers::ByteRegisterTarget::HLIndirect,
+                new_instructions::misc::SetZeroMode::Test,
+            ),
             Extended::Swap(reg) => {
                 let value = self.cpu.read_register_u8(reg);
                 let low_nibble = value & 0x0F;
@@ -623,7 +466,7 @@ impl GameBoy {
     fn exec(&mut self, instr: instructions::Instruction) -> StepResult<()> {
         use instructions::Instruction;
         match instr {
-            Instruction::Jump(j) => self.exec_jump(j),
+            Instruction::Jump(_) => panic!("Jump instructions should be in the new handler"),
             Instruction::RegisterAL(_) => panic!("ALU instructions should be in the new handler"),
             Instruction::MemoryAL(_) => panic!("ALU instructions should be in the new handler"),
             Instruction::ConstantAL(_, _) => {
@@ -642,12 +485,8 @@ impl GameBoy {
             | Instruction::InvertA
             | Instruction::AToBCD
             | Instruction::EnableInterrupts
-            | Instruction::DisableInterrupts => {
-                panic!("Misc instructions should be in the new handler")
-            }
-            Instruction::Rotate(dir, carry) => {
-                self.exec_rotate(dir, carry, br::A, SetZeroMode::Clear)
-            }
+            | Instruction::DisableInterrupts
+            | Instruction::Rotate(_, _) => panic!("Misc instructions should be in the new handler"),
             Instruction::Stop => Err(StepError::Unimplemented(instr)),
             Instruction::Halt => Err(StepError::Unimplemented(instr)),
         }

@@ -135,6 +135,7 @@ fn determine_inner_param_type(ty: &syn::Type) -> errors::ParamResult<InnerParam>
             "ByteRegisterTarget" => InnerParam::ByteRegisterTarget,
             "AccRegister" => InnerParam::AccRegister,
             "StackRegister" => InnerParam::StackRegister,
+            "u8" => InnerParam::Literal8,
             _ => {
                 return Err(errors::ParamError::UnsupportedEmbeddedType(Box::new(
                     ty.clone(),
