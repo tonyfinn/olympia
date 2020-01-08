@@ -5,7 +5,6 @@ use olympia_core::instructions::{
 use olympia_core::registers::AccRegister;
 use olympia_derive::OlympiaInstruction;
 
-
 #[derive(PartialEq, Eq, Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x11AA_0101, label = "PUSH")]
 struct Push {
@@ -40,7 +39,10 @@ fn one_arg_opcode() {
     let extracted = PushOpcode::from_opcode(0b1101_0101);
 
     assert_eq!(extracted.reg, AccRegister::DE);
-    assert_eq!(extracted.build_instruction(&mut vec![].into_iter()), Push {
-        reg: AccRegister::DE
-    });
+    assert_eq!(
+        extracted.build_instruction(&mut vec![].into_iter()),
+        Push {
+            reg: AccRegister::DE
+        }
+    );
 }

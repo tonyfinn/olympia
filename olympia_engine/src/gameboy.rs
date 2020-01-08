@@ -27,10 +27,10 @@ use crate::registers::{ByteRegister as br, WordRegister as wr};
 use crate::rom;
 use crate::rom::TargetConsole;
 
-use core::convert::TryFrom;
-use alloc::rc::Rc;
-use olympia_core::address;
 use crate::instructionsn as new_instructions;
+use alloc::rc::Rc;
+use core::convert::TryFrom;
+use olympia_core::address;
 
 /// Primary struct for an emulated gameboy.
 ///
@@ -207,7 +207,10 @@ impl GameBoy {
         self.cpu.write_register_u8(reg, val)
     }
 
-    pub(crate) fn exec_read_register_target(&mut self, target: instructions::ByteRegisterTarget) -> StepResult<u8> {
+    pub(crate) fn exec_read_register_target(
+        &mut self,
+        target: instructions::ByteRegisterTarget,
+    ) -> StepResult<u8> {
         match registers::ByteRegister::try_from(target) {
             Ok(reg) => Ok(self.read_register_u8(reg)),
             Err(_) => {
@@ -219,12 +222,16 @@ impl GameBoy {
         }
     }
 
-    pub(crate) fn exec_write_register_target(&mut self, target: instructions::ByteRegisterTarget, value: u8) -> StepResult<()> {
+    pub(crate) fn exec_write_register_target(
+        &mut self,
+        target: instructions::ByteRegisterTarget,
+        value: u8,
+    ) -> StepResult<()> {
         match registers::ByteRegister::try_from(target) {
             Ok(reg) => {
                 self.write_register_u8(reg, value);
                 Ok(())
-            },
+            }
             Err(_) => {
                 let addr = self.read_register_u16(wr::HL);
                 self.write_memory_u8(addr, value)?;
@@ -255,9 +262,7 @@ impl GameBoy {
     }
 
     pub(crate) fn cycling_memory_iter(&mut self) -> CyclingMemoryIterator {
-        CyclingMemoryIterator {
-            gb: self
-        }
+        CyclingMemoryIterator { gb: self }
     }
 
     fn memory_iter(&self, start: address::LiteralAddress) -> memory::MemoryIterator {
@@ -621,19 +626,25 @@ impl GameBoy {
             Instruction::Jump(j) => self.exec_jump(j),
             Instruction::RegisterAL(_) => panic!("ALU instructions should be in the new handler"),
             Instruction::MemoryAL(_) => panic!("ALU instructions should be in the new handler"),
-            Instruction::ConstantAL(_, _) => panic!("ALU instructions should be in the new handler"),
-            Instruction::MemoryIncrement(_) => panic!("ALU instructions should be in the new handler"),
+            Instruction::ConstantAL(_, _) => {
+                panic!("ALU instructions should be in the new handler")
+            }
+            Instruction::MemoryIncrement(_) => {
+                panic!("ALU instructions should be in the new handler")
+            }
             Instruction::Stack(_) => panic!("Stack instructions should be in the new handler"),
             Instruction::Load(_) => panic!("Load instructions should be in the new handler"),
             Instruction::Extended(ex) => self.exec_extended(ex),
             Instruction::Literal(_) => Err(StepError::Unimplemented(instr)),
-            Instruction::NOP  
-            | Instruction::InvertCarry 
-            | Instruction::SetCarry 
-            | Instruction::InvertA 
+            Instruction::NOP
+            | Instruction::InvertCarry
+            | Instruction::SetCarry
+            | Instruction::InvertA
             | Instruction::AToBCD
-            | Instruction::EnableInterrupts  
-            | Instruction::DisableInterrupts => panic!("Misc instructions should be in the new handler"),
+            | Instruction::EnableInterrupts
+            | Instruction::DisableInterrupts => {
+                panic!("Misc instructions should be in the new handler")
+            }
             Instruction::Rotate(dir, carry) => {
                 self.exec_rotate(dir, carry, br::A, SetZeroMode::Clear)
             }
@@ -681,12 +692,13 @@ impl GameBoy {
             if !interrupted {
                 self.set_pc(pc_value.next());
                 let non_borrowing_decoder = self.runtime_decoder.clone();
-                non_borrowing_decoder.decode(opcode)
+                non_borrowing_decoder
+                    .decode(opcode)
                     .unwrap()
                     .to_executable(&mut self.cycling_memory_iter())
                     .execute(self)?;
             }
-        } else {        
+        } else {
             let instruction = self.current_instruction()?;
             self.cycle();
             let interrupted = self.check_interrupts()?;
@@ -731,7 +743,7 @@ impl GameBoy {
 }
 
 pub(crate) struct CyclingMemoryIterator<'a> {
-    gb: &'a mut GameBoy
+    gb: &'a mut GameBoy,
 }
 
 impl<'a> Iterator for CyclingMemoryIterator<'a> {

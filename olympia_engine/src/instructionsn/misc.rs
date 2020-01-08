@@ -1,8 +1,4 @@
-use crate::gameboy::{
-    GameBoy,
-    StepResult,
-    cpu::InterruptState,
-};
+use crate::gameboy::{cpu::InterruptState, GameBoy, StepResult};
 use crate::instructionsn::{ExecutableInstruction, ExecutableOpcode};
 use crate::registers;
 
@@ -10,9 +6,8 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use olympia_derive::OlympiaInstruction;
 
-
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x1111_1011, label="EI")]
+#[olympia(opcode = 0x1111_1011, label = "EI")]
 struct EnableInterrupts {}
 
 impl ExecutableInstruction for EnableInterrupts {
@@ -23,7 +18,7 @@ impl ExecutableInstruction for EnableInterrupts {
 }
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x1111_0011, label="DI")]
+#[olympia(opcode = 0x1111_0011, label = "DI")]
 struct DisableInterrupts {}
 
 impl ExecutableInstruction for DisableInterrupts {
@@ -34,7 +29,7 @@ impl ExecutableInstruction for DisableInterrupts {
 }
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x0000_0000, label="NOP")]
+#[olympia(opcode = 0x0000_0000, label = "NOP")]
 struct NOP {}
 
 impl ExecutableInstruction for NOP {
@@ -44,7 +39,7 @@ impl ExecutableInstruction for NOP {
 }
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x0011_1111, label="CCF")]
+#[olympia(opcode = 0x0011_1111, label = "CCF")]
 struct InvertCarry {}
 
 impl ExecutableInstruction for InvertCarry {
@@ -58,7 +53,7 @@ impl ExecutableInstruction for InvertCarry {
 }
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x0011_0111, label="SCF")]
+#[olympia(opcode = 0x0011_0111, label = "SCF")]
 struct SetCarry {}
 
 impl ExecutableInstruction for SetCarry {
@@ -70,9 +65,8 @@ impl ExecutableInstruction for SetCarry {
     }
 }
 
-
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x0010_1111, label="CPL")]
+#[olympia(opcode = 0x0010_1111, label = "CPL")]
 struct InvertA {}
 
 impl ExecutableInstruction for InvertA {
@@ -86,10 +80,11 @@ impl ExecutableInstruction for InvertA {
 }
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x0010_0111, label="DAA")]
+#[olympia(opcode = 0x0010_0111, label = "DAA")]
 struct AToBCD {}
 
 impl AToBCD {
+    #[allow(clippy::collapsible_if)]
     fn after_add(carry: bool, half_carry: bool, top_nibble: u8, bottom_nibble: u8) -> (u8, bool) {
         match (carry, half_carry) {
             (false, false) => {
@@ -137,6 +132,7 @@ impl AToBCD {
         }
     }
 
+    #[allow(clippy::collapsible_if)]
     fn after_sub(carry: bool, half_carry: bool, top_nibble: u8, bottom_nibble: u8) -> (u8, bool) {
         if carry {
             if top_nibble >= 7 && bottom_nibble <= 9 && !half_carry {
@@ -189,5 +185,8 @@ pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
         SetCarryOpcode::all(),
         InvertAOpcode::all(),
         AToBCDOpcode::all(),
-    ].into_iter().flatten().collect()
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }

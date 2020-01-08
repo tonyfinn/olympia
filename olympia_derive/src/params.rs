@@ -210,7 +210,7 @@ fn parse_param_path(pb: &mut ParamBuilder, path: &syn::Path) {
         pb.pos = Some(ParamPosition::Src);
     } else if path.is_ident("single") {
         pb.pos = Some(ParamPosition::Single);
-    }else if path.is_ident("addsrc") {
+    } else if path.is_ident("addsrc") {
         pb.pos = Some(ParamPosition::AddSrc);
     }
 }

@@ -8,22 +8,25 @@ use crate::gameboy::StepResult;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
-use olympia_core::instructions::{Instruction,InstructionOpcode};
+use olympia_core::instructions::{Instruction, InstructionOpcode};
 
 pub trait ExecutableInstruction: Instruction {
     fn execute(&self, gb: &mut crate::gameboy::GameBoy) -> StepResult<()>;
 }
 
 pub trait ExecutableOpcode {
-    fn to_executable(&self, data: &mut dyn Iterator<Item=u8>) -> Box<dyn ExecutableInstruction>;
-    fn all() -> Vec<(u8, Box<dyn ExecutableOpcode>)> where Self:Sized;
-} 
+    fn to_executable(&self, data: &mut dyn Iterator<Item = u8>) -> Box<dyn ExecutableInstruction>;
+    fn all() -> Vec<(u8, Box<dyn ExecutableOpcode>)>
+    where
+        Self: Sized;
+}
 
 impl<T, F> ExecutableOpcode for T
-    where T: InstructionOpcode<FullInstruction=F> + 'static,
-        F: ExecutableInstruction + 'static
+where
+    T: InstructionOpcode<FullInstruction = F> + 'static,
+    F: ExecutableInstruction + 'static,
 {
-    fn to_executable(&self, data: &mut dyn Iterator<Item=u8>) -> Box<dyn ExecutableInstruction> {
+    fn to_executable(&self, data: &mut dyn Iterator<Item = u8>) -> Box<dyn ExecutableInstruction> {
         Box::new(self.build_instruction(data))
     }
 
@@ -38,7 +41,7 @@ impl<T, F> ExecutableOpcode for T
 }
 
 pub(crate) struct RuntimeDecoder {
-    opcodes: Vec<Option<Box<dyn ExecutableOpcode>>>
+    opcodes: Vec<Option<Box<dyn ExecutableOpcode>>>,
 }
 
 impl RuntimeDecoder {
@@ -47,7 +50,8 @@ impl RuntimeDecoder {
         for _ in 0..256 {
             opcodes.push(None);
         }
-        let input_codes = stack::all_stack_opcodes().into_iter()
+        let input_codes = stack::all_stack_opcodes()
+            .into_iter()
             .chain(alu::all_alu_opcodes())
             .chain(misc::opcodes())
             .chain(load::opcodes());
@@ -56,11 +60,9 @@ impl RuntimeDecoder {
             opcodes[value as usize] = Some(executable);
         }
 
-        RuntimeDecoder {
-            opcodes
-        }
+        RuntimeDecoder { opcodes }
     }
-    
+
     pub fn decode(&self, value: u8) -> Option<&dyn ExecutableOpcode> {
         self.opcodes[value as usize].as_deref()
     }

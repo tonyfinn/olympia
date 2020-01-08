@@ -1,12 +1,6 @@
 use crate::gameboy::{GameBoy, StepResult};
-use crate::instructions::{
-    ALOp,
-    ByteRegisterTarget,
-};
-use crate::instructionsn::{
-    ExecutableInstruction,
-    ExecutableOpcode,
-};
+use crate::instructions::{ALOp, ByteRegisterTarget};
+use crate::instructionsn::{ExecutableInstruction, ExecutableOpcode};
 use crate::registers;
 
 use alloc::boxed::Box;
@@ -31,7 +25,10 @@ fn alu_op(gb: &mut GameBoy, op: ALOp, arg: u8) -> u8 {
             gb.set_flag_to(registers::Flag::Carry, overflow);
             gb.reset_flag(registers::Flag::AddSubtract);
             gb.set_flag_to(registers::Flag::Zero, new == 0);
-            gb.set_flag_to(registers::Flag::HalfCarry, is_add_half_carry(current_value, arg));
+            gb.set_flag_to(
+                registers::Flag::HalfCarry,
+                is_add_half_carry(current_value, arg),
+            );
             new
         }
         ALOp::AddCarry => {
@@ -41,7 +38,10 @@ fn alu_op(gb: &mut GameBoy, op: ALOp, arg: u8) -> u8 {
             gb.set_flag_to(registers::Flag::Carry, overflow | overflow_carry);
             gb.reset_flag(registers::Flag::AddSubtract);
             gb.set_flag_to(registers::Flag::Zero, new == 0);
-            gb.set_flag_to(registers::Flag::HalfCarry, is_add_half_carry(current_value, arg+carry_bit));
+            gb.set_flag_to(
+                registers::Flag::HalfCarry,
+                is_add_half_carry(current_value, arg + carry_bit),
+            );
             new
         }
         ALOp::Sub => {
@@ -49,7 +49,10 @@ fn alu_op(gb: &mut GameBoy, op: ALOp, arg: u8) -> u8 {
             gb.set_flag_to(registers::Flag::Carry, overflow);
             gb.set_flag(registers::Flag::AddSubtract);
             gb.set_flag_to(registers::Flag::Zero, new == 0);
-            gb.set_flag_to(registers::Flag::HalfCarry, is_sub_half_carry(current_value, arg));
+            gb.set_flag_to(
+                registers::Flag::HalfCarry,
+                is_sub_half_carry(current_value, arg),
+            );
             new
         }
         ALOp::SubCarry => {
@@ -59,7 +62,10 @@ fn alu_op(gb: &mut GameBoy, op: ALOp, arg: u8) -> u8 {
             gb.set_flag_to(registers::Flag::Carry, overflow | overflow_carry);
             gb.set_flag(registers::Flag::AddSubtract);
             gb.set_flag_to(registers::Flag::Zero, new == 0);
-            gb.set_flag_to(registers::Flag::HalfCarry, is_sub_half_carry(current_value, arg + carry_bit));
+            gb.set_flag_to(
+                registers::Flag::HalfCarry,
+                is_sub_half_carry(current_value, arg + carry_bit),
+            );
             new
         }
         ALOp::Compare => {
@@ -67,7 +73,10 @@ fn alu_op(gb: &mut GameBoy, op: ALOp, arg: u8) -> u8 {
             gb.set_flag_to(registers::Flag::Carry, overflow);
             gb.set_flag(registers::Flag::AddSubtract);
             gb.set_flag_to(registers::Flag::Zero, new == 0);
-            gb.set_flag_to(registers::Flag::HalfCarry, is_sub_half_carry(current_value, arg));
+            gb.set_flag_to(
+                registers::Flag::HalfCarry,
+                is_sub_half_carry(current_value, arg),
+            );
             current_value
         }
         ALOp::And => {
@@ -112,21 +121,19 @@ fn literal_alu(gb: &mut GameBoy, operation: ALOp, arg: u8) -> StepResult<()> {
 
 macro_rules! alu_register_target {
     ($name:ident, $opcode:literal, $label:literal, $op:path) => {
-
         #[derive(OlympiaInstruction)]
         #[olympia(opcode = $opcode, label=$label)]
         struct $name {
-            #[olympia(single, mask=0xA)]
+            #[olympia(single, mask = 0xA)]
             src: ByteRegisterTarget,
         }
-        
+
         impl ExecutableInstruction for $name {
             fn execute(&self, gb: &mut GameBoy) -> StepResult<()> {
                 targeted_alu(gb, $op, self.src)
             }
         }
-
-    }
+    };
 }
 
 alu_register_target!(AddRegisterTarget, 0x1000_0AAA, "ADD", ALOp::Add);
@@ -140,21 +147,19 @@ alu_register_target!(CompareRegisterTarget, 0x1011_1AAA, "CP", ALOp::Compare);
 
 macro_rules! alu_literal {
     ($name:ident, $opcode:literal, $label:literal, $op:path) => {
-
         #[derive(OlympiaInstruction)]
         #[olympia(opcode = $opcode, label=$label)]
         struct $name {
             #[olympia(single)]
             arg: u8,
         }
-        
+
         impl ExecutableInstruction for $name {
             fn execute(&self, gb: &mut GameBoy) -> StepResult<()> {
                 literal_alu(gb, $op, self.arg)
             }
         }
-
-    }
+    };
 }
 
 alu_literal!(AddLiteral, 0x1100_0110, "ADD", ALOp::Add);
@@ -167,9 +172,9 @@ alu_literal!(OrLiteral, 0x1111_0110, "OR", ALOp::Or);
 alu_literal!(CompareLiteral, 0x1111_1110, "CP", ALOp::Compare);
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x00AA_A100, label="INC")]
+#[olympia(opcode = 0x00AA_A100, label = "INC")]
 struct Increment {
-    #[olympia(dest, mask=0xA)]
+    #[olympia(dest, mask = 0xA)]
     target: ByteRegisterTarget,
 }
 
@@ -187,9 +192,9 @@ impl ExecutableInstruction for Increment {
 }
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x00AA_A101, label="DEC")]
+#[olympia(opcode = 0x00AA_A101, label = "DEC")]
 struct Decrement {
-    #[olympia(dest, mask=0xA)]
+    #[olympia(dest, mask = 0xA)]
     target: ByteRegisterTarget,
 }
 
@@ -207,9 +212,9 @@ impl ExecutableInstruction for Decrement {
 }
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x00AA_0011, label="INC")]
+#[olympia(opcode = 0x00AA_0011, label = "INC")]
 struct Increment16 {
-    #[olympia(dest, mask=0xA)]
+    #[olympia(dest, mask = 0xA)]
     target: registers::StackRegister,
 }
 
@@ -224,9 +229,9 @@ impl ExecutableInstruction for Increment16 {
 }
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x00AA_1011, label="INC")]
+#[olympia(opcode = 0x00AA_1011, label = "INC")]
 struct Decrement16 {
-    #[olympia(dest, mask=0xA)]
+    #[olympia(dest, mask = 0xA)]
     target: registers::StackRegister,
 }
 
@@ -241,11 +246,11 @@ impl ExecutableInstruction for Decrement16 {
 }
 
 #[derive(OlympiaInstruction)]
-#[olympia(opcode=0x00AA_1001, label="INC")]
+#[olympia(opcode = 0x00AA_1001, label = "INC")]
 struct Add16 {
     #[olympia(dest, constant(registers::WordRegister::HL))]
     dest: registers::WordRegister,
-    #[olympia(src, mask=0xA)]
+    #[olympia(src, mask = 0xA)]
     src: registers::StackRegister,
 }
 
@@ -257,8 +262,7 @@ impl ExecutableInstruction for Add16 {
         gb.set_flag_to(registers::Flag::Zero, new == 0);
         gb.set_flag_to(registers::Flag::Carry, carry);
         gb.reset_flag(registers::Flag::AddSubtract);
-        let has_half_carry =
-            (((current_value & 0x0FFF) + (value_to_add & 0x0FFF)) & 0xF000) != 0;
+        let has_half_carry = (((current_value & 0x0FFF) + (value_to_add & 0x0FFF)) & 0xF000) != 0;
         gb.set_flag_to(registers::Flag::HalfCarry, has_half_carry);
         gb.write_register_u16(self.dest, new);
         gb.cycle();
@@ -289,5 +293,8 @@ pub(crate) fn all_alu_opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
         Increment16Opcode::all(),
         Decrement16Opcode::all(),
         Add16Opcode::all(),
-    ].into_iter().flatten().collect()
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }

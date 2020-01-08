@@ -1,7 +1,7 @@
-use crate::{address, registers};
 use crate::gameboy::{GameBoy, StepResult};
+use crate::{address, registers};
 
-use super::{ExecutableInstruction,ExecutableOpcode};
+use super::{ExecutableInstruction, ExecutableOpcode};
 
 use olympia_core::registers::{AccRegister, WordRegister};
 use olympia_derive::OlympiaInstruction;
@@ -114,7 +114,6 @@ impl ExecutableInstruction for SetStackPointer {
     }
 }
 
-
 #[derive(OlympiaInstruction)]
 #[olympia(opcode = 0x0000_1000, label = "LD")]
 struct StoreStackPointerMemory {
@@ -140,5 +139,8 @@ pub(crate) fn all_stack_opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
         LoadStackOffsetOpcode::all(),
         SetStackPointerOpcode::all(),
         StoreStackPointerMemoryOpcode::all(),
-    ].into_iter().flatten().collect()
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
 }

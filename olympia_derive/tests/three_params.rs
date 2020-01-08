@@ -1,8 +1,8 @@
+use olympia_core::address;
 use olympia_core::instructions::{
     AppendedParam, ConstantParam, ExtensionType, Instruction, InstructionOpcode, ParamDefinition,
     ParamPosition, ParamType,
 };
-use olympia_core::address;
 use olympia_core::registers::WordRegister;
 use olympia_derive::OlympiaInstruction;
 

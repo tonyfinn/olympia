@@ -416,13 +416,19 @@ pub struct InstructionDefinition {
 /// subsequent instructions
 pub trait InstructionOpcode {
     type FullInstruction: Instruction;
-    fn definition() -> &'static InstructionDefinition where Self: Sized;
-    fn from_opcode(opcode: u8) -> Self where Self: Sized;
+    fn definition() -> &'static InstructionDefinition
+    where
+        Self: Sized;
+    fn from_opcode(opcode: u8) -> Self
+    where
+        Self: Sized;
     fn build_instruction(&self, data: &mut dyn Iterator<Item = u8>) -> Self::FullInstruction;
 }
 
 pub trait Instruction {
-    fn definition() -> &'static InstructionDefinition where Self: Sized;
+    fn definition() -> &'static InstructionDefinition
+    where
+        Self: Sized;
 }
 
 #[cfg(test)]

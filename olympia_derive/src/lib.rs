@@ -138,7 +138,7 @@ fn parse_instruction_meta_list(
             match nested {
                 syn::NestedMeta::Lit(syn::Lit::Int(li)) => {
                     excluded.push(li.base10_parse()?);
-                },
+                }
                 syn::NestedMeta::Lit(lit) => {
                     return Err(errors::InstructionError::UnexpectedLiteral(lit.clone()))
                 }
