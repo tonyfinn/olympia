@@ -1,7 +1,9 @@
 //! Represents a variety of addressing types for
 //! emulation.
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+use derive_more::{From, Into};
+
+#[derive(PartialEq, Eq, Debug, Copy, Clone, From, Into)]
 /// Represents a literal memory address
 pub struct LiteralAddress(pub u16);
 
@@ -9,18 +11,6 @@ impl LiteralAddress {
     /// Get the address immediately following this one, wrapping if needed
     pub fn next(self) -> LiteralAddress {
         LiteralAddress(self.0.wrapping_add(1))
-    }
-}
-
-impl From<u16> for LiteralAddress {
-    fn from(addr: u16) -> Self {
-        LiteralAddress(addr)
-    }
-}
-
-impl Into<u16> for LiteralAddress {
-    fn into(self) -> u16 {
-        self.0
     }
 }
 
@@ -36,16 +26,11 @@ impl From<HighAddress> for LiteralAddress {
     }
 }
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, From, Into)]
 /// Represents an address in high memory (offset from 0xFF00)
 pub struct HighAddress(pub u8);
 
-impl From<u8> for HighAddress {
-    fn from(addr: u8) -> Self {
-        HighAddress(addr)
-    }
-}
-
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub struct OffsetResolveResult {
     pub addr: LiteralAddress,
     pub half_carry: bool,
@@ -59,6 +44,12 @@ pub struct AddressOffset(pub i8);
 impl From<u8> for AddressOffset {
     fn from(addr: u8) -> Self {
         AddressOffset(i8::from_le_bytes([addr]))
+    }
+}
+
+impl From<AddressOffset> for u8 {
+    fn from(addr: AddressOffset) -> Self {
+        addr.0 as u8
     }
 }
 
@@ -88,5 +79,73 @@ impl AddressOffset {
             half_carry,
             carry,
         }
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_convert_bytes_to_address() {
+        assert_eq!(LiteralAddress::from([0x54, 0x32]), LiteralAddress(0x3254));
+    }
+
+    #[test]
+    fn test_resolve_address_postive_offset() {
+        let positive_offset = AddressOffset(0x2C);
+
+        assert_eq!(positive_offset.resolve(0x1000.into()), OffsetResolveResult {
+            addr: 0x102C.into(),
+            carry: false,
+            half_carry: false,
+        });
+
+        assert_eq!(positive_offset.resolve(0x1004.into()), OffsetResolveResult {
+            addr: 0x1030.into(),
+            carry: false,
+            half_carry: true,
+        });
+
+        assert_eq!(positive_offset.resolve(0xFFF0.into()), OffsetResolveResult {
+            addr: 0x001C.into(),
+            carry: true,
+            half_carry: false,
+        });
+
+        assert_eq!(positive_offset.resolve(0xFFFF.into()), OffsetResolveResult {
+            addr: 0x002B.into(),
+            carry: true,
+            half_carry: true,
+        });
+    }
+
+    #[test]
+    fn test_resolve_address_negative_offset() {
+        let positive_offset = AddressOffset(-0x19);
+
+        assert_eq!(positive_offset.resolve(0x102C.into()), OffsetResolveResult {
+            addr: 0x1013.into(),
+            carry: false,
+            half_carry: false,
+        });
+
+        assert_eq!(positive_offset.resolve(0x1004.into()), OffsetResolveResult {
+            addr: 0x0FEB.into(),
+            carry: false,
+            half_carry: true,
+        });
+
+        assert_eq!(positive_offset.resolve(0x000A.into()), OffsetResolveResult {
+            addr: 0xFFF1.into(),
+            carry: true,
+            half_carry: false,
+        });
+
+        assert_eq!(positive_offset.resolve(0x0000.into()), OffsetResolveResult {
+            addr: 0xFFE7.into(),
+            carry: true,
+            half_carry: true,
+        });
     }
 }

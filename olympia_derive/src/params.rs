@@ -379,6 +379,45 @@ pub(crate) fn build_into_instruction_appended_params(params: &[ParsedParam]) -> 
         .collect()
 }
 
+pub(crate) fn build_as_bytes(base_code: u8, params: &[ParsedParam]) -> TokenStream {
+    let mut inner_params = vec![];
+    let mut appended_params = vec![];
+
+    for param in params {
+        match param.param_type {
+            ParsedParamType::Appended(_) => appended_params.push(&param.name),
+            ParsedParamType::Constant { .. } => (),
+            ParsedParamType::Inner { pos, .. } => inner_params.push((&param.name, pos)),
+        }
+    }
+
+    let inner_param_statements: Vec<TokenStream> = inner_params.iter()
+        .map(|(name, pos)| {
+            let position = quote_opcode_position(pos.clone());
+            quote! {
+                opcode = ::olympia_core::derive::EmbeddableParam::embed_to_opcode(&self.#name, opcode, #position);
+            }
+        })
+        .collect();
+
+    let appended_param_statements: Vec<TokenStream> = appended_params.iter()
+        .map(|name| quote! {
+            bytes.extend_from_slice(&::olympia_core::derive::AppendableParam::as_bytes(&self.#name));
+        })
+        .collect();
+
+    quote! {
+        fn as_bytes(&self) -> Vec<u8> {
+            let mut bytes = Vec::new();
+            let mut opcode = #base_code;
+            #(#inner_param_statements)*
+            bytes.push(opcode);
+            #(#appended_param_statements)*
+            bytes
+        }
+    }
+}
+
 pub(crate) fn get_param_names(params: &[ParsedParam]) -> Vec<&syn::Ident> {
     params.iter().map(|param| &param.name).collect()
 }

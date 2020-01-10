@@ -6,6 +6,9 @@
 use crate::address;
 use crate::registers;
 
+use alloc::vec::Vec;
+use core::convert::From;
+
 #[derive(Debug, PartialEq, Eq)]
 /// Represents a value that failed to parse
 pub struct ParseError(u8);
@@ -48,6 +51,46 @@ impl EmbeddableParam for u8 {
 
     fn embed(&self) -> u8 {
         *self
+    }
+}
+
+pub trait AppendableParam {
+    fn as_bytes(&self) -> Vec<u8>;
+}
+
+impl AppendableParam for u8 {
+    fn as_bytes(&self) -> Vec<u8> {
+        self.to_le_bytes().iter().copied().collect()
+    }
+}
+
+impl AppendableParam for u16 {
+    fn as_bytes(&self) -> Vec<u8> {
+        self.to_le_bytes().iter().copied().collect()
+    }
+}
+
+impl AppendableParam for i8 {
+    fn as_bytes(&self) -> Vec<u8> {
+        self.to_le_bytes().iter().copied().collect()
+    }
+}
+
+impl AppendableParam for address::LiteralAddress {
+    fn as_bytes(&self) -> Vec<u8> {
+        u16::from(*self).as_bytes()
+    }
+}
+
+impl AppendableParam for address::AddressOffset {
+    fn as_bytes(&self) -> Vec<u8> {
+        u8::from(*self).as_bytes()
+    }
+}
+
+impl AppendableParam for address::HighAddress {
+    fn as_bytes(&self) -> Vec<u8> {
+        u8::from(*self).as_bytes()
     }
 }
 
@@ -440,11 +483,18 @@ pub trait Instruction {
     fn definition() -> &'static InstructionDefinition
     where
         Self: Sized;
+    fn as_bytes(&self) -> Vec<u8>;
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use alloc::vec;
+
+    #[test]
+    fn embed_u8() {
+        assert_eq!(EmbeddableParam::embed(&0x23), 0x23);
+    }
 
     #[test]
     fn extract_condition() {
@@ -601,5 +651,35 @@ mod test {
             ),
             0x34
         );
+    }
+
+    #[test]
+    fn append_i8() {
+        assert_eq!(AppendableParam::as_bytes(&-1i8), vec![0xFF]);
+    }
+
+    #[test]
+    fn append_u8() {
+        assert_eq!(AppendableParam::as_bytes(&0x33u8), vec![0x33]);
+    }
+
+    #[test]
+    fn append_u16() {
+        assert_eq!(AppendableParam::as_bytes(&0x2333u16), vec![0x33, 0x23]);
+    }
+
+    #[test]
+    fn append_literal_address() {
+        assert_eq!(AppendableParam::as_bytes(&address::LiteralAddress(0x2333)), vec![0x33, 0x23]);
+    }
+
+    #[test]
+    fn append_high_address() {
+        assert_eq!(AppendableParam::as_bytes(&address::HighAddress(0x23)), vec![0x23]);
+    }
+
+    #[test]
+    fn append_address_offset() {
+        assert_eq!(AppendableParam::as_bytes(&address::AddressOffset(-16i8)), vec![0xF0]);
     }
 }

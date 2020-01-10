@@ -129,7 +129,7 @@ fn exec_shift_zero(
 #[derive(OlympiaInstruction)]
 #[olympia(opcode = 0x0010_0AAA, label = "SLA", extended)]
 struct ShiftLeftZero {
-    #[olympia(dest, mask = 0xA)]
+    #[olympia(single, mask = 0xA)]
     target: ByteRegisterTarget,
 }
 
@@ -142,7 +142,7 @@ impl ExecutableInstruction for ShiftLeftZero {
 #[derive(OlympiaInstruction)]
 #[olympia(opcode = 0x0011_1AAA, label = "SRL", extended)]
 struct ShiftRightZero {
-    #[olympia(dest, mask = 0xA)]
+    #[olympia(single, mask = 0xA)]
     target: ByteRegisterTarget,
 }
 
@@ -155,7 +155,7 @@ impl ExecutableInstruction for ShiftRightZero {
 #[derive(OlympiaInstruction)]
 #[olympia(opcode = 0x0010_1AAA, label = "SRA", extended)]
 struct ShiftRightExtend {
-    #[olympia(dest, mask = 0xA)]
+    #[olympia(single, mask = 0xA)]
     target: ByteRegisterTarget,
 }
 

@@ -72,6 +72,19 @@ impl Disassemble for registers::StackRegister {}
 impl Disassemble for registers::AccRegister {}
 impl Disassemble for registers::ByteRegister {}
 
+impl Disassemble for registers::ByteRegisterTarget {
+    fn disassemble(&self) -> String {
+        match self {
+            registers::ByteRegisterTarget::HLIndirect => "(HL)".into(),
+            _ => format!("({:?})", self),
+        }
+    }
+}
+
+impl Disassemble for u8 {}
+impl Disassemble for i8 {}
+impl Disassemble for u16 {}
+
 impl Disassemble for instructions::Stack {
     fn disassemble(&self) -> String {
         use instructions::Stack;

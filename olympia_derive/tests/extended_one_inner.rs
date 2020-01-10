@@ -4,16 +4,16 @@ use olympia_core::instructions::{
 };
 use olympia_derive::OlympiaInstruction;
 
+#[derive(OlympiaInstruction)]
+#[olympia(opcode = 0x0011_0AAA, label = "SWAP", extended)]
+struct Swap {
+    #[olympia(single, mask = 0xA)]
+    reg: ByteRegisterTarget,
+}
+
 #[test]
 #[allow(dead_code)]
 fn one_arg_extended_definition() {
-    #[derive(OlympiaInstruction)]
-    #[olympia(opcode = 0x0011_0AAA, label = "SWAP", extended)]
-    struct Swap {
-        #[olympia(single, mask = 0xA)]
-        reg: ByteRegisterTarget,
-    };
-
     let definition = Swap::definition();
     assert_eq!(definition.label, "SWAP");
     assert_eq!(
@@ -35,4 +35,13 @@ fn one_arg_extended_definition() {
             },
         }]
     );
+}
+
+#[test]
+fn inner_arg_bytes() {
+    let swap = Swap {
+        reg: ByteRegisterTarget::A,
+    };
+
+    assert_eq!(swap.as_bytes(), vec![0x37]);
 }

@@ -16,12 +16,28 @@ use syn::{parse_macro_input, DeriveInput};
 #[derive(Debug)]
 struct InstructionBuilder {
     opcode_mask: Option<u32>,
+    base_opcode: Option<u8>,
     visibility: Option<syn::Visibility>,
     excluded_opcodes: Vec<u8>,
     label: Option<String>,
     extension_type: ExtensionType,
     params: Vec<params::ParamBuilder>,
     span: Option<proc_macro2::Span>,
+}
+
+impl Default for InstructionBuilder {
+    fn default() -> Self {
+        InstructionBuilder {
+            opcode_mask: None,
+            base_opcode: None,
+            excluded_opcodes: Vec::new(),
+            label: None,
+            extension_type: ExtensionType::None,
+            visibility: None,
+            params: Vec::new(),
+            span: None,
+        }
+    }
 }
 
 impl InstructionBuilder {
@@ -41,6 +57,7 @@ impl InstructionBuilder {
         Ok(ParsedInstruction {
             excluded_opcodes: self.excluded_opcodes.clone(),
             visibility: self.visibility.unwrap(),
+            base_opcode: self.base_opcode.unwrap(),
             extension_type: self.extension_type,
             opcode_mask,
             label,
@@ -51,6 +68,7 @@ impl InstructionBuilder {
 
 struct ParsedInstruction {
     opcode_mask: u32,
+    base_opcode: u8,
     excluded_opcodes: Vec<u8>,
     visibility: syn::Visibility,
     label: String,
@@ -58,18 +76,16 @@ struct ParsedInstruction {
     params: Vec<params::ParsedParam>,
 }
 
-impl Default for InstructionBuilder {
-    fn default() -> Self {
-        InstructionBuilder {
-            opcode_mask: None,
-            excluded_opcodes: Vec::new(),
-            label: None,
-            extension_type: ExtensionType::None,
-            visibility: None,
-            params: Vec::new(),
-            span: None,
+fn base_opcode(mask: u32) -> u8 {
+    let mut base = 0;
+    for i in 0..8 {
+        let shift = i * 4;
+        let hex_digit = (mask >> shift) & 0xF;
+        if hex_digit == 1 {
+            base |= 1 << i;
         }
     }
+    base
 }
 
 fn build_opcodes(mask: u32, excluded_opcodes: &[u8]) -> Vec<u8> {
@@ -311,6 +327,7 @@ fn parse_all(input: &DeriveInput) -> syn::Result<InstructionBuilder> {
             }
         }
     }
+    instruction_builder.base_opcode = instruction_builder.opcode_mask.map(base_opcode);
     let field_iter = parse_fields(&input).map_err(|e| syn::Error::new(instr_span, e))?;
     let mut params = Vec::new();
     for field in field_iter {
@@ -337,12 +354,14 @@ fn olympia_instruction_inner(input: DeriveInput) -> syn::Result<TokenStream> {
         .map_err(|e| e.to_syn_error(default_span))?;
     let definition = build_definition(&parsed).map_err(|e| e.to_syn_error(default_span))?;
     let opcode_struct = build_opcode_struct(name, &definition_ident, &parsed);
+    let as_bytes = params::build_as_bytes(parsed.base_opcode, &parsed.params);
     Ok(quote! {
         const #definition_ident: ::olympia_core::derive::InstructionDefinition = #definition;
         impl ::olympia_core::instructions::Instruction for #name {
             fn definition() -> &'static ::olympia_core::derive::InstructionDefinition {
                 &#definition_ident
             }
+            #as_bytes
         }
         #opcode_struct
     })

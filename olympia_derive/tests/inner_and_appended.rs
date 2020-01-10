@@ -61,3 +61,13 @@ fn mixed_inner_appended_expansion() {
         }
     )
 }
+
+#[test]
+fn mixed_inner_appended_as_bytes() {
+    let instruction = LoadLiteral {
+        dest: ByteRegisterTarget::C,
+        src: 0x45,
+    };
+
+    assert_eq!(instruction.as_bytes(), vec![0x0E, 0x45]);
+}

@@ -1,9 +1,16 @@
-use olympia_core::address::AddressOffset;
+use olympia_core::address::{AddressOffset, LiteralAddress};
 use olympia_core::instructions::{
     AppendedParam, ExtensionType, Instruction, InstructionOpcode, ParamDefinition, ParamPosition,
     ParamType,
 };
 use olympia_derive::OlympiaInstruction;
+
+#[derive(OlympiaInstruction)]
+#[olympia(opcode = 0x1100_0011, label = "JP")]
+struct Jump {
+    #[olympia(single)]
+    dest: LiteralAddress,
+}
 
 #[derive(Debug, PartialEq, Eq, OlympiaInstruction)]
 #[olympia(opcode = 0x0001_1000, label = "JR")]
@@ -38,4 +45,20 @@ fn appended_parsing() {
             addr: AddressOffset(-2)
         }
     )
+}
+
+#[test]
+fn appended_as_bytes() {
+    let instruction = JumpRelative {
+        addr: AddressOffset(-3),
+    };
+    assert_eq!(instruction.as_bytes(), vec![0x18, 0xFD]);
+}
+
+#[test]
+fn appended_16_as_bytes() {
+    let instruction = Jump {
+        dest: LiteralAddress(0x12FE),
+    };
+    assert_eq!(instruction.as_bytes(), vec![0xC3, 0xFE, 0x12]);
 }
