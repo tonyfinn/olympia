@@ -1,6 +1,6 @@
 use crate::gameboy::{GameBoy, StepResult};
 use crate::instructions::{ALOp, ByteRegisterTarget};
-use crate::instructionsn::{ExecutableInstruction, ExecutableOpcode};
+use crate::instructionsn::{ExecutableInstruction, RuntimeOpcode};
 use crate::registers;
 
 use alloc::boxed::Box;
@@ -121,7 +121,7 @@ fn literal_alu(gb: &mut GameBoy, operation: ALOp, arg: u8) -> StepResult<()> {
 
 macro_rules! alu_register_target {
     ($name:ident, $opcode:literal, $label:literal, $op:path) => {
-        #[derive(OlympiaInstruction)]
+        #[derive(Debug, OlympiaInstruction)]
         #[olympia(opcode = $opcode, label=$label)]
         struct $name {
             #[olympia(single, mask = 0xA)]
@@ -147,7 +147,7 @@ alu_register_target!(CompareRegisterTarget, 0x1011_1AAA, "CP", ALOp::Compare);
 
 macro_rules! alu_literal {
     ($name:ident, $opcode:literal, $label:literal, $op:path) => {
-        #[derive(OlympiaInstruction)]
+        #[derive(Debug, OlympiaInstruction)]
         #[olympia(opcode = $opcode, label=$label)]
         struct $name {
             #[olympia(single)]
@@ -171,7 +171,7 @@ alu_literal!(XorLiteral, 0x1110_1110, "XOR", ALOp::Xor);
 alu_literal!(OrLiteral, 0x1111_0110, "OR", ALOp::Or);
 alu_literal!(CompareLiteral, 0x1111_1110, "CP", ALOp::Compare);
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x00AA_A100, label = "INC")]
 struct Increment {
     #[olympia(dest, mask = 0xA)]
@@ -191,7 +191,7 @@ impl ExecutableInstruction for Increment {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x00AA_A101, label = "DEC")]
 struct Decrement {
     #[olympia(dest, mask = 0xA)]
@@ -211,7 +211,7 @@ impl ExecutableInstruction for Decrement {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x00AA_0011, label = "INC")]
 struct Increment16 {
     #[olympia(dest, mask = 0xA)]
@@ -228,8 +228,8 @@ impl ExecutableInstruction for Increment16 {
     }
 }
 
-#[derive(OlympiaInstruction)]
-#[olympia(opcode = 0x00AA_1011, label = "INC")]
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x00AA_1011, label = "DEC")]
 struct Decrement16 {
     #[olympia(dest, mask = 0xA)]
     target: registers::StackRegister,
@@ -245,8 +245,8 @@ impl ExecutableInstruction for Decrement16 {
     }
 }
 
-#[derive(OlympiaInstruction)]
-#[olympia(opcode = 0x00AA_1001, label = "INC")]
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x00AA_1001, label = "ADD")]
 struct Add16 {
     #[olympia(dest, constant(registers::WordRegister::HL))]
     dest: registers::WordRegister,
@@ -270,7 +270,7 @@ impl ExecutableInstruction for Add16 {
     }
 }
 
-pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
+pub(crate) fn opcodes() -> Vec<(u8, Box<dyn RuntimeOpcode>)> {
     vec![
         AddRegisterTargetOpcode::all(),
         AddCarryRegisterTargetOpcode::all(),

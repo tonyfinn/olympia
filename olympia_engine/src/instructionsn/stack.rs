@@ -1,7 +1,7 @@
 use crate::gameboy::{GameBoy, StepResult};
 use crate::{address, registers};
 
-use super::{ExecutableInstruction, ExecutableOpcode};
+use super::{ExecutableInstruction, RuntimeOpcode};
 
 use olympia_core::registers::{AccRegister, WordRegister};
 use olympia_derive::OlympiaInstruction;
@@ -9,7 +9,7 @@ use olympia_derive::OlympiaInstruction;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x11AA_0101, label = "PUSH")]
 struct Push {
     #[olympia(single, mask = 0xA)]
@@ -24,7 +24,7 @@ impl ExecutableInstruction for Push {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x11AA_0001, label = "POP")]
 struct Pop {
     #[olympia(single, mask = 0xA)]
@@ -39,7 +39,7 @@ impl ExecutableInstruction for Pop {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1110_1000, label = "ADD")]
 struct AddStackPointer {
     #[olympia(dest, constant(WordRegister::SP))]
@@ -67,7 +67,7 @@ impl ExecutableInstruction for AddStackPointer {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1111_1000, label = "LD")]
 struct LoadStackOffset {
     #[olympia(dest, constant(WordRegister::HL))]
@@ -96,7 +96,7 @@ impl ExecutableInstruction for LoadStackOffset {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1111_1001, label = "LD")]
 struct SetStackPointer {
     #[olympia(dest, constant(WordRegister::SP))]
@@ -114,7 +114,7 @@ impl ExecutableInstruction for SetStackPointer {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0000_1000, label = "LD")]
 struct StoreStackPointerMemory {
     #[olympia(dest)]
@@ -131,7 +131,7 @@ impl ExecutableInstruction for StoreStackPointerMemory {
     }
 }
 
-pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
+pub(crate) fn opcodes() -> Vec<(u8, Box<dyn RuntimeOpcode>)> {
     vec![
         PushOpcode::all(),
         PopOpcode::all(),

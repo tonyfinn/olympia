@@ -184,6 +184,8 @@ pub(crate) enum InstructionError {
     SynError(#[from] syn::Error),
     #[error("Errors encountered: {0}")]
     Multiple(GroupedError<InstructionError>),
+    #[error("Instructions can have either no params, src and dest params, a single param, or src, dest and addsrc params")]
+    InvalidFieldCombination,
     #[error("Can only derive instructions on a struct")]
     NotAStruct,
 }

@@ -1,11 +1,12 @@
 use olympia_core::address::{AddressOffset, LiteralAddress};
+use olympia_core::disasm::Disassemble;
 use olympia_core::instructions::{
     AppendedParam, ExtensionType, Instruction, InstructionOpcode, ParamDefinition, ParamPosition,
-    ParamType,
+    ParamType, SerializableInstruction,
 };
 use olympia_derive::OlympiaInstruction;
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1100_0011, label = "JP")]
 struct Jump {
     #[olympia(single)]
@@ -61,4 +62,12 @@ fn appended_16_as_bytes() {
         dest: LiteralAddress(0x12FE),
     };
     assert_eq!(instruction.as_bytes(), vec![0xC3, 0xFE, 0x12]);
+}
+
+#[test]
+fn appended_16_disasm() {
+    let instruction = Jump {
+        dest: LiteralAddress(0x12FE),
+    };
+    assert_eq!(instruction.disassemble(), "JP $12FEh");
 }

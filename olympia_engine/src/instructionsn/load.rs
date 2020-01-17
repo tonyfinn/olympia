@@ -1,7 +1,8 @@
 use crate::address;
+use crate::disasm::Disassemble;
 use crate::gameboy::{GameBoy, StepResult};
 use crate::instructions::{ByteRegisterOffset, Increment};
-use crate::instructionsn::{ExecutableInstruction, ExecutableOpcode};
+use crate::instructionsn::{ExecutableInstruction, RuntimeOpcode};
 use crate::registers::{ByteRegister, ByteRegisterTarget, StackRegister, WordRegister};
 
 use alloc::boxed::Box;
@@ -9,7 +10,7 @@ use alloc::vec::Vec;
 
 use olympia_derive::OlympiaInstruction;
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x01AA_ABBB, label = "LD", excluded(0x76))]
 pub(crate) struct TargetTarget {
     #[olympia(dest, mask = 0xA)]
@@ -26,7 +27,7 @@ impl ExecutableInstruction for TargetTarget {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x00AA_A110, label = "LD")]
 pub(crate) struct TargetConstant {
     #[olympia(dest, mask = 0xA)]
@@ -42,7 +43,7 @@ impl ExecutableInstruction for TargetConstant {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x00AA_0001, label = "LD")]
 pub(crate) struct Constant16 {
     #[olympia(dest, mask = 0xA)]
@@ -58,7 +59,7 @@ impl ExecutableInstruction for Constant16 {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1110_1010, label = "LD")]
 pub(crate) struct IndirectA {
     #[olympia(dest)]
@@ -76,7 +77,7 @@ impl ExecutableInstruction for IndirectA {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1111_1010, label = "LD")]
 pub(crate) struct AIndirect {
     #[olympia(src)]
@@ -94,7 +95,7 @@ impl ExecutableInstruction for AIndirect {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1110_0000, label = "LD")]
 pub(crate) struct HighOffsetA {
     #[olympia(dest)]
@@ -112,7 +113,7 @@ impl ExecutableInstruction for HighOffsetA {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1111_0000, label = "LD")]
 pub(crate) struct AHighOffset {
     #[olympia(src)]
@@ -130,7 +131,7 @@ impl ExecutableInstruction for AHighOffset {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1110_0010, label = "LD")]
 pub(crate) struct RegisterOffsetA {
     #[olympia(dest, constant(ByteRegister::C))]
@@ -149,7 +150,7 @@ impl ExecutableInstruction for RegisterOffsetA {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1111_0010, label = "LD")]
 pub(crate) struct ARegisterOffset {
     #[olympia(src, constant(ByteRegister::C))]
@@ -203,8 +204,8 @@ fn a_increment_16(
     Ok(())
 }
 
-#[derive(OlympiaInstruction)]
-#[olympia(opcode = 0x0010_0010, label = "INC")]
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x0010_0010, label = "INC", nodisasm)]
 pub(crate) struct Increment16A {
     #[olympia(src, constant(ByteRegister::A))]
     src: ByteRegister,
@@ -218,8 +219,14 @@ impl ExecutableInstruction for Increment16A {
     }
 }
 
-#[derive(OlympiaInstruction)]
-#[olympia(opcode = 0x0011_0010, label = "DEC")]
+impl Disassemble for Increment16A {
+    fn disassemble(&self) -> String {
+        String::from("LD (HL+), A")
+    }
+}
+
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x0011_0010, label = "DEC", nodisasm)]
 pub(crate) struct Decrement16A {
     #[olympia(src, constant(ByteRegister::A))]
     src: ByteRegister,
@@ -233,8 +240,14 @@ impl ExecutableInstruction for Decrement16A {
     }
 }
 
-#[derive(OlympiaInstruction)]
-#[olympia(opcode = 0x0010_1010, label = "INC")]
+impl Disassemble for Decrement16A {
+    fn disassemble(&self) -> String {
+        String::from("LD (HL-), A")
+    }
+}
+
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x0010_1010, label = "INC", nodisasm)]
 pub(crate) struct AIncrement16 {
     #[olympia(dest, constant(ByteRegister::A))]
     dest: ByteRegister,
@@ -248,8 +261,14 @@ impl ExecutableInstruction for AIncrement16 {
     }
 }
 
-#[derive(OlympiaInstruction)]
-#[olympia(opcode = 0x0011_1010, label = "DEC")]
+impl Disassemble for AIncrement16 {
+    fn disassemble(&self) -> String {
+        String::from("LD A, (HL+)")
+    }
+}
+
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x0011_1010, label = "DEC", nodisasm)]
 pub(crate) struct ADecrement16 {
     #[olympia(dest, constant(ByteRegister::A))]
     dest: ByteRegister,
@@ -263,8 +282,14 @@ impl ExecutableInstruction for ADecrement16 {
     }
 }
 
-#[derive(OlympiaInstruction)]
-#[olympia(opcode = 0x00AA_1010, label = "LD", excluded(0x2A, 0x3A))]
+impl Disassemble for ADecrement16 {
+    fn disassemble(&self) -> String {
+        String::from("LD A, (HL-)")
+    }
+}
+
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x00AA_1010, label = "LD", excluded(0x2A, 0x3A), nodisasm)]
 pub(crate) struct AWordTarget {
     #[olympia(dest, constant(ByteRegister::A))]
     dest: ByteRegister,
@@ -282,8 +307,14 @@ impl ExecutableInstruction for AWordTarget {
     }
 }
 
-#[derive(OlympiaInstruction)]
-#[olympia(opcode = 0x00AA_0010, label = "LD", excluded(0x22, 0x32))]
+impl Disassemble for AWordTarget {
+    fn disassemble(&self) -> String {
+        format!("LD A, ({:?})", self.src)
+    }
+}
+
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x00AA_0010, label = "LD", excluded(0x22, 0x32), nodisasm)]
 pub(crate) struct WordTargetA {
     #[olympia(src, constant(ByteRegister::A))]
     src: ByteRegister,
@@ -301,7 +332,13 @@ impl ExecutableInstruction for WordTargetA {
     }
 }
 
-pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
+impl Disassemble for WordTargetA {
+    fn disassemble(&self) -> String {
+        format!("LD ({:?}), A", self.dest)
+    }
+}
+
+pub(crate) fn opcodes() -> Vec<(u8, Box<dyn RuntimeOpcode>)> {
     vec![
         TargetTargetOpcode::all(),
         TargetConstantOpcode::all(),

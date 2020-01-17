@@ -56,7 +56,7 @@ impl Default for DmaUnit {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::gameboy::cpu::testutils;
+    use crate::gameboy::testutils;
     use crate::gameboy::{GameBoy, GameBoyModel};
     use crate::rom::Cartridge;
     use alloc::vec::Vec;

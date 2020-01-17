@@ -1,34 +1,45 @@
 use std::io;
 
-use olympia_engine::decoder;
+use olympia_engine::instructionsn::RuntimeDecoder;
 
-struct FormattingIterator<T: Iterator<Item = decoder::DisassembledInstruction>> {
+struct FormattingIterator<T: Iterator<Item = u8>> {
     verbose: bool,
     next_addr: usize,
     addr: usize,
     source_iterator: T,
+    decoder: RuntimeDecoder,
 }
 
-impl<T: Iterator<Item = decoder::DisassembledInstruction>> FormattingIterator<T> {
+impl<T: Iterator<Item = u8>> FormattingIterator<T> {
     fn new(verbose: bool, source_iterator: T) -> Self {
         FormattingIterator {
             verbose,
             source_iterator,
             next_addr: 0,
             addr: 0,
+            decoder: RuntimeDecoder::new(),
         }
     }
 }
 
-impl<T: Iterator<Item = decoder::DisassembledInstruction>> Iterator for FormattingIterator<T> {
+impl<T: Iterator<Item = u8>> Iterator for FormattingIterator<T> {
     type Item = String;
     fn next(&mut self) -> Option<Self::Item> {
-        use olympia_engine::decoder::DisassembledInstruction as dis;
-        let (numeric, text, size) = match self.source_iterator.next()? {
-            dis::OneByte(binary, text) => (format!("{:0>2X}", binary), text, 1),
-            dis::TwoByte(binary, text) => (format!("{:0>4X}", binary), text, 2),
-            dis::ThreeByte(binary, text) => (format!("{:0>6X}", binary), text, 3),
-        };
+        let val = self.source_iterator.next()?;
+
+        let instr = self
+            .decoder
+            .decode_from_iter(val, &mut self.source_iterator);
+        let text = instr
+            .as_ref()
+            .map(|i| i.disassemble())
+            .unwrap_or_else(|| format!("DAT {:X}h", val));
+        let bytes = instr.map(|i| i.as_bytes()).unwrap_or(vec![val]);
+        let size = bytes.len();
+        let mut numeric = String::with_capacity(size * 2);
+        for byte in bytes {
+            numeric.push_str(&format!("{:02X}", byte))
+        }
 
         let current_addr = self.addr;
         self.addr += size;
@@ -54,8 +65,7 @@ pub(crate) fn do_disassemble<O: io::Write>(
     verbose: bool,
     output: &mut O,
 ) -> io::Result<()> {
-    let disassembled = decoder::disassemble(&data).expect("Failed decoding ROM");
-    let formatting_iterator = FormattingIterator::new(verbose, disassembled.into_iter());
+    let formatting_iterator = FormattingIterator::new(verbose, data.into_iter());
 
     for disassembled_instruction in formatting_iterator {
         writeln!(output, "{}", disassembled_instruction)?;

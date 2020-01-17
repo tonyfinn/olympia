@@ -3,7 +3,6 @@ use std::io;
 use std::io::prelude::*;
 use std::ops;
 
-use olympia_engine::disassembler::Disassemble;
 use olympia_engine::gameboy;
 use olympia_engine::registers::{ByteRegister as br, WordRegister as wr};
 use structopt::StructOpt;
@@ -314,7 +313,12 @@ pub(crate) fn debug(
                 writeln!(out, "Cycles: {} / M-Cycles: {}", cycles, cycles / 4)?;
             }
             Ok(DebugCommand::Current) => {
-                let disassembly = gb.current_instruction().unwrap().disassemble();
+                let ci = gb.current_instruction();
+                let disassembly = match ci {
+                    Ok(instr) => instr.disassemble(),
+                    Err(gameboy::StepError::InvalidOpcode(i)) => format!("DAT {:X}h", i),
+                    Err(gameboy::StepError::Memory(_)) => String::from("--"),
+                };
                 writeln!(out, "{}", disassembly)?;
             }
             Err(clap::Error {
@@ -359,6 +363,7 @@ pub(crate) fn debug(
 #[cfg(test)]
 mod test {
     use super::*;
+    use olympia_engine::registers::WordRegister;
     use olympia_engine::rom;
 
     fn get_test_gbcpu() -> gameboy::GameBoy {
@@ -368,6 +373,24 @@ mod test {
             target: rom::TargetConsole::GameBoyOnly,
         };
         gameboy::GameBoy::new(cartridge, gameboy::GameBoyModel::GameBoy)
+    }
+
+    fn assert_debug_output(gb: gameboy::GameBoy, input: &str, expected: &str) {
+        let mut captured_output = Vec::new();
+        let mut captured_error = Vec::new();
+
+        debug(
+            gb,
+            &mut io::BufReader::new(input.as_bytes()),
+            &mut captured_output,
+            &mut captured_error,
+        )
+        .unwrap();
+
+        let actual_output = String::from_utf8_lossy(&captured_output);
+        let expected_output = String::from(expected);
+
+        assert_eq!(actual_output, expected_output);
     }
 
     #[test]
@@ -381,17 +404,6 @@ mod test {
         gb.write_register_u16(wr::PC, 0x5264);
         gb.write_register_u16(wr::SP, 0x6274);
 
-        let input = "pr\n";
-        let mut captured_output = Vec::new();
-
-        debug(
-            gb,
-            &mut io::BufReader::new(input.as_bytes()),
-            &mut captured_output,
-            &mut io::sink(),
-        )
-        .unwrap();
-
         let expected_output = [
             // F register lower 4 bytes are not writable
             "A: 12, F: 30, AF: 1230",
@@ -403,9 +415,7 @@ mod test {
         ]
         .join("\n");
 
-        let actual_output = String::from_utf8_lossy(&captured_output);
-
-        assert_eq!(actual_output, expected_output);
+        assert_debug_output(gb, "pr\n", &expected_output);
     }
 
     #[test]
@@ -417,42 +427,18 @@ mod test {
             gb.write_memory_u8(addr, x).unwrap()
         }
 
-        let input = "pb 0xC000:0xC01F\n\n";
-        let mut captured_output = Vec::new();
-
-        debug(
-            gb,
-            &mut io::BufReader::new(input.as_bytes()),
-            &mut captured_output,
-            &mut io::sink(),
-        )
-        .unwrap();
-
         let expected_output = [
             "C000: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F ",
             "C010: 10 11 12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F \n",
         ]
         .join("\n");
 
-        let actual_output = String::from_utf8_lossy(&captured_output);
-
-        assert_eq!(actual_output, expected_output);
+        assert_debug_output(gb, "pb 0xC000:0xC01F\n\n", &expected_output);
     }
 
     #[test]
     fn test_print_bytes_unmapped() {
         let gb = get_test_gbcpu();
-
-        let input = "pb 40960:0xA01F\n";
-        let mut captured_output = Vec::new();
-
-        debug(
-            gb,
-            &mut io::BufReader::new(input.as_bytes()),
-            &mut captured_output,
-            &mut io::sink(),
-        )
-        .unwrap();
 
         let expected_output = [
             "A000: -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- ",
@@ -460,25 +446,12 @@ mod test {
         ]
         .join("\n");
 
-        let actual_output = String::from_utf8_lossy(&captured_output);
-
-        assert_eq!(actual_output, expected_output);
+        assert_debug_output(gb, "pb 40960:0xA01F\n", &expected_output);
     }
 
     #[test]
     fn test_print_bytes_unbound_min() {
         let gb = get_test_gbcpu();
-
-        let input = "pb :0x001F\n";
-        let mut captured_output = Vec::new();
-
-        debug(
-            gb,
-            &mut io::BufReader::new(input.as_bytes()),
-            &mut captured_output,
-            &mut io::sink(),
-        )
-        .unwrap();
 
         let expected_output = [
             "0000: F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 ",
@@ -486,9 +459,7 @@ mod test {
         ]
         .join("\n");
 
-        let actual_output = String::from_utf8_lossy(&captured_output);
-
-        assert_eq!(actual_output, expected_output);
+        assert_debug_output(gb, "pb :0x001F\n", &expected_output);
     }
 
     #[test]
@@ -500,26 +471,13 @@ mod test {
             gb.write_memory_u8(addr, x).unwrap()
         }
 
-        let input = "pb 0xFFE0:\n";
-        let mut captured_output = Vec::new();
-
-        debug(
-            gb,
-            &mut io::BufReader::new(input.as_bytes()),
-            &mut captured_output,
-            &mut io::sink(),
-        )
-        .unwrap();
-
         let expected_output = [
             "FFE0: 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F ",
             "FFF0: 10 11 12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F \n",
         ]
         .join("\n");
 
-        let actual_output = String::from_utf8_lossy(&captured_output);
-
-        assert_eq!(actual_output, expected_output);
+        assert_debug_output(gb, "pb 0xFFE0:\n", &expected_output);
     }
 
     #[test]
@@ -531,26 +489,13 @@ mod test {
             gb.write_memory_u8(addr, x).unwrap()
         }
 
-        let input = "pb 0xFFF0:Fh\n";
-        let mut captured_output = Vec::new();
-
-        debug(
-            gb,
-            &mut io::BufReader::new(input.as_bytes()),
-            &mut captured_output,
-            &mut io::sink(),
-        )
-        .unwrap();
-
         let expected_output = [
             "FFF0: 10 11 12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F ",
             "0000: F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 F1 \n",
         ]
         .join("\n");
 
-        let actual_output = String::from_utf8_lossy(&captured_output);
-
-        assert_eq!(actual_output, expected_output);
+        assert_debug_output(gb, "pb 0xFFF0:Fh\n", &expected_output);
     }
 
     #[test]
@@ -580,5 +525,70 @@ mod test {
         let actual_error = String::from_utf8_lossy(&captured_error);
 
         assert_eq!(actual_error, expected_error);
+    }
+
+    #[test]
+    fn test_current_instruction() {
+        let mut gb = get_test_gbcpu();
+
+        let addr = 0x8000;
+
+        gb.write_register_u16(WordRegister::PC, addr);
+        gb.write_memory_u8(addr, 0x70).unwrap(); // LD (HL), B
+
+        assert_debug_output(gb, "ci\n", "LD (HL), B\n");
+    }
+
+    #[test]
+    fn test_current_instruction_extended() {
+        let mut gb = get_test_gbcpu();
+
+        let addr = 0x8000;
+
+        gb.write_register_u16(olympia_engine::registers::WordRegister::PC, addr);
+
+        // RES 0, (HL)
+        gb.write_memory_u8(addr, 0xCB).unwrap();
+        gb.write_memory_u8(addr + 1, 0x86).unwrap();
+
+        assert_debug_output(gb, "ci\n", "RES 0h, (HL)\n");
+    }
+
+    #[test]
+    fn test_current_instruction_multibyte() {
+        let mut gb = get_test_gbcpu();
+
+        let addr = 0x8000;
+
+        gb.write_register_u16(olympia_engine::registers::WordRegister::PC, addr);
+
+        // LD HL, SP + -2
+        gb.write_memory_u8(addr, 0xF8).unwrap();
+        gb.write_memory_u8(addr + 1, 0xFE).unwrap();
+
+        assert_debug_output(gb, "ci\n", "LD HL, SP + -2h\n");
+    }
+
+    #[test]
+    fn test_current_instruction_literal() {
+        let mut gb = get_test_gbcpu();
+
+        let addr = 0x8000;
+
+        gb.write_register_u16(olympia_engine::registers::WordRegister::PC, addr);
+        gb.write_memory_u8(addr, 0xD3).unwrap();
+
+        assert_debug_output(gb, "ci\n", "DAT D3h\n");
+    }
+
+    #[test]
+    fn test_current_instruction_invalid() {
+        let mut gb = get_test_gbcpu();
+
+        let addr = 0xFEFE;
+
+        gb.write_register_u16(olympia_engine::registers::WordRegister::PC, addr);
+
+        assert_debug_output(gb, "ci\n", "--\n");
     }
 }

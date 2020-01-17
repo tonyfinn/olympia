@@ -1,10 +1,11 @@
+use olympia_core::disasm::Disassemble;
 use olympia_core::instructions::{
     ByteRegisterTarget, ExtensionType, InnerParam, Instruction, OpcodePosition, ParamDefinition,
-    ParamPosition, ParamType,
+    ParamPosition, ParamType, SerializableInstruction,
 };
 use olympia_derive::OlympiaInstruction;
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0011_0AAA, label = "SWAP", extended)]
 struct Swap {
     #[olympia(single, mask = 0xA)]
@@ -43,5 +44,14 @@ fn inner_arg_bytes() {
         reg: ByteRegisterTarget::A,
     };
 
-    assert_eq!(swap.as_bytes(), vec![0x37]);
+    assert_eq!(swap.as_bytes(), vec![0xCB, 0x37]);
+}
+
+#[test]
+fn inner_arg_disasm() {
+    let swap = Swap {
+        reg: ByteRegisterTarget::A,
+    };
+
+    assert_eq!(swap.disassemble(), "SWAP A");
 }

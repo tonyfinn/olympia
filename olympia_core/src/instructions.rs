@@ -8,6 +8,8 @@ use crate::registers;
 
 use alloc::vec::Vec;
 use core::convert::From;
+use core::hash::Hash;
+use derive_more::{From, Into};
 
 #[derive(Debug, PartialEq, Eq)]
 /// Represents a value that failed to parse
@@ -387,20 +389,8 @@ pub enum AppendedParam {
     LiteralSigned8,
 }
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub struct ByteRegisterOffset(registers::ByteRegister);
-
-impl From<ByteRegisterOffset> for registers::ByteRegister {
-    fn from(offset: ByteRegisterOffset) -> registers::ByteRegister {
-        offset.0
-    }
-}
-
-impl From<registers::ByteRegister> for ByteRegisterOffset {
-    fn from(reg: registers::ByteRegister) -> ByteRegisterOffset {
-        ByteRegisterOffset(reg)
-    }
-}
+#[derive(PartialEq, Eq, Debug, Copy, Clone, From, Into)]
+pub struct ByteRegisterOffset(pub(crate) registers::ByteRegister);
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 /// Represents a param that has a constant value
@@ -441,7 +431,7 @@ pub enum ExtensionType {
     Extended,
 }
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[derive(PartialEq, Hash, Eq, Debug, Copy, Clone)]
 /// Position that a param occupies in an instruction
 pub enum ParamPosition {
     Dest,
@@ -483,7 +473,24 @@ pub trait Instruction {
     fn definition() -> &'static InstructionDefinition
     where
         Self: Sized;
+    fn numeric_opcode(&self) -> u8;
+    fn trailing_bytes(&self) -> Vec<u8>;
+}
+
+pub trait SerializableInstruction {
     fn as_bytes(&self) -> Vec<u8>;
+}
+
+impl<T: Instruction> SerializableInstruction for T {
+    fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        if T::definition().extension_type == ExtensionType::Extended {
+            bytes.push(0xCB);
+        }
+        bytes.push(self.numeric_opcode());
+        bytes.extend(self.trailing_bytes());
+        bytes
+    }
 }
 
 #[cfg(test)]
@@ -670,16 +677,25 @@ mod test {
 
     #[test]
     fn append_literal_address() {
-        assert_eq!(AppendableParam::as_bytes(&address::LiteralAddress(0x2333)), vec![0x33, 0x23]);
+        assert_eq!(
+            AppendableParam::as_bytes(&address::LiteralAddress(0x2333)),
+            vec![0x33, 0x23]
+        );
     }
 
     #[test]
     fn append_high_address() {
-        assert_eq!(AppendableParam::as_bytes(&address::HighAddress(0x23)), vec![0x23]);
+        assert_eq!(
+            AppendableParam::as_bytes(&address::HighAddress(0x23)),
+            vec![0x23]
+        );
     }
 
     #[test]
     fn append_address_offset() {
-        assert_eq!(AppendableParam::as_bytes(&address::AddressOffset(-16i8)), vec![0xF0]);
+        assert_eq!(
+            AppendableParam::as_bytes(&address::AddressOffset(-16i8)),
+            vec![0xF0]
+        );
     }
 }

@@ -1,10 +1,6 @@
-use super::testutils::*;
-use super::*;
-use crate::gameboy::StepResult;
+use crate::gameboy::{testutils::*, StepResult};
 
-use registers::{ByteRegister as br, WordRegister as wr};
-
-// TODO: Dedicated test for Load::ConstantMemory
+use crate::registers::{ByteRegister as br, WordRegister as wr};
 
 #[test]
 fn test_loads() -> StepResult<()> {

@@ -1,6 +1,5 @@
-use super::testutils::*;
-use super::*;
-use crate::gameboy::StepResult;
+use crate::gameboy::{testutils::*, StepResult};
+use crate::registers;
 
 #[test]
 fn test_jump() -> StepResult<()> {

@@ -1,4 +1,5 @@
 use olympia_core::address;
+use olympia_core::disasm::Disassemble;
 use olympia_core::instructions::{
     AppendedParam, ConstantParam, ExtensionType, Instruction, InstructionOpcode, ParamDefinition,
     ParamPosition, ParamType,
@@ -55,4 +56,15 @@ fn three_arg_expansion() {
             value: address::AddressOffset(-2)
         }
     );
+}
+
+#[test]
+fn three_arg_disasm() {
+    let op = LoadStackOffset {
+        dest: WordRegister::HL,
+        base: WordRegister::SP,
+        value: address::AddressOffset(-2),
+    };
+
+    assert_eq!(op.disassemble(), "LD HL, SP + -2h")
 }

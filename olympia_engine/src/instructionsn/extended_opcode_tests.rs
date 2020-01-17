@@ -1,8 +1,5 @@
-use super::testutils::*;
-use super::*;
-use crate::gameboy::StepResult;
-use registers::ByteRegister as br;
-use registers::Flag as f;
+use crate::gameboy::{testutils::*, StepResult};
+use crate::registers::{ByteRegister as br, Flag as f};
 
 #[test]
 fn test_set_bit() -> StepResult<()> {

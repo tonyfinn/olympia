@@ -7,5 +7,6 @@ extern crate alloc;
 
 pub mod address;
 pub mod derive;
+pub mod disasm;
 pub mod instructions;
 pub mod registers;

@@ -5,7 +5,7 @@ mod params;
 
 use crate::errors::DeriveError;
 
-use olympia_core::derive::ExtensionType;
+use olympia_core::derive::{ExtensionType, ParamPosition};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::iter::Iterator;
@@ -21,6 +21,7 @@ struct InstructionBuilder {
     excluded_opcodes: Vec<u8>,
     label: Option<String>,
     extension_type: ExtensionType,
+    generate_disasm: bool,
     params: Vec<params::ParamBuilder>,
     span: Option<proc_macro2::Span>,
 }
@@ -34,6 +35,7 @@ impl Default for InstructionBuilder {
             label: None,
             extension_type: ExtensionType::None,
             visibility: None,
+            generate_disasm: true,
             params: Vec::new(),
             span: None,
         }
@@ -60,6 +62,7 @@ impl InstructionBuilder {
             base_opcode: self.base_opcode.unwrap(),
             extension_type: self.extension_type,
             opcode_mask,
+            generate_disasm: self.generate_disasm,
             label,
             params,
         })
@@ -72,6 +75,7 @@ struct ParsedInstruction {
     excluded_opcodes: Vec<u8>,
     visibility: syn::Visibility,
     label: String,
+    generate_disasm: bool,
     extension_type: ExtensionType,
     params: Vec<params::ParsedParam>,
 }
@@ -138,6 +142,9 @@ fn parse_instruction_path(
 ) -> errors::InstructionResult<()> {
     if path.is_ident("extended") {
         ib.extension_type = ExtensionType::Extended;
+        Ok(())
+    } else if path.is_ident("nodisasm") {
+        ib.generate_disasm = false;
         Ok(())
     } else {
         Err(errors::InstructionError::UnknownField(path.clone()))
@@ -242,6 +249,60 @@ fn build_into_instruction(instruction_name: &syn::Ident, instr: &ParsedInstructi
                 #(#param_names: #param_names.clone()),*
             }
         }
+    }
+}
+
+fn build_disassemble(
+    name: &syn::Ident,
+    instr: &ParsedInstruction,
+) -> errors::InstructionResult<TokenStream> {
+    let params = params::params_by_position(&instr.params);
+    let label = &instr.label;
+    let src = params.get(&ParamPosition::Src);
+    let addsrc = params.get(&ParamPosition::AddSrc);
+    let dest = params.get(&ParamPosition::Dest);
+    let disassemble: syn::Path =
+        syn::parse_str("::olympia_core::derive::Disassemble::disassemble")?;
+    if params.len() == 0 {
+        Ok(quote! {
+            impl ::olympia_core::derive::Disassemble for #name {
+                fn disassemble(&self) -> String {
+                    String::from(#label)
+                }
+            }
+        })
+    } else if params.len() == 1 {
+        let param_name = &params.values().nth(0).unwrap().name;
+        Ok(quote! {
+            impl ::olympia_core::derive::Disassemble for #name {
+                fn disassemble(&self) -> String {
+                    format!("{} {}", #label, #disassemble(&self.#param_name))
+                }
+            }
+        })
+    } else if src.is_some() && dest.is_some() && !addsrc.is_some() {
+        let src_name = &src.unwrap().name;
+        let dest_name = &dest.unwrap().name;
+        Ok(quote! {
+            impl ::olympia_core::derive::Disassemble for #name {
+                fn disassemble(&self) -> String {
+                    format!("{} {}, {}", #label, #disassemble(&self.#dest_name), #disassemble(&self.#src_name))
+                }
+            }
+        })
+    } else if src.is_some() && dest.is_some() && addsrc.is_some() {
+        let src_name = &src.unwrap().name;
+        let addsrc_name = &addsrc.unwrap().name;
+        let dest_name = &dest.unwrap().name;
+        Ok(quote! {
+            impl ::olympia_core::derive::Disassemble for #name {
+                fn disassemble(&self) -> String {
+                    format!("{} {}, {} + {}", #label, #disassemble(&self.#dest_name), #disassemble(&self.#src_name), #disassemble(&self.#addsrc_name))
+                }
+            }
+        })
+    } else {
+        Err(errors::InstructionError::InvalidFieldCombination)
     }
 }
 
@@ -355,6 +416,11 @@ fn olympia_instruction_inner(input: DeriveInput) -> syn::Result<TokenStream> {
     let definition = build_definition(&parsed).map_err(|e| e.to_syn_error(default_span))?;
     let opcode_struct = build_opcode_struct(name, &definition_ident, &parsed);
     let as_bytes = params::build_as_bytes(parsed.base_opcode, &parsed.params);
+    let disassemble = if parsed.generate_disasm {
+        build_disassemble(name, &parsed).map_err(|e| e.to_syn_error(default_span))?
+    } else {
+        quote!()
+    };
     Ok(quote! {
         const #definition_ident: ::olympia_core::derive::InstructionDefinition = #definition;
         impl ::olympia_core::instructions::Instruction for #name {
@@ -363,6 +429,7 @@ fn olympia_instruction_inner(input: DeriveInput) -> syn::Result<TokenStream> {
             }
             #as_bytes
         }
+        #disassemble
         #opcode_struct
     })
 }

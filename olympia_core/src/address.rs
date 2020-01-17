@@ -82,7 +82,6 @@ impl AddressOffset {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -95,57 +94,81 @@ mod test {
     fn test_resolve_address_postive_offset() {
         let positive_offset = AddressOffset(0x2C);
 
-        assert_eq!(positive_offset.resolve(0x1000.into()), OffsetResolveResult {
-            addr: 0x102C.into(),
-            carry: false,
-            half_carry: false,
-        });
+        assert_eq!(
+            positive_offset.resolve(0x1000.into()),
+            OffsetResolveResult {
+                addr: 0x102C.into(),
+                carry: false,
+                half_carry: false,
+            }
+        );
 
-        assert_eq!(positive_offset.resolve(0x1004.into()), OffsetResolveResult {
-            addr: 0x1030.into(),
-            carry: false,
-            half_carry: true,
-        });
+        assert_eq!(
+            positive_offset.resolve(0x1004.into()),
+            OffsetResolveResult {
+                addr: 0x1030.into(),
+                carry: false,
+                half_carry: true,
+            }
+        );
 
-        assert_eq!(positive_offset.resolve(0xFFF0.into()), OffsetResolveResult {
-            addr: 0x001C.into(),
-            carry: true,
-            half_carry: false,
-        });
+        assert_eq!(
+            positive_offset.resolve(0xFFF0.into()),
+            OffsetResolveResult {
+                addr: 0x001C.into(),
+                carry: true,
+                half_carry: false,
+            }
+        );
 
-        assert_eq!(positive_offset.resolve(0xFFFF.into()), OffsetResolveResult {
-            addr: 0x002B.into(),
-            carry: true,
-            half_carry: true,
-        });
+        assert_eq!(
+            positive_offset.resolve(0xFFFF.into()),
+            OffsetResolveResult {
+                addr: 0x002B.into(),
+                carry: true,
+                half_carry: true,
+            }
+        );
     }
 
     #[test]
     fn test_resolve_address_negative_offset() {
         let positive_offset = AddressOffset(-0x19);
 
-        assert_eq!(positive_offset.resolve(0x102C.into()), OffsetResolveResult {
-            addr: 0x1013.into(),
-            carry: false,
-            half_carry: false,
-        });
+        assert_eq!(
+            positive_offset.resolve(0x102C.into()),
+            OffsetResolveResult {
+                addr: 0x1013.into(),
+                carry: false,
+                half_carry: false,
+            }
+        );
 
-        assert_eq!(positive_offset.resolve(0x1004.into()), OffsetResolveResult {
-            addr: 0x0FEB.into(),
-            carry: false,
-            half_carry: true,
-        });
+        assert_eq!(
+            positive_offset.resolve(0x1004.into()),
+            OffsetResolveResult {
+                addr: 0x0FEB.into(),
+                carry: false,
+                half_carry: true,
+            }
+        );
 
-        assert_eq!(positive_offset.resolve(0x000A.into()), OffsetResolveResult {
-            addr: 0xFFF1.into(),
-            carry: true,
-            half_carry: false,
-        });
+        assert_eq!(
+            positive_offset.resolve(0x000A.into()),
+            OffsetResolveResult {
+                addr: 0xFFF1.into(),
+                carry: true,
+                half_carry: false,
+            }
+        );
 
-        assert_eq!(positive_offset.resolve(0x0000.into()), OffsetResolveResult {
-            addr: 0xFFE7.into(),
-            carry: true,
-            half_carry: true,
-        });
+        assert_eq!(
+            positive_offset.resolve(0x0000.into()),
+            OffsetResolveResult {
+                addr: 0xFFE7.into(),
+                carry: true,
+                half_carry: true,
+            }
+        );
     }
 }

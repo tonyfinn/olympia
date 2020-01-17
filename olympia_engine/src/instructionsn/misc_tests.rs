@@ -1,8 +1,7 @@
-use super::testutils::*;
-use super::*;
-use crate::gameboy::StepResult;
+use crate::gameboy::{testutils::*, StepResult};
 
-use registers::ByteRegister as br;
+use crate::registers;
+use crate::registers::ByteRegister as br;
 
 #[test]
 fn test_nop() -> StepResult<()> {

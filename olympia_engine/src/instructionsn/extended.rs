@@ -1,7 +1,7 @@
 use super::misc::{exec_rotate, SetZeroMode};
 use crate::gameboy::{GameBoy, StepResult};
 use crate::instructions::{Carry, RotateDirection};
-use crate::instructionsn::{ExecutableInstruction, ExecutableOpcode};
+use crate::instructionsn::{ExecutableInstruction, RuntimeOpcode};
 use crate::registers::{ByteRegisterTarget, Flag};
 
 use alloc::boxed::Box;
@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 
 use olympia_derive::OlympiaInstruction;
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x01_AAA_BBB, label = "BIT", extended)]
 struct TestBit {
     #[olympia(dest, mask = 0xA)]
@@ -29,7 +29,7 @@ impl ExecutableInstruction for TestBit {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x10_AAA_BBB, label = "RES", extended)]
 struct ResetBit {
     #[olympia(dest, mask = 0xA)]
@@ -47,7 +47,7 @@ impl ExecutableInstruction for ResetBit {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x11_AAA_BBB, label = "SET", extended)]
 struct SetBit {
     #[olympia(dest, mask = 0xA)]
@@ -67,7 +67,7 @@ impl ExecutableInstruction for SetBit {
 
 macro_rules! ext_rotate_instruction {
     ($name:ident, $label:literal, $opcode:literal, $dir:path, $carry:path) => {
-        #[derive(OlympiaInstruction)]
+        #[derive(Debug, OlympiaInstruction)]
         #[olympia(opcode = $opcode, label = $label, extended)]
         struct $name {
             #[olympia(dest, mask = 0xA)]
@@ -126,7 +126,7 @@ fn exec_shift_zero(
     Ok(())
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0010_0AAA, label = "SLA", extended)]
 struct ShiftLeftZero {
     #[olympia(single, mask = 0xA)]
@@ -139,7 +139,7 @@ impl ExecutableInstruction for ShiftLeftZero {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0011_1AAA, label = "SRL", extended)]
 struct ShiftRightZero {
     #[olympia(single, mask = 0xA)]
@@ -152,7 +152,7 @@ impl ExecutableInstruction for ShiftRightZero {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0010_1AAA, label = "SRA", extended)]
 struct ShiftRightExtend {
     #[olympia(single, mask = 0xA)]
@@ -171,7 +171,7 @@ impl ExecutableInstruction for ShiftRightExtend {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0011_0AAA, label = "SWAP", extended)]
 struct Swap {
     #[olympia(dest, mask = 0xA)]
@@ -189,7 +189,7 @@ impl ExecutableInstruction for Swap {
     }
 }
 
-pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
+pub(crate) fn opcodes() -> Vec<(u8, Box<dyn RuntimeOpcode>)> {
     vec![
         TestBitOpcode::all(),
         ResetBitOpcode::all(),

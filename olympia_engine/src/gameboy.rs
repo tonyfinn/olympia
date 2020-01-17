@@ -18,7 +18,6 @@ pub(crate) mod memory;
 
 pub use memory::{MemoryError, MemoryResult};
 
-use crate::decoder;
 use crate::gameboy::cpu::Cpu;
 use crate::gameboy::dma::DmaUnit;
 use crate::instructions;
@@ -51,7 +50,6 @@ pub struct GameBoy {
     pub(crate) cpu: Cpu,
     pub(crate) mem: memory::Memory,
     dma: DmaUnit,
-    decoder: decoder::Decoder,
     runtime_decoder: Rc<new_instructions::RuntimeDecoder>,
     clocks_elapsed: u64,
 }
@@ -62,10 +60,6 @@ pub struct GameBoy {
 pub enum StepError {
     /// Errors related to memory access
     Memory(memory::MemoryError),
-    /// Errors related to decode instructions
-    Decode(decoder::DecodeError),
-    /// Gameboy features that are not yet implemented in this emulator
-    Unimplemented(instructions::Instruction),
     /// Opcodes that don't map to a valid instruction
     InvalidOpcode(u8),
 }
@@ -73,12 +67,6 @@ pub enum StepError {
 impl From<memory::MemoryError> for StepError {
     fn from(err: memory::MemoryError) -> Self {
         StepError::Memory(err)
-    }
-}
-
-impl From<decoder::DecodeError> for StepError {
-    fn from(err: decoder::DecodeError) -> Self {
-        StepError::Decode(err)
     }
 }
 
@@ -101,7 +89,6 @@ impl GameBoy {
             cpu: Cpu::new(model, cartridge.target),
             dma: Default::default(),
             mem: memory::Memory::new(cartridge),
-            decoder: decoder::Decoder::new(),
             runtime_decoder: Rc::new(new_instructions::RuntimeDecoder::new()),
             clocks_elapsed: 0,
         }
@@ -241,6 +228,14 @@ impl GameBoy {
         self.cpu.interrupts_enabled = state;
     }
 
+    pub fn power_saving_mode(&self) -> cpu::PowerSavingMode {
+        self.cpu.power_saving
+    }
+
+    pub fn set_power_saving_mode(&mut self, mode: cpu::PowerSavingMode) {
+        self.cpu.power_saving = mode
+    }
+
     pub fn read_flag(&self, flag: registers::Flag) -> bool {
         self.cpu.read_flag(flag)
     }
@@ -359,20 +354,28 @@ impl GameBoy {
                 return Err(StepError::InvalidOpcode(opcode));
             };
             exe_code
-                .to_executable(&mut self.cycling_memory_iter())
+                .to_instruction(&mut self.cycling_memory_iter())
                 .execute(self)?;
         }
         Ok(())
     }
 
     /// Returns the instruction at the current PC.
-    pub fn current_instruction(&self) -> StepResult<instructions::Instruction> {
-        let pc_value = self.read_pc();
-        let instruction_value = self.read_memory_u8(pc_value)?;
-        let instruction = self
-            .decoder
-            .decode(instruction_value, &mut self.memory_iter(pc_value.next()))?;
-        Ok(instruction)
+    pub fn current_instruction(
+        &self,
+    ) -> StepResult<Box<dyn crate::instructionsn::RuntimeInstruction>> {
+        let mut pc_value = self.read_pc();
+        let opcode = self.read_memory_u8(pc_value)?;
+        let exe_code = if self.runtime_decoder.is_extended(opcode) {
+            pc_value = pc_value.next();
+            let extended_opcode = self.read_memory_u8(pc_value)?;
+            self.runtime_decoder.decode_extended(extended_opcode)
+        } else if let Some(exe_code) = self.runtime_decoder.decode(opcode) {
+            exe_code
+        } else {
+            return Err(StepError::InvalidOpcode(opcode));
+        };
+        Ok(exe_code.to_instruction(&mut self.memory_iter(pc_value.next())))
     }
 
     pub(crate) fn cycle(&mut self) {
@@ -480,6 +483,9 @@ impl GameBoyModel {
         }
     }
 }
+
+#[cfg(test)]
+pub(crate) mod testutils;
 
 #[cfg(test)]
 mod test {
@@ -710,17 +716,6 @@ mod test {
         assert_eq!(
             mapped_error,
             StepError::Memory(memory::MemoryError::InvalidRomAddress(0x7999))
-        );
-    }
-
-    #[test]
-    fn test_convert_decode_error() {
-        let error = decoder::DecodeError::IncompleteInstruction;
-        let mapped_error: StepError = error.into();
-
-        assert_eq!(
-            mapped_error,
-            StepError::Decode(decoder::DecodeError::IncompleteInstruction)
         );
     }
 }

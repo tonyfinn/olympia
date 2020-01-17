@@ -256,7 +256,7 @@
     FF:		    00		NOP
    100:		    00		NOP
    101:		C35001		JP $150h
-   104:		  CEED		ADC A, EDh
+   104:		  CEED		ADC EDh
    106:		    66		LD H, (HL)
    107:		    66		LD H, (HL)
    108:		CC0D00		CALL Z, $Dh
@@ -291,7 +291,7 @@
    12F:		    9F		SBC A
    130:		    BB		CP E
    131:		    B9		CP C
-   132:		    33		INC HL
+   132:		    33		INC SP
    133:		  3E46		LD A, 46h
    135:		    49		LD C, C
    136:		    5A		LD E, D
@@ -326,7 +326,7 @@
    15A:		  2600		LD H, 0h
    15C:		  2E00		LD L, 0h
    15E:		    3F		CCF
-   15F:		  FE64		CP A, 64h
+   15F:		  FE64		CP 64h
    161:		CAB401		JP Z, $1B4h
    164:		  0E00		LD C, 0h
    166:		    57		LD D, A
@@ -335,9 +335,9 @@
    16A:		    C5		PUSH BC
    16B:		CDA601		CALL $1A6h
    16E:		    C1		POP BC
-   16F:		  FE01		CP A, 1h
-   171:		  2002		JR NZ, PC+2h
-   173:		  CBC1		SET 0, C
+   16F:		  FE01		CP 1h
+   171:		  2002		JR NZ, 2h
+   173:		  CBC1		SET 0h, C
    175:		    78		LD A, B
    176:		    57		LD D, A
    177:		  1E05		LD E, 5h
@@ -346,40 +346,40 @@
    17B:		CDA601		CALL $1A6h
    17E:		    D1		POP DE
    17F:		    C1		POP BC
-   180:		  FE01		CP A, 1h
-   182:		  2002		JR NZ, PC+2h
-   184:		  CBE1		SET 4, C
+   180:		  FE01		CP 1h
+   182:		  2002		JR NZ, 2h
+   184:		  CBE1		SET 4h, C
    186:		    79		LD A, C
    187:		    50		LD D, B
-   188:		  FE11		CP A, 11h
-   18A:		  2004		JR NZ, PC+4h
+   188:		  FE11		CP 11h
+   18A:		  2004		JR NZ, 4h
    18C:		  16FB		LD D, FBh
-   18E:		  180E		JR PC+Eh
-   190:		  FE01		CP A, 1h
-   192:		  2004		JR NZ, PC+4h
+   18E:		  180E		JR Eh
+   190:		  FE01		CP 1h
+   192:		  2004		JR NZ, 4h
    194:		  16F0		LD D, F0h
-   196:		  1806		JR PC+6h
-   198:		  FE10		CP A, 10h
-   19A:		  2002		JR NZ, PC+2h
+   196:		  1806		JR 6h
+   198:		  FE10		CP 10h
+   19A:		  2002		JR NZ, 2h
    19C:		  16B0		LD D, B0h
    19E:		  26C0		LD H, C0h
    1A0:		    68		LD L, B
    1A1:		    72		LD (HL), D
    1A2:		    78		LD A, B
    1A3:		    3C		INC A
-   1A4:		  18B9		JR PC+B9h
+   1A4:		  18B9		JR -47h
    1A6:		    7A		LD A, D
    1A7:		    93		SUB E
-   1A8:		  2804		JR Z, PC+4h
-   1AA:		  3805		JR C, PC+5h
-   1AC:		  18F9		JR PC+F9h
+   1A8:		  2804		JR Z, 4h
+   1AA:		  3805		JR C, 5h
+   1AC:		  18F9		JR -7h
    1AE:		  3E01		LD A, 1h
    1B0:		    C9		RET
    1B1:		  3E00		LD A, 0h
    1B3:		    C9		RET
    1B4:		    76		HALT
    1B5:		    00		NOP
-   1B6:		  18FC		JR PC+FCh
+   1B6:		  18FC		JR -4h
    1B8:		    00		NOP
    1B9:		    00		NOP
    1BA:		    00		NOP

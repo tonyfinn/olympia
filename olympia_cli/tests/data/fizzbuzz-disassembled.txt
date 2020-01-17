@@ -256,7 +256,7 @@
        		NOP
    100:		NOP
        		JP $150h
-       		ADC A, EDh
+       		ADC EDh
        		LD H, (HL)
        		LD H, (HL)
        		CALL Z, $Dh
@@ -291,7 +291,7 @@
        		SBC A
    130:		CP E
        		CP C
-       		INC HL
+       		INC SP
        		LD A, 46h
        		LD C, C
        		LD E, D
@@ -326,7 +326,7 @@
        		LD H, 0h
        		LD L, 0h
        		CCF
-       		CP A, 64h
+       		CP 64h
    161:		JP Z, $1B4h
        		LD C, 0h
        		LD D, A
@@ -335,9 +335,9 @@
        		PUSH BC
        		CALL $1A6h
        		POP BC
-       		CP A, 1h
-   171:		JR NZ, PC+2h
-       		SET 0, C
+       		CP 1h
+   171:		JR NZ, 2h
+       		SET 0h, C
        		LD A, B
        		LD D, A
        		LD E, 5h
@@ -346,40 +346,40 @@
        		CALL $1A6h
        		POP DE
        		POP BC
-   180:		CP A, 1h
-       		JR NZ, PC+2h
-       		SET 4, C
+   180:		CP 1h
+       		JR NZ, 2h
+       		SET 4h, C
        		LD A, C
        		LD D, B
-       		CP A, 11h
-       		JR NZ, PC+4h
+       		CP 11h
+       		JR NZ, 4h
        		LD D, FBh
-       		JR PC+Eh
-   190:		CP A, 1h
-       		JR NZ, PC+4h
+       		JR Eh
+   190:		CP 1h
+       		JR NZ, 4h
        		LD D, F0h
-       		JR PC+6h
-       		CP A, 10h
-       		JR NZ, PC+2h
+       		JR 6h
+       		CP 10h
+       		JR NZ, 2h
        		LD D, B0h
        		LD H, C0h
    1A0:		LD L, B
        		LD (HL), D
        		LD A, B
        		INC A
-       		JR PC+B9h
+       		JR -47h
        		LD A, D
        		SUB E
-       		JR Z, PC+4h
-       		JR C, PC+5h
-       		JR PC+F9h
+       		JR Z, 4h
+       		JR C, 5h
+       		JR -7h
        		LD A, 1h
    1B0:		RET
        		LD A, 0h
        		RET
        		HALT
        		NOP
-       		JR PC+FCh
+       		JR -4h
        		NOP
        		NOP
        		NOP

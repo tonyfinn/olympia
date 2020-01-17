@@ -1,9 +1,10 @@
 use crate::{
     address,
+    disasm::Disassemble,
     gameboy::cpu::InterruptState,
     gameboy::{GameBoy, StepResult},
     instructions::Condition,
-    instructionsn::{ExecutableInstruction, ExecutableOpcode},
+    instructionsn::{ExecutableInstruction, RuntimeOpcode},
     registers,
 };
 
@@ -22,7 +23,7 @@ fn should_jump(gb: &GameBoy, cond: Condition) -> bool {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1100_0011, label = "JP")]
 struct Jump {
     #[olympia(single)]
@@ -56,7 +57,7 @@ impl ExecutableInstruction for JumpIf {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1110_1001, label = "JP")]
 struct JumpRegister {
     #[olympia(single, constant(registers::WordRegister::HL))]
@@ -81,7 +82,7 @@ fn relative_jump(gb: &mut GameBoy, offset: i8) {
     gb.set_pc(new_pc);
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0001_1000, label = "JR")]
 struct RelativeJump {
     #[olympia(single)]
@@ -95,7 +96,7 @@ impl ExecutableInstruction for RelativeJump {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x001A_A000, label = "JR")]
 struct RelativeJumpIf {
     #[olympia(dest, mask = 0xA)]
@@ -113,7 +114,7 @@ impl ExecutableInstruction for RelativeJumpIf {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1100_1101, label = "CALL")]
 struct Call {
     #[olympia(single)]
@@ -128,7 +129,7 @@ impl ExecutableInstruction for Call {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x110A_A100, label = "CALL")]
 struct CallIf {
     #[olympia(dest, mask = 0xA)]
@@ -147,8 +148,8 @@ impl ExecutableInstruction for CallIf {
     }
 }
 
-#[derive(OlympiaInstruction)]
-#[olympia(opcode = 0x11AA_A111, label = "RST")]
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x11AA_A111, label = "RST", nodisasm)]
 struct CallSystem {
     #[olympia(single, mask = 0xA)]
     dest: u8,
@@ -162,7 +163,13 @@ impl ExecutableInstruction for CallSystem {
     }
 }
 
-#[derive(OlympiaInstruction)]
+impl Disassemble for CallSystem {
+    fn disassemble(&self) -> String {
+        format!("RST ${:X}h", self.dest << 3)
+    }
+}
+
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1100_1001, label = "RET")]
 struct Return {}
 
@@ -175,7 +182,7 @@ impl ExecutableInstruction for Return {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1101_1001, label = "RETI")]
 struct ReturnInterrupt {}
 
@@ -189,7 +196,7 @@ impl ExecutableInstruction for ReturnInterrupt {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x110A_A000, label = "RET")]
 struct ReturnIf {
     #[olympia(dest, mask = 0xA)]
@@ -208,7 +215,7 @@ impl ExecutableInstruction for ReturnIf {
     }
 }
 
-pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
+pub(crate) fn opcodes() -> Vec<(u8, Box<dyn RuntimeOpcode>)> {
     vec![
         JumpOpcode::all(),
         JumpIfOpcode::all(),

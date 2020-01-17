@@ -5,6 +5,7 @@ use olympia_core::derive::{AppendedParam, InnerParam, OpcodePosition, ParamPosit
 
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::collections::HashMap;
 use syn::parse_quote;
 use syn::spanned::Spanned;
 
@@ -19,7 +20,7 @@ pub(crate) struct ParamBuilder {
 }
 
 pub(crate) struct ParsedParam {
-    name: syn::Ident,
+    pub(crate) name: syn::Ident,
     declared_type: syn::Type,
     pos: ParamPosition,
     param_type: ParsedParamType,
@@ -65,7 +66,7 @@ impl ParamBuilder {
     }
 
     fn determine_param_type(&self, opcode_mask: u32) -> errors::ParamResult<ParsedParamType> {
-        let ty = &self.declared_type.as_ref().unwrap();
+        let ty = self.declared_type.as_ref().unwrap();
         if self.mask.is_some() && self.constant.is_some() {
             Err(errors::ParamError::MaskAndConstant(self.span.unwrap()))
         } else if let Some(declared_mask) = self.mask {
@@ -407,11 +408,13 @@ pub(crate) fn build_as_bytes(base_code: u8, params: &[ParsedParam]) -> TokenStre
         .collect();
 
     quote! {
-        fn as_bytes(&self) -> Vec<u8> {
-            let mut bytes = Vec::new();
+        fn numeric_opcode(&self) -> u8 {
             let mut opcode = #base_code;
             #(#inner_param_statements)*
-            bytes.push(opcode);
+            opcode
+        }
+        fn trailing_bytes(&self) -> Vec<u8> {
+            let mut bytes = Vec::new();
             #(#appended_param_statements)*
             bytes
         }
@@ -432,6 +435,10 @@ pub(crate) fn get_inner_fields(params: &[ParsedParam]) -> Vec<(syn::Ident, syn::
     }
 
     output
+}
+
+pub(crate) fn params_by_position(params: &[ParsedParam]) -> HashMap<ParamPosition, &ParsedParam> {
+    params.iter().map(|p| (p.pos, p)).collect()
 }
 
 impl ParsedParam {

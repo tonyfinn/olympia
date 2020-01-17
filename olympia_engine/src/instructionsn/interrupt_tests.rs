@@ -1,8 +1,5 @@
-use super::testutils::*;
-use super::*;
-use crate::gameboy::cpu::Interrupt;
-use crate::gameboy::StepResult;
-use registers::{ByteRegister as br, WordRegister as wr};
+use crate::gameboy::{cpu::Interrupt, testutils::*, StepResult};
+use crate::registers::{ByteRegister as br, WordRegister as wr};
 
 #[test]
 fn test_vblank_handling() -> StepResult<()> {

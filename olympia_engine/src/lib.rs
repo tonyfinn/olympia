@@ -20,13 +20,10 @@
 extern crate alloc;
 
 pub use olympia_core::address;
+pub use olympia_core::disasm;
+pub use olympia_core::instructions;
 pub use olympia_core::registers;
 
-pub mod decoder;
 pub mod gameboy;
-mod instructions;
-mod instructionsn;
+pub mod instructionsn;
 pub mod rom;
-
-#[cfg(feature = "disassembler")]
-pub mod disassembler;

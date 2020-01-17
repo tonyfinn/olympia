@@ -1,3 +1,4 @@
+use olympia_core::disasm::Disassemble;
 use olympia_core::instructions::{
     ConstantParam, ExtensionType, Instruction, InstructionOpcode, ParamDefinition, ParamPosition,
     ParamType,
@@ -50,4 +51,14 @@ fn constant_args_expansion() {
             src: WordRegister::HL,
         },
     );
+}
+
+#[test]
+fn constant_args_disasm() {
+    let op = LoadStackPointer {
+        dest: WordRegister::SP,
+        src: WordRegister::HL,
+    };
+
+    assert_eq!(op.disassemble(), "LD SP, HL");
 }

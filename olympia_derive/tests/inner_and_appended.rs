@@ -1,6 +1,7 @@
+use olympia_core::disasm::Disassemble;
 use olympia_core::instructions::{
     AppendedParam, ByteRegisterTarget, ExtensionType, InnerParam, Instruction, InstructionOpcode,
-    OpcodePosition, ParamDefinition, ParamPosition, ParamType,
+    OpcodePosition, ParamDefinition, ParamPosition, ParamType, SerializableInstruction,
 };
 use olympia_derive::OlympiaInstruction;
 
@@ -70,4 +71,14 @@ fn mixed_inner_appended_as_bytes() {
     };
 
     assert_eq!(instruction.as_bytes(), vec![0x0E, 0x45]);
+}
+
+#[test]
+fn mixed_inner_appended_disasm() {
+    let instruction = LoadLiteral {
+        dest: ByteRegisterTarget::C,
+        src: 0x45,
+    };
+
+    assert_eq!(instruction.disassemble(), "LD C, 45h");
 }

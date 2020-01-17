@@ -1,3 +1,4 @@
+use olympia_core::disasm::Disassemble;
 use olympia_core::instructions::{
     ExtensionType, InnerParam, Instruction, InstructionOpcode, OpcodePosition, ParamDefinition,
     ParamPosition, ParamType,
@@ -45,4 +46,13 @@ fn one_arg_opcode() {
             reg: AccRegister::DE
         }
     );
+}
+
+#[test]
+fn one_arg_diasm() {
+    let op = Push {
+        reg: AccRegister::DE,
+    };
+
+    assert_eq!(op.disassemble(), "PUSH DE");
 }

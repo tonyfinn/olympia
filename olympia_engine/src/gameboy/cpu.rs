@@ -5,6 +5,7 @@ use crate::rom;
 pub use crate::registers::{ByteRegister, WordRegister};
 use crate::registers::{ByteRegister as br, WordRegister as wr};
 
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub(crate) enum InterruptState {
     Pending,
     Enabled,
@@ -17,6 +18,13 @@ pub enum Interrupt {
     Timer,
     Serial,
     Input,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+pub enum PowerSavingMode {
+    Stop,
+    Halt,
+    None,
 }
 
 impl Interrupt {
@@ -170,6 +178,7 @@ struct AddressBus {
 pub(crate) struct Cpu {
     registers: Registers,
     pub(crate) interrupts_enabled: InterruptState,
+    pub(crate) power_saving: PowerSavingMode,
     // address_bus: AddressBus
 }
 
@@ -178,6 +187,7 @@ impl Cpu {
         Cpu {
             registers: Registers::default_for_model(model, target),
             interrupts_enabled: InterruptState::Disabled,
+            power_saving: PowerSavingMode::None,
             // address_bus: AddressBus::default()
         }
     }
@@ -216,67 +226,6 @@ impl Cpu {
 
     pub(crate) fn reset_flag(&mut self, flag: registers::Flag) {
         self.registers.reset_flag(flag)
-    }
-}
-
-#[cfg(test)]
-mod alu_tests;
-
-#[cfg(test)]
-mod extended_opcode_tests;
-
-#[cfg(test)]
-mod jump_tests;
-
-#[cfg(test)]
-mod interrupt_tests;
-
-#[cfg(test)]
-mod load_tests;
-
-#[cfg(test)]
-mod stack_tests;
-
-#[cfg(test)]
-mod misc_tests;
-
-#[cfg(test)]
-pub(crate) mod testutils {
-    use super::*;
-    use crate::address::LiteralAddress;
-    use crate::gameboy;
-
-    pub const PROGRAM_START: u16 = 0x200;
-    pub const PROG_MEMORY_OFFSET: LiteralAddress = LiteralAddress(0x200);
-
-    type ProgramSegment<'a> = (LiteralAddress, &'a [u8]);
-
-    pub fn make_cartridge_with(segments: &[ProgramSegment]) -> rom::Cartridge {
-        let mut data = vec![0u8; 0x8000];
-        for segment in segments {
-            let (start, segment_data) = segment;
-            let LiteralAddress(raw_addr) = start;
-            let offset = *raw_addr as usize;
-            data[offset..offset + segment_data.len()].clone_from_slice(segment_data);
-        }
-        rom::Cartridge::from_data(data).unwrap()
-    }
-
-    pub fn run_program_with(
-        steps: u64,
-        segments: &[ProgramSegment],
-    ) -> gameboy::StepResult<gameboy::GameBoy> {
-        let cartridge = make_cartridge_with(segments);
-        let mut gb = gameboy::GameBoy::new(cartridge, gameboy::GameBoyModel::GameBoy);
-        gb.write_register_u16(registers::WordRegister::PC, PROGRAM_START);
-        for _ in 0..steps {
-            gb.step()?
-        }
-        Ok(gb)
-    }
-
-    pub fn run_program(steps: u64, program: &[u8]) -> gameboy::StepResult<gameboy::GameBoy> {
-        run_program_with(steps, &[(PROG_MEMORY_OFFSET, program)])
     }
 }
 

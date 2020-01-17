@@ -1,6 +1,9 @@
-use crate::gameboy::{cpu::InterruptState, GameBoy, StepResult};
+use crate::gameboy::{
+    cpu::{InterruptState, PowerSavingMode},
+    GameBoy, StepResult,
+};
 use crate::instructions::{Carry, RotateDirection};
-use crate::instructionsn::{ExecutableInstruction, ExecutableOpcode};
+use crate::instructionsn::{ExecutableInstruction, RuntimeOpcode};
 use crate::registers;
 
 use alloc::boxed::Box;
@@ -52,7 +55,7 @@ pub(crate) fn exec_rotate(
 
 macro_rules! rotate_instruction {
     ($name:ident, $label:literal, $opcode:literal, $dir:path, $carry:path, $target:path) => {
-        #[derive(OlympiaInstruction)]
+        #[derive(Debug, OlympiaInstruction)]
         #[olympia(opcode = $opcode, label = $label)]
         struct $name {}
         impl ExecutableInstruction for $name {
@@ -100,7 +103,7 @@ rotate_instruction!(
     registers::ByteRegisterTarget::A
 );
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1111_1011, label = "EI")]
 struct EnableInterrupts {}
 
@@ -111,7 +114,7 @@ impl ExecutableInstruction for EnableInterrupts {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x1111_0011, label = "DI")]
 struct DisableInterrupts {}
 
@@ -122,7 +125,7 @@ impl ExecutableInstruction for DisableInterrupts {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0000_0000, label = "NOP")]
 struct NOP {}
 
@@ -132,7 +135,7 @@ impl ExecutableInstruction for NOP {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0011_1111, label = "CCF")]
 struct InvertCarry {}
 
@@ -146,7 +149,7 @@ impl ExecutableInstruction for InvertCarry {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0011_0111, label = "SCF")]
 struct SetCarry {}
 
@@ -159,7 +162,7 @@ impl ExecutableInstruction for SetCarry {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0010_1111, label = "CPL")]
 struct InvertA {}
 
@@ -173,7 +176,7 @@ impl ExecutableInstruction for InvertA {
     }
 }
 
-#[derive(OlympiaInstruction)]
+#[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0010_0111, label = "DAA")]
 struct AToBCD {}
 
@@ -270,7 +273,30 @@ impl ExecutableInstruction for AToBCD {
     }
 }
 
-pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x0111_0110, label = "HALT")]
+struct Halt {}
+
+impl ExecutableInstruction for Halt {
+    fn execute(&self, gb: &mut GameBoy) -> StepResult<()> {
+        // TODO: Require an interrupt flag to be set
+        gb.set_power_saving_mode(PowerSavingMode::Halt);
+        Ok(())
+    }
+}
+
+#[derive(Debug, OlympiaInstruction)]
+#[olympia(opcode = 0x0001_0000, label = "STOP")]
+struct Stop {}
+
+impl ExecutableInstruction for Stop {
+    fn execute(&self, gb: &mut GameBoy) -> StepResult<()> {
+        gb.set_power_saving_mode(PowerSavingMode::Stop);
+        Ok(())
+    }
+}
+
+pub(crate) fn opcodes() -> Vec<(u8, Box<dyn RuntimeOpcode>)> {
     vec![
         EnableInterruptsOpcode::all(),
         DisableInterruptsOpcode::all(),
@@ -283,6 +309,8 @@ pub(crate) fn opcodes() -> Vec<(u8, Box<dyn ExecutableOpcode>)> {
         RRAOpcode::all(),
         RLCAOpcode::all(),
         RLAOpcode::all(),
+        HaltOpcode::all(),
+        StopOpcode::all(),
     ]
     .into_iter()
     .flatten()
