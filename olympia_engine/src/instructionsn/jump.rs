@@ -164,7 +164,7 @@ impl ExecutableInstruction for CallSystem {
 }
 
 impl Disassemble for CallSystem {
-    fn disassemble(&self) -> String {
+    fn disassemble(&self) -> ::alloc::string::String {
         format!("RST ${:X}h", self.dest << 3)
     }
 }

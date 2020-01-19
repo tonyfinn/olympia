@@ -266,8 +266,8 @@ fn build_disassemble(
     if params.is_empty() {
         Ok(quote! {
             impl ::olympia_core::derive::Disassemble for #name {
-                fn disassemble(&self) -> String {
-                    String::from(#label)
+                fn disassemble(&self) -> ::alloc::string::String {
+                    ::alloc::string::String::from(#label)
                 }
             }
         })
@@ -275,7 +275,7 @@ fn build_disassemble(
         let param_name = &params.values().nth(0).unwrap().name;
         Ok(quote! {
             impl ::olympia_core::derive::Disassemble for #name {
-                fn disassemble(&self) -> String {
+                fn disassemble(&self) -> ::alloc::string::String {
                     format!("{} {}", #label, #disassemble(&self.#param_name))
                 }
             }
@@ -285,7 +285,7 @@ fn build_disassemble(
         let dest_name = &dest.unwrap().name;
         Ok(quote! {
             impl ::olympia_core::derive::Disassemble for #name {
-                fn disassemble(&self) -> String {
+                fn disassemble(&self) -> ::alloc::string::String {
                     format!("{} {}, {}", #label, #disassemble(&self.#dest_name), #disassemble(&self.#src_name))
                 }
             }
@@ -296,7 +296,7 @@ fn build_disassemble(
         let dest_name = &dest.unwrap().name;
         Ok(quote! {
             impl ::olympia_core::derive::Disassemble for #name {
-                fn disassemble(&self) -> String {
+                fn disassemble(&self) -> ::alloc::string::String {
                     format!("{} {}, {} + {}", #label, #disassemble(&self.#dest_name), #disassemble(&self.#src_name), #disassemble(&self.#addsrc_name))
                 }
             }

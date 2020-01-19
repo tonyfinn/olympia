@@ -6,6 +6,7 @@ use crate::instructionsn::{ExecutableInstruction, RuntimeOpcode};
 use crate::registers::{ByteRegister, ByteRegisterTarget, StackRegister, WordRegister};
 
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use olympia_derive::OlympiaInstruction;

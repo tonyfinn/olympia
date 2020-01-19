@@ -25,8 +25,9 @@ use crate::registers;
 use crate::registers::WordRegister as wr;
 use crate::rom;
 use crate::rom::TargetConsole;
-
 use crate::instructionsn as new_instructions;
+
+use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::convert::TryFrom;
 use olympia_core::address;

@@ -4,6 +4,7 @@ use crate::address;
 use crate::gameboy;
 use crate::registers;
 
+use alloc::string::String;
 use core::convert::TryFrom;
 use core::str::FromStr;
 use derive_more::{Display, From};
@@ -13,7 +14,7 @@ use derive_more::{Display, From};
 /// Values beginning with 0x or ending with h (such as 0x123 or 35h)
 /// are attempted to be parsed as base 16. All others are attempted to be
 /// parsed as base 10
-pub fn parse_number(src: &str) -> Result<u16, std::num::ParseIntError> {
+pub fn parse_number(src: &str) -> Result<u16, core::num::ParseIntError> {
     let lowered = src.to_lowercase();
     if lowered.starts_with("0x") {
         u16::from_str_radix(&src[2..], 16)
