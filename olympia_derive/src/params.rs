@@ -394,7 +394,7 @@ pub(crate) fn build_as_bytes(base_code: u8, params: &[ParsedParam]) -> TokenStre
 
     let inner_param_statements: Vec<TokenStream> = inner_params.iter()
         .map(|(name, pos)| {
-            let position = quote_opcode_position(pos.clone());
+            let position = quote_opcode_position(*pos);
             quote! {
                 opcode = ::olympia_core::derive::EmbeddableParam::embed_to_opcode(&self.#name, opcode, #position);
             }

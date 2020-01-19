@@ -263,7 +263,7 @@ fn build_disassemble(
     let dest = params.get(&ParamPosition::Dest);
     let disassemble: syn::Path =
         syn::parse_str("::olympia_core::derive::Disassemble::disassemble")?;
-    if params.len() == 0 {
+    if params.is_empty() {
         Ok(quote! {
             impl ::olympia_core::derive::Disassemble for #name {
                 fn disassemble(&self) -> String {
@@ -280,7 +280,7 @@ fn build_disassemble(
                 }
             }
         })
-    } else if src.is_some() && dest.is_some() && !addsrc.is_some() {
+    } else if src.is_some() && dest.is_some() && addsrc.is_none() {
         let src_name = &src.unwrap().name;
         let dest_name = &dest.unwrap().name;
         Ok(quote! {

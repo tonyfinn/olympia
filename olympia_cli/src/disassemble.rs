@@ -34,7 +34,7 @@ impl<T: Iterator<Item = u8>> Iterator for FormattingIterator<T> {
             .as_ref()
             .map(|i| i.disassemble())
             .unwrap_or_else(|| format!("DAT {:X}h", val));
-        let bytes = instr.map(|i| i.as_bytes()).unwrap_or(vec![val]);
+        let bytes = instr.map(|i| i.as_bytes()).unwrap_or_else(|| vec![val]);
         let size = bytes.len();
         let mut numeric = String::with_capacity(size * 2);
         for byte in bytes {

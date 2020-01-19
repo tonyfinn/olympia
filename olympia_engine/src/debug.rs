@@ -60,8 +60,8 @@ impl std::error::Error for WriteError {}
 
 impl RWTarget {
     /// Reads the value at the given target
-    pub fn read(&self, gb: &gameboy::GameBoy) -> Result<u16, ReadError> {
-        match *self {
+    pub fn read(self, gb: &gameboy::GameBoy) -> Result<u16, ReadError> {
+        match self {
             RWTarget::Address(addr) => gb
                 .read_memory_u8(addr)
                 .map(u16::from)
@@ -73,9 +73,9 @@ impl RWTarget {
     /// Writes the value at the given target
     ///
     /// Returns the previous value if successful
-    pub fn write(&self, gb: &mut gameboy::GameBoy, val: u16) -> Result<u16, WriteError> {
+    pub fn write(self, gb: &mut gameboy::GameBoy, val: u16) -> Result<u16, WriteError> {
         let current_value = self.read(gb);
-        match *self {
+        match self {
             RWTarget::Address(addr) => {
                 let value = u8::try_from(val).map_err(|_| WriteError::ValueTooLarge(val))?;
                 gb.write_memory_u8(addr, value)

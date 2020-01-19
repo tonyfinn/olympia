@@ -121,6 +121,12 @@ impl RuntimeDecoder {
     }
 }
 
+impl Default for RuntimeDecoder {
+    fn default() -> RuntimeDecoder {
+        RuntimeDecoder::new()
+    }
+}
+
 #[cfg(test)]
 mod alu_tests;
 
