@@ -598,6 +598,7 @@ name = "olympia_cli"
 version = "0.2.1"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "olympia_engine 0.2.0",
  "structopt 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -625,6 +626,7 @@ dependencies = [
 name = "olympia_engine"
 version = "0.2.0"
 dependencies = [
+ "derive_more 0.99.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "olympia_core 0.1.0",
  "olympia_derive 0.1.0",
 ]

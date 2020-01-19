@@ -1,4 +1,4 @@
-use crate::instructionsn::{RuntimeDecoder};
+use crate::instructionsn::RuntimeDecoder;
 
 pub use crate::disasm::Disassemble;
 

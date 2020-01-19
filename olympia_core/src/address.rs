@@ -1,10 +1,11 @@
 //! Represents a variety of addressing types for
 //! emulation.
 
-use derive_more::{From, Into};
+use derive_more::{Display, From, FromStr, Into};
 
-#[derive(PartialEq, Eq, Debug, Copy, Clone, From, Into)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone, From, FromStr, Into, Display)]
 /// Represents a literal memory address
+#[display(fmt = "[{}]", _0)]
 pub struct LiteralAddress(pub u16);
 
 impl LiteralAddress {

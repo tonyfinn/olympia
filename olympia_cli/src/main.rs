@@ -1,4 +1,4 @@
-mod debug;
+mod debugger;
 mod disassemble;
 
 use std::error;
@@ -140,7 +140,7 @@ fn main() -> OlympiaResult<()> {
         OlympiaCommand::RomInfo { rom } => {
             print_rom_info(parse_cartridge(&rom)?, &mut io::stdout())?
         }
-        OlympiaCommand::Debug { rom } => debug::debug(
+        OlympiaCommand::Debug { rom } => debugger::debug(
             gameboy::GameBoy::new(parse_cartridge(&rom)?, gameboy::GameBoyModel::GameBoy),
             &mut io::stdin(),
             &mut io::stdout(),
