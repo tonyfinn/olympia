@@ -1,3 +1,5 @@
+extern crate alloc;
+
 use olympia_core::disasm::Disassemble;
 use olympia_core::instructions::{
     AppendedParam, ByteRegisterTarget, ExtensionType, InnerParam, Instruction, InstructionOpcode,

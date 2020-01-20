@@ -1,3 +1,5 @@
+extern crate alloc;
+
 use olympia_core::disasm::Disassemble;
 use olympia_core::instructions::{ExtensionType, Instruction, SerializableInstruction};
 use olympia_derive::OlympiaInstruction;
