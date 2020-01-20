@@ -16,3 +16,15 @@ license = "GPL-3.0-or-later"
 pixels = "0.0.2"
 olympia_engine = { version = "0.2.0", path = "../olympia_engine", features = ["std"] }
 winit = "0.20.0-alpha4"
+
+[dependencies.gdk]
+version = "0.12.0"
+features = ["v3_22"]
+
+[dependencies.gtk]
+version = "0.8.0"
+features = ["v3_22"]
+
+[dependencies.gio]
+version = "0.8.0"
+features = ["v2_44"]
