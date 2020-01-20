@@ -12,6 +12,7 @@ pub(crate) enum InterruptState {
     Disabled,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Interrupt {
     VBlank,
     LCDStatus,
@@ -42,6 +43,16 @@ impl Interrupt {
             Some(Interrupt::Input)
         } else {
             None
+        }
+    }
+
+    pub(crate) fn set(&self, ie: &mut u8) {
+        match self {
+            Interrupt::VBlank => *ie |= 1,
+            Interrupt::LCDStatus => *ie |= 2,
+            Interrupt::Timer => *ie |= 4,
+            Interrupt::Serial => *ie |= 8,
+            Interrupt::Input => *ie |= 16,
         }
     }
 

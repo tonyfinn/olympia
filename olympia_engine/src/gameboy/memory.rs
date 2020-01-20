@@ -3,6 +3,10 @@ use crate::rom::Cartridge;
 use olympia_core::address;
 
 pub(crate) const DMA_REGISTER_ADDR: u16 = 0xff46;
+pub(crate) const LCD_CONTROL_ADDR: u16 = 0xFF40;
+pub(crate) const LCD_STATUS_ADDR: u16 = 0xFF41;
+pub(crate) const CURRENT_LINE_ADDR: u16 = 0xFF44;
+pub(crate) const LINE_CHECK_ADDR: u16 = 0xFF45;
 pub(crate) const INTERRUPT_ENABLE_ADDR: u16 = 0xffff;
 pub(crate) const INTERRUPT_FLAG_ADDR: u16 = 0xff0f;
 
@@ -76,9 +80,29 @@ impl<'a> Iterator for MemoryIterator<'a> {
     }
 }
 
+fn masked_write(current: &mut u8, new: u8, mask: u8) {
+    *current = (new & mask) | (*current & !mask);
+}
+
 pub struct MemoryRegisters {
+    /// Write upper byte of start addresses here to trigger DMA transfers
+    /// to OAM RAM
     pub(crate) dma: u8,
+    /// Bit 7 = LCD on/off, Bit 6 = Window code area, bit 5 = window on/off
+    /// bit 4 = BG tile area (1 = fully overlapping, 0 = 50% overlap)
+    /// bit 3 = BG code area, bit 2 = sprite size (1 = 8x16, 0 = 8x8)
+    /// bit 1  = object layer enable, bit 0 = bg layer enable
+    pub(crate) lcdc: u8,
+    /// Bits 3-6 control interrupts, bit 2 inverts line checks, bit 0-1
+    /// exposes current PPU mode
+    pub(crate) lcdstat: u8,
+    /// Current line being drawn by the PPU
+    pub(crate) ly: u8,
+    /// Line to check LY against for interrupts on specific line
+    pub(crate) lyc: u8,
+    /// Interrupts where their conditions have been triggered
     pub(crate) iflag: u8,
+    /// Interrupts that are enabled and can cause CPU interrupts
     pub(crate) ie: u8,
 }
 
@@ -86,6 +110,10 @@ impl MemoryRegisters {
     fn new() -> MemoryRegisters {
         MemoryRegisters {
             dma: 0,
+            lcdc: 0x91,
+            lcdstat: 0,
+            ly: 0,
+            lyc: 0,
             iflag: 0,
             ie: 0,
         }
@@ -94,6 +122,10 @@ impl MemoryRegisters {
     fn read(&self, addr: u16) -> u8 {
         match addr {
             DMA_REGISTER_ADDR => self.dma,
+            LCD_CONTROL_ADDR => self.lcdc,
+            LCD_STATUS_ADDR => self.lcdstat,
+            CURRENT_LINE_ADDR => self.ly,
+            LINE_CHECK_ADDR => self.lyc,
             INTERRUPT_FLAG_ADDR => self.iflag,
             INTERRUPT_ENABLE_ADDR => self.ie,
             _ => 0,
@@ -103,8 +135,14 @@ impl MemoryRegisters {
     fn write(&mut self, addr: u16, value: u8) {
         match addr {
             DMA_REGISTER_ADDR => self.dma = value,
-            INTERRUPT_FLAG_ADDR => self.iflag = value & 0x1F,
-            INTERRUPT_ENABLE_ADDR => self.ie = value & 0x1F,
+            LCD_CONTROL_ADDR => self.lcdc = value,
+            // Top bit doesn't exist
+            // Lower two bits are mode flag
+            LCD_STATUS_ADDR => masked_write(&mut self.lcdstat, value, 0b0111_1100),
+            CURRENT_LINE_ADDR => (), // Read only
+            LINE_CHECK_ADDR => self.lyc = value,
+            INTERRUPT_FLAG_ADDR => masked_write(&mut self.iflag, value, 0x1F),
+            INTERRUPT_ENABLE_ADDR => masked_write(&mut self.ie, value, 0x1F),
             _ => (),
         }
     }
@@ -330,6 +368,24 @@ mod tests {
 
         assert_eq!(memory.read_u8(INTERRUPT_FLAG_ADDR).unwrap(), 0x04);
         assert_eq!(memory.read_u8(INTERRUPT_ENABLE_ADDR).unwrap(), 0x12);
+    }
+
+    #[test]
+    fn test_lcd_registers() {
+        let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
+        let mut memory = Memory::new(cartridge);
+
+        memory.registers.lcdc = 0;
+        memory.registers.lcdstat = 3;
+
+        memory.write_u8(LCD_STATUS_ADDR, 0xFC).unwrap();
+        memory.write_u8(LCD_CONTROL_ADDR, 0xFF).unwrap();
+
+        assert_eq!(memory.registers.lcdc, 0xFF);
+        assert_eq!(memory.registers.lcdstat, 0x7F);
+
+        assert_eq!(memory.read_u8(LCD_STATUS_ADDR).unwrap(), 0x7F);
+        assert_eq!(memory.read_u8(LCD_CONTROL_ADDR).unwrap(), 0xFF);
     }
 
     #[test]

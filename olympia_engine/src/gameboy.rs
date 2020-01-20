@@ -15,17 +15,18 @@
 pub(crate) mod cpu;
 mod dma;
 pub(crate) mod memory;
+mod ppu;
 
 pub use memory::{MemoryError, MemoryResult};
 
 use crate::gameboy::cpu::Cpu;
 use crate::gameboy::dma::DmaUnit;
 use crate::instructions;
+use crate::instructionsn as new_instructions;
 use crate::registers;
 use crate::registers::WordRegister as wr;
 use crate::rom;
 use crate::rom::TargetConsole;
-use crate::instructionsn as new_instructions;
 
 use alloc::boxed::Box;
 use alloc::rc::Rc;
@@ -50,6 +51,7 @@ use olympia_core::address;
 pub struct GameBoy {
     pub(crate) cpu: Cpu,
     pub(crate) mem: memory::Memory,
+    pub(crate) ppu: ppu::PPU,
     dma: DmaUnit,
     runtime_decoder: Rc<new_instructions::RuntimeDecoder>,
     clocks_elapsed: u64,
@@ -88,8 +90,9 @@ impl GameBoy {
     pub fn new(cartridge: rom::Cartridge, model: GameBoyModel) -> GameBoy {
         GameBoy {
             cpu: Cpu::new(model, cartridge.target),
-            dma: Default::default(),
             mem: memory::Memory::new(cartridge),
+            dma: Default::default(),
+            ppu: Default::default(),
             runtime_decoder: Rc::new(new_instructions::RuntimeDecoder::new()),
             clocks_elapsed: 0,
         }
@@ -385,6 +388,7 @@ impl GameBoy {
         // the DMA operation continues, and so we shouldn't abort emulation early,
         // but it would be useful to surface this information somewhere for ROM developers.
         let _dma_result = self.dma.run_cycle(&mut self.mem);
+        self.ppu.run_cycle(&mut self.mem);
         self.clocks_elapsed += 4;
     }
 
