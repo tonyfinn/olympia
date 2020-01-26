@@ -1,5 +1,7 @@
+use crate::events;
 use crate::registers;
 use crate::rom;
+use alloc::rc::Rc;
 
 // Re-export long name, but use short name internally
 pub use crate::registers::{ByteRegister, WordRegister};
@@ -68,7 +70,6 @@ impl Interrupt {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
 struct Registers {
     af: u16,
     bc: u16,
@@ -76,6 +77,7 @@ struct Registers {
     hl: u16,
     sp: u16,
     pc: u16,
+    event_handler: Option<Rc<events::EventHandler>>,
 }
 
 impl Registers {
@@ -137,6 +139,9 @@ impl Registers {
             registers::WordRegister::SP => self.sp = value,
             registers::WordRegister::PC => self.pc = value,
         }
+        if let Some(event_handler) = self.event_handler.clone() {
+            event_handler(events::Event::RegisterWrite { reg, value });
+        }
     }
 
     fn write_u16(&mut self, reg: registers::WordRegister, value: u16) {
@@ -151,6 +156,7 @@ impl Registers {
             hl: model.default_hl(target),
             sp: 0xfffe,
             pc: 0x100,
+            event_handler: None,
         }
     }
 
@@ -164,6 +170,10 @@ impl Registers {
 
     fn reset_flag(&mut self, flag: registers::Flag) {
         self.af &= !(1u16 << flag.bit());
+    }
+
+    pub(crate) fn set_event_handler(&mut self, event_handler: Rc<events::EventHandler>) {
+        self.event_handler = Some(event_handler);
     }
 }
 
@@ -237,6 +247,10 @@ impl Cpu {
 
     pub(crate) fn reset_flag(&mut self, flag: registers::Flag) {
         self.registers.reset_flag(flag)
+    }
+
+    pub(crate) fn set_event_handler(&mut self, event_handler: Rc<events::EventHandler>) {
+        self.registers.set_event_handler(event_handler);
     }
 }
 
@@ -357,5 +371,40 @@ mod tests {
         cpu.write_register_u16(registers::WordRegister::HL, 0x9573);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::H), 0x95);
         assert_eq!(cpu.read_register_u8(registers::ByteRegister::L), 0x73);
+    }
+
+    #[test]
+    fn test_write_event() {
+        use core::cell::RefCell;
+        let event_log: Rc<RefCell<Vec<events::Event>>> = Rc::new(RefCell::new(Vec::new()));
+        let handler_log = Rc::clone(&event_log);
+
+        let handler = move |evt| {
+            handler_log.borrow_mut().push(evt);
+        };
+
+        let mut cpu = Cpu::new(GameBoyModel::GameBoy, rom::TargetConsole::GameBoyOnly);
+
+        cpu.write_register_u16(registers::WordRegister::DE, 0x4633);
+
+        cpu.set_event_handler(Rc::new(handler));
+        cpu.write_register_u16(registers::WordRegister::BC, 0x2365);
+        cpu.write_register_u8(registers::ByteRegister::E, 0x64);
+
+        let actual_events = event_log.borrow();
+
+        assert_eq!(
+            *actual_events,
+            vec![
+                events::Event::RegisterWrite {
+                    reg: registers::WordRegister::BC,
+                    value: 0x2365
+                },
+                events::Event::RegisterWrite {
+                    reg: registers::WordRegister::DE,
+                    value: 0x4664,
+                }
+            ]
+        );
     }
 }

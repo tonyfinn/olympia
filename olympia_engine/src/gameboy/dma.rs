@@ -24,8 +24,8 @@ impl DmaUnit {
     }
 
     pub(crate) fn run_cycle(&mut self, mem: &mut memory::Memory) -> memory::MemoryResult<()> {
-        if mem.registers.dma != self.register_value {
-            self.start(mem.registers.dma);
+        if mem.registers().dma != self.register_value {
+            self.start(mem.registers().dma);
         }
         if self.state == DmaState::Copying {
             let index_to_try = self.idx;
@@ -89,7 +89,7 @@ mod test {
     fn test_copy() {
         let dma_data = vec![0x23; 160];
         let mut gameboy = make_gameboy_dma_data(0x2000, dma_data);
-        gameboy.mem.registers.dma = 0x20;
+        gameboy.mem.registers_mut().dma = 0x20;
 
         for _ in 0..200 {
             gameboy.dma.run_cycle(&mut gameboy.mem).unwrap();

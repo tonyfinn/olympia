@@ -78,41 +78,41 @@ impl PPU {
                 self.current_line = 0;
             }
             if self.should_trigger_line_interrupt(
-                mem.registers.lcdstat,
-                mem.registers.lyc,
+                mem.registers().lcdstat,
+                mem.registers().lyc,
                 self.current_line,
             ) {
-                Interrupt::LCDStatus.set(&mut mem.registers.ie);
+                Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
             }
             if self.current_line == VISIBLE_LINES {
                 self.phase = PPUPhase::VBlank;
-                mem.registers.lcdstat = (mem.registers.lcdstat & !MODE_LCDSTAT_MASK) | 0b01;
-                Interrupt::VBlank.set(&mut mem.registers.ie);
-                if (mem.registers.lcdstat & VBLANK_LCDSTAT_MASK) != 0 {
-                    Interrupt::LCDStatus.set(&mut mem.registers.ie);
+                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_LCDSTAT_MASK) | 0b01;
+                Interrupt::VBlank.set(&mut mem.registers_mut().ie);
+                if (mem.registers().lcdstat & VBLANK_LCDSTAT_MASK) != 0 {
+                    Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
                 }
             } else if self.current_line < VISIBLE_LINES {
                 self.phase = PPUPhase::ObjectScan;
-                mem.registers.lcdstat = (mem.registers.lcdstat & !MODE_LCDSTAT_MASK) | 0b10;
-                if (mem.registers.lcdstat & OAM_SCAN_LCDSTAT_MASK) != 0 {
-                    Interrupt::LCDStatus.set(&mut mem.registers.ie);
+                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_LCDSTAT_MASK) | 0b10;
+                if (mem.registers().lcdstat & OAM_SCAN_LCDSTAT_MASK) != 0 {
+                    Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
                 }
             }
-            mem.registers.ly = self.current_line;
+            mem.registers_mut().ly = self.current_line;
         } else if self.cycles_on_line == OAM_SCAN_CYCLES && self.current_line < VISIBLE_LINES {
             self.phase = PPUPhase::Drawing;
-            mem.registers.lcdstat = (mem.registers.lcdstat & !MODE_LCDSTAT_MASK) | 0b11;
+            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_LCDSTAT_MASK) | 0b11;
         } else if self.next_pixel >= VISIBLE_WIDTH {
             self.phase = PPUPhase::HBlank;
-            mem.registers.lcdstat = (mem.registers.lcdstat & !MODE_LCDSTAT_MASK) | 0b00;
-            if (mem.registers.lcdstat & HBLANK_LCDSTAT_MASK) != 0 {
-                Interrupt::LCDStatus.set(&mut mem.registers.ie);
+            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_LCDSTAT_MASK) | 0b00;
+            if (mem.registers().lcdstat & HBLANK_LCDSTAT_MASK) != 0 {
+                Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
             }
         }
     }
 
     fn is_enabled(&self, mem: &Memory) -> bool {
-        (mem.registers.lcdc & 0x80) == 0
+        (mem.registers().lcdc & 0x80) == 0
     }
 }
 
@@ -140,13 +140,13 @@ mod test {
         ppu.current_line = 100;
         ppu.cycles_on_line = LINE_CYCLES - 1;
         ppu.next_pixel = VISIBLE_WIDTH;
-        memory.registers.lcdstat = 0b00;
+        memory.registers_mut().lcdstat = 0b00;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.current_line, 101);
         assert_eq!(ppu.next_pixel, 0);
         assert_eq!(ppu.cycles_on_line, 0);
         assert_eq!(ppu.phase, PPUPhase::ObjectScan);
-        assert_eq!(memory.registers.lcdstat, 0b10);
+        assert_eq!(memory.registers().lcdstat, 0b10);
     }
 
     #[test]
@@ -156,10 +156,10 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        memory.registers.lcdstat = 0b0010_0000;
+        memory.registers_mut().lcdstat = 0b0010_0000;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers.ie).expect("No interrupt triggered");
+            Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
         assert_eq!(lcd_active_interrupt, Interrupt::LCDStatus);
     }
 
@@ -170,11 +170,11 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        memory.registers.lyc = 101;
-        memory.registers.lcdstat = 0b0100_0100;
+        memory.registers_mut().lyc = 101;
+        memory.registers_mut().lcdstat = 0b0100_0100;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers.ie).expect("No interrupt triggered");
+            Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
         assert_eq!(lcd_active_interrupt, Interrupt::LCDStatus);
     }
 
@@ -185,11 +185,10 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 101;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        memory.registers.lyc = 101;
-        memory.registers.lcdstat = 0b0100_0100;
+        memory.registers_mut().lyc = 101;
+        memory.registers_mut().lcdstat = 0b0100_0100;
         ppu.update_phase(&mut memory);
-        let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers.ie);
+        let lcd_active_interrupt = Interrupt::test(0x02, memory.registers().ie);
         assert!(lcd_active_interrupt.is_none());
     }
 
@@ -200,11 +199,11 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 101;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        memory.registers.lyc = 101;
-        memory.registers.lcdstat = 0b0100_0000;
+        memory.registers_mut().lyc = 101;
+        memory.registers_mut().lcdstat = 0b0100_0000;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers.ie).expect("No interrupt triggered");
+            Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
         assert_eq!(lcd_active_interrupt, Interrupt::LCDStatus);
     }
 
@@ -215,11 +214,10 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        memory.registers.lyc = 101;
-        memory.registers.lcdstat = 0b0100_0000;
+        memory.registers_mut().lyc = 101;
+        memory.registers_mut().lcdstat = 0b0100_0000;
         ppu.update_phase(&mut memory);
-        let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers.ie);
+        let lcd_active_interrupt = Interrupt::test(0x02, memory.registers().ie);
         assert!(lcd_active_interrupt.is_none());
     }
 
@@ -231,10 +229,10 @@ mod test {
         ppu.current_line = 101;
         ppu.cycles_on_line = LINE_CYCLES - 30;
         ppu.next_pixel = VISIBLE_WIDTH;
-        memory.registers.lcdstat = 0b11;
+        memory.registers_mut().lcdstat = 0b11;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.phase, PPUPhase::HBlank);
-        assert_eq!(memory.registers.lcdstat, 0b00);
+        assert_eq!(memory.registers().lcdstat, 0b00);
     }
 
     #[test]
@@ -245,10 +243,10 @@ mod test {
         ppu.current_line = 101;
         ppu.cycles_on_line = LINE_CYCLES - 30;
         ppu.next_pixel = VISIBLE_WIDTH;
-        memory.registers.lcdstat = 0b1011;
+        memory.registers_mut().lcdstat = 0b1011;
         ppu.update_phase(&mut memory);
         let active_interrupt =
-            Interrupt::test(0x1F, memory.registers.ie).expect("No interrupt triggered");
+            Interrupt::test(0x1F, memory.registers().ie).expect("No interrupt triggered");
         assert_eq!(active_interrupt, Interrupt::LCDStatus);
     }
 
@@ -260,10 +258,10 @@ mod test {
         ppu.current_line = VISIBLE_LINES - 1;
         ppu.cycles_on_line = LINE_CYCLES - 1;
         ppu.next_pixel = VISIBLE_WIDTH;
-        memory.registers.lcdstat = 0b11;
+        memory.registers_mut().lcdstat = 0b11;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.phase, PPUPhase::VBlank);
-        assert_eq!(memory.registers.lcdstat, 0b01);
+        assert_eq!(memory.registers().lcdstat, 0b01);
     }
 
     #[test]
@@ -274,10 +272,10 @@ mod test {
         ppu.current_line = TOTAL_LINES - 1;
         ppu.cycles_on_line = LINE_CYCLES - 1;
         ppu.next_pixel = VISIBLE_WIDTH;
-        memory.registers.lcdstat = 0b11;
+        memory.registers_mut().lcdstat = 0b11;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.phase, PPUPhase::ObjectScan);
-        assert_eq!(memory.registers.lcdstat, 0b10);
+        assert_eq!(memory.registers().lcdstat, 0b10);
         assert_eq!(ppu.current_line, 0);
         assert_eq!(ppu.next_pixel, 0);
         assert_eq!(ppu.cycles_on_line, 0);
@@ -290,13 +288,13 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = VISIBLE_LINES - 1;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        memory.registers.lcdstat = 0b0111_1011;
+        memory.registers_mut().lcdstat = 0b0111_1011;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers.ie).expect("No interrupt triggered");
+            Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
         assert_eq!(lcd_active_interrupt, Interrupt::LCDStatus);
         let vblank_active_interrupt =
-            Interrupt::test(0x01, memory.registers.ie).expect("No interrupt triggered");
+            Interrupt::test(0x01, memory.registers().ie).expect("No interrupt triggered");
         assert_eq!(vblank_active_interrupt, Interrupt::VBlank);
     }
 
@@ -308,10 +306,10 @@ mod test {
         ppu.current_line = 100;
         ppu.cycles_on_line = OAM_SCAN_CYCLES - 1;
         ppu.next_pixel = 0;
-        memory.registers.lcdstat = 0b10;
+        memory.registers_mut().lcdstat = 0b10;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.phase, PPUPhase::Drawing);
-        assert_eq!(memory.registers.lcdstat, 0b11);
+        assert_eq!(memory.registers().lcdstat, 0b11);
         assert_eq!(ppu.current_line, 100);
         assert_eq!(ppu.next_pixel, 0);
         assert_eq!(ppu.cycles_on_line, OAM_SCAN_CYCLES);

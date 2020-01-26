@@ -19,6 +19,7 @@ mod ppu;
 
 pub use memory::{MemoryError, MemoryResult};
 
+use crate::events;
 use crate::gameboy::cpu::Cpu;
 use crate::gameboy::dma::DmaUnit;
 use crate::instructions;
@@ -55,6 +56,7 @@ pub struct GameBoy {
     dma: DmaUnit,
     runtime_decoder: Rc<new_instructions::RuntimeDecoder>,
     clocks_elapsed: u64,
+    event_handler: Option<Rc<events::EventHandler>>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -95,6 +97,7 @@ impl GameBoy {
             ppu: Default::default(),
             runtime_decoder: Rc::new(new_instructions::RuntimeDecoder::new()),
             clocks_elapsed: 0,
+            event_handler: None,
         }
     }
 
@@ -311,6 +314,16 @@ impl GameBoy {
         address::LiteralAddress(value)
     }
 
+    pub fn set_event_handler<T>(&mut self, handler: T)
+    where
+        T: Into<Rc<events::EventHandler>>,
+    {
+        let handler_rc = handler.into();
+        self.event_handler = Some(handler_rc.clone());
+        self.mem.set_event_handler(handler_rc.clone());
+        self.cpu.set_event_handler(handler_rc.clone());
+    }
+
     fn check_interrupts(&mut self) -> StepResult<bool> {
         use cpu::InterruptState::{Disabled, Enabled, Pending};
         match self.cpu.interrupts_enabled {
@@ -320,7 +333,8 @@ impl GameBoy {
             }
             Disabled => Ok(false),
             Enabled => {
-                let itest = cpu::Interrupt::test(self.mem.registers.ie, self.mem.registers.iflag);
+                let itest =
+                    cpu::Interrupt::test(self.mem.registers().ie, self.mem.registers().iflag);
                 if let Some(interrupt) = itest {
                     self.cycle();
                     self.cycle();
@@ -721,6 +735,39 @@ mod test {
         assert_eq!(
             mapped_error,
             StepError::Memory(memory::MemoryError::InvalidRomAddress(0x7999))
+        );
+    }
+
+    #[test]
+    fn test_write_events() {
+        use core::cell::RefCell;
+        let event_log: Rc<RefCell<Vec<events::Event>>> = Rc::new(RefCell::new(Vec::new()));
+        let handler_log = Rc::clone(&event_log);
+
+        let handler: Box<dyn Fn(events::Event) -> ()> = Box::new(move |evt| {
+            handler_log.borrow_mut().push(evt);
+        });
+        let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
+        gb.set_event_handler(handler);
+
+        gb.write_memory_u8(0x9456, 0x24).unwrap();
+        gb.write_register_u16(wr::BC, 0x1234);
+
+        let actual_events = event_log.borrow();
+
+        assert_eq!(
+            *actual_events,
+            vec![
+                events::Event::MemoryWrite {
+                    address: 0x9456.into(),
+                    value: 0x24,
+                    new_value: 0x24,
+                },
+                events::Event::RegisterWrite {
+                    reg: wr::BC,
+                    value: 0x1234
+                }
+            ]
         );
     }
 }

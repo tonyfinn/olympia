@@ -1,5 +1,7 @@
+use crate::events;
 use crate::rom::Cartridge;
 
+use alloc::rc::Rc;
 use olympia_core::address;
 
 pub(crate) const DMA_REGISTER_ADDR: u16 = 0xff46;
@@ -119,16 +121,16 @@ impl MemoryRegisters {
         }
     }
 
-    fn read(&self, addr: u16) -> u8 {
+    fn read(&self, addr: u16) -> Option<u8> {
         match addr {
-            DMA_REGISTER_ADDR => self.dma,
-            LCD_CONTROL_ADDR => self.lcdc,
-            LCD_STATUS_ADDR => self.lcdstat,
-            CURRENT_LINE_ADDR => self.ly,
-            LINE_CHECK_ADDR => self.lyc,
-            INTERRUPT_FLAG_ADDR => self.iflag,
-            INTERRUPT_ENABLE_ADDR => self.ie,
-            _ => 0,
+            DMA_REGISTER_ADDR => Some(self.dma),
+            LCD_CONTROL_ADDR => Some(self.lcdc),
+            LCD_STATUS_ADDR => Some(self.lcdstat),
+            CURRENT_LINE_ADDR => Some(self.ly),
+            LINE_CHECK_ADDR => Some(self.lyc),
+            INTERRUPT_FLAG_ADDR => Some(self.iflag),
+            INTERRUPT_ENABLE_ADDR => Some(self.ie),
+            _ => None,
         }
     }
 
@@ -152,7 +154,7 @@ fn is_mem_register(addr: u16) -> bool {
     MEM_REGISTERS.contains(addr) || addr == 0xffff
 }
 
-pub struct Memory {
+pub struct MemoryData {
     cpuram: [u8; 127],
     oamram: [u8; 160],
     sysram: [u8; 0x2000],
@@ -161,40 +163,61 @@ pub struct Memory {
     pub(crate) registers: MemoryRegisters,
 }
 
+pub struct Memory {
+    data: MemoryData,
+    event_handler: Option<Rc<events::EventHandler>>,
+}
+
 impl Memory {
     pub fn new(cartridge: Cartridge) -> Memory {
         Memory {
-            cpuram: [0u8; 127],
-            oamram: [0u8; 160],
-            sysram: [0u8; 0x2000],
-            vram: [0u8; 0x2000],
-            cartridge,
-            registers: MemoryRegisters::new(),
+            data: MemoryData {
+                cpuram: [0u8; 127],
+                oamram: [0u8; 160],
+                sysram: [0u8; 0x2000],
+                vram: [0u8; 0x2000],
+                cartridge,
+                registers: MemoryRegisters::new(),
+            },
+            event_handler: None,
         }
+    }
+
+    pub fn registers(&self) -> &MemoryRegisters {
+        &self.data.registers
+    }
+
+    pub fn registers_mut(&mut self) -> &mut MemoryRegisters {
+        &mut self.data.registers
     }
 
     pub fn read_u8<A: Into<address::LiteralAddress>>(&self, target: A) -> MemoryResult<u8> {
         let address::LiteralAddress(addr) = target.into();
         if CARTRIDGE_ROM.contains(addr) {
-            self.cartridge
+            self.data
+                .cartridge
                 .read(addr)
                 .map_err(|_| MemoryError::InvalidRomAddress(addr))
         } else if VRAM.contains(addr) {
-            Ok(self.vram[(addr - VRAM.start) as usize])
+            Ok(self.data.vram[(addr - VRAM.start) as usize])
         } else if CARTRIDGE_RAM.contains(addr) {
-            self.cartridge
+            self.data
+                .cartridge
                 .read(addr)
                 .map_err(|_| MemoryError::InvalidRamAddress(addr))
         } else if SYS_RAM.contains(addr) {
-            Ok(self.sysram[(addr - SYS_RAM.start) as usize])
+            Ok(self.data.sysram[(addr - SYS_RAM.start) as usize])
         } else if SYS_RAM_MIRROR.contains(addr) {
-            Ok(self.sysram[(addr - SYS_RAM_MIRROR.start) as usize])
+            Ok(self.data.sysram[(addr - SYS_RAM_MIRROR.start) as usize])
         } else if OAM_RAM.contains(addr) {
-            Ok(self.oamram[(addr - OAM_RAM.start) as usize])
+            Ok(self.data.oamram[(addr - OAM_RAM.start) as usize])
         } else if CPU_RAM.contains(addr) {
-            Ok(self.cpuram[(addr - CPU_RAM.start) as usize])
+            Ok(self.data.cpuram[(addr - CPU_RAM.start) as usize])
         } else if is_mem_register(addr) {
-            Ok(self.registers.read(addr))
+            self.data
+                .registers
+                .read(addr)
+                .ok_or_else(|| MemoryError::UnmappedAddress(addr))
         } else {
             Err(MemoryError::UnmappedAddress(addr))
         }
@@ -205,36 +228,58 @@ impl Memory {
         target: A,
         value: u8,
     ) -> MemoryResult<()> {
-        let address::LiteralAddress(addr) = target.into();
-        if CARTRIDGE_ROM.contains(addr) {
-            self.cartridge
+        let address = target.into();
+        let addr = address.0;
+        let write_result = if CARTRIDGE_ROM.contains(addr) {
+            self.data
+                .cartridge
                 .write(addr, value)
                 .map_err(|_| MemoryError::InvalidRomAddress(addr))
         } else if VRAM.contains(addr) {
-            self.vram[(addr - VRAM.start) as usize] = value;
+            self.data.vram[(addr - VRAM.start) as usize] = value;
             Ok(())
         } else if CARTRIDGE_RAM.contains(addr) {
-            self.cartridge
+            self.data
+                .cartridge
                 .write(addr, value)
                 .map_err(|_| MemoryError::InvalidRamAddress(addr))
         } else if SYS_RAM.contains(addr) {
-            self.sysram[(addr - SYS_RAM.start) as usize] = value;
+            self.data.sysram[(addr - SYS_RAM.start) as usize] = value;
             Ok(())
         } else if SYS_RAM_MIRROR.contains(addr) {
-            self.sysram[(addr - SYS_RAM_MIRROR.start) as usize] = value;
+            self.data.sysram[(addr - SYS_RAM_MIRROR.start) as usize] = value;
             Ok(())
         } else if OAM_RAM.contains(addr) {
-            self.oamram[(addr - OAM_RAM.start) as usize] = value;
+            self.data.oamram[(addr - OAM_RAM.start) as usize] = value;
             Ok(())
         } else if is_mem_register(addr) {
-            self.registers.write(addr, value);
+            self.data.registers.write(addr, value);
             Ok(())
         } else if CPU_RAM.contains(addr) {
-            self.cpuram[(addr - CPU_RAM.start) as usize] = value;
+            self.data.cpuram[(addr - CPU_RAM.start) as usize] = value;
             Ok(())
         } else {
             Err(MemoryError::UnmappedAddress(addr))
+        };
+
+        if write_result.is_ok() {
+            if let Some(event_handler) = self.event_handler.clone() {
+                // need to read the actual new value in case of partial registers
+                // unmapped memory, or writes to ROM address space
+                let new_value = self.read_u8(address).unwrap_or(0xFF);
+                event_handler(events::Event::MemoryWrite {
+                    address,
+                    value,
+                    new_value,
+                });
+            }
         }
+
+        write_result
+    }
+
+    pub(crate) fn set_event_handler(&mut self, event_handler: Rc<events::EventHandler>) {
+        self.event_handler = Some(event_handler);
     }
 
     pub(crate) fn offset_iter(&self, start: address::LiteralAddress) -> MemoryIterator {
@@ -255,7 +300,7 @@ mod tests {
         let mut memory = Memory::new(cartridge);
 
         memory.write_u8(VRAM.start, 0xff).unwrap();
-        assert_eq!(memory.vram[0], 0xff);
+        assert_eq!(memory.data.vram[0], 0xff);
     }
 
     #[test]
@@ -264,7 +309,7 @@ mod tests {
         let mut memory = Memory::new(cartridge);
 
         memory.write_u8(SYS_RAM.start, 0xff).unwrap();
-        assert_eq!(memory.sysram[0], 0xff);
+        assert_eq!(memory.data.sysram[0], 0xff);
     }
 
     #[test]
@@ -273,7 +318,7 @@ mod tests {
         let mut memory = Memory::new(cartridge);
 
         memory.write_u8(SYS_RAM_MIRROR.start, 0xff).unwrap();
-        assert_eq!(memory.sysram[0], 0xff);
+        assert_eq!(memory.data.sysram[0], 0xff);
     }
 
     #[test]
@@ -282,7 +327,7 @@ mod tests {
         let mut memory = Memory::new(cartridge);
 
         memory.write_u8(OAM_RAM.start, 0xff).unwrap();
-        assert_eq!(memory.oamram[0], 0xff);
+        assert_eq!(memory.data.oamram[0], 0xff);
     }
 
     #[test]
@@ -291,14 +336,14 @@ mod tests {
         let mut memory = Memory::new(cartridge);
 
         memory.write_u8(CPU_RAM.start, 0xff).unwrap();
-        assert_eq!(memory.cpuram[0], 0xff);
+        assert_eq!(memory.data.cpuram[0], 0xff);
     }
 
     #[test]
     fn test_read_vram() {
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
         let mut memory = Memory::new(cartridge);
-        memory.vram[0] = 0xff;
+        memory.data.vram[0] = 0xff;
 
         assert_eq!(memory.read_u8(VRAM.start).unwrap(), 0xff);
     }
@@ -307,7 +352,7 @@ mod tests {
     fn test_read_sysram() {
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
         let mut memory = Memory::new(cartridge);
-        memory.sysram[0] = 0xff;
+        memory.data.sysram[0] = 0xff;
 
         assert_eq!(memory.read_u8(SYS_RAM.start).unwrap(), 0xff);
     }
@@ -316,7 +361,7 @@ mod tests {
     fn test_read_sysram_mirror() {
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
         let mut memory = Memory::new(cartridge);
-        memory.sysram[0] = 0xff;
+        memory.data.sysram[0] = 0xff;
 
         assert_eq!(memory.read_u8(SYS_RAM_MIRROR.start).unwrap(), 0xff);
     }
@@ -325,7 +370,7 @@ mod tests {
     fn test_read_oamram() {
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
         let mut memory = Memory::new(cartridge);
-        memory.oamram[0] = 0xff;
+        memory.data.oamram[0] = 0xff;
 
         assert_eq!(memory.read_u8(OAM_RAM.start).unwrap(), 0xff);
     }
@@ -334,7 +379,7 @@ mod tests {
     fn test_read_cpuram() {
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
         let mut memory = Memory::new(cartridge);
-        memory.cpuram[0] = 0xff;
+        memory.data.cpuram[0] = 0xff;
 
         assert_eq!(memory.read_u8(CPU_RAM.start).unwrap(), 0xff);
     }
@@ -346,9 +391,9 @@ mod tests {
 
         memory.write_u8(DMA_REGISTER_ADDR, 0x12).unwrap();
 
-        assert_eq!(memory.registers.dma, 0x12);
+        assert_eq!(memory.data.registers.dma, 0x12);
 
-        memory.registers.dma = 0x34;
+        memory.data.registers.dma = 0x34;
         assert_eq!(memory.read_u8(DMA_REGISTER_ADDR).unwrap(), 0x34);
     }
 
@@ -360,11 +405,11 @@ mod tests {
         memory.write_u8(INTERRUPT_FLAG_ADDR, 0xFF).unwrap();
         memory.write_u8(INTERRUPT_ENABLE_ADDR, 0xFE).unwrap();
 
-        assert_eq!(memory.registers.iflag, 0x1F);
-        assert_eq!(memory.registers.ie, 0x1E);
+        assert_eq!(memory.data.registers.iflag, 0x1F);
+        assert_eq!(memory.data.registers.ie, 0x1E);
 
-        memory.registers.iflag = 0x04;
-        memory.registers.ie = 0x12;
+        memory.data.registers.iflag = 0x04;
+        memory.data.registers.ie = 0x12;
 
         assert_eq!(memory.read_u8(INTERRUPT_FLAG_ADDR).unwrap(), 0x04);
         assert_eq!(memory.read_u8(INTERRUPT_ENABLE_ADDR).unwrap(), 0x12);
@@ -375,14 +420,14 @@ mod tests {
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
         let mut memory = Memory::new(cartridge);
 
-        memory.registers.lcdc = 0;
-        memory.registers.lcdstat = 3;
+        memory.data.registers.lcdc = 0;
+        memory.data.registers.lcdstat = 3;
 
         memory.write_u8(LCD_STATUS_ADDR, 0xFC).unwrap();
         memory.write_u8(LCD_CONTROL_ADDR, 0xFF).unwrap();
 
-        assert_eq!(memory.registers.lcdc, 0xFF);
-        assert_eq!(memory.registers.lcdstat, 0x7F);
+        assert_eq!(memory.data.registers.lcdc, 0xFF);
+        assert_eq!(memory.data.registers.lcdstat, 0x7F);
 
         assert_eq!(memory.read_u8(LCD_STATUS_ADDR).unwrap(), 0x7F);
         assert_eq!(memory.read_u8(LCD_CONTROL_ADDR).unwrap(), 0xFF);
@@ -402,6 +447,62 @@ mod tests {
         assert_eq!(
             memory.write_u8(addr, 0xFE),
             Err(MemoryError::UnmappedAddress(addr))
+        );
+    }
+
+    #[test]
+    fn test_write_event() {
+        use core::cell::RefCell;
+        let event_log: Rc<RefCell<Vec<events::Event>>> = Rc::new(RefCell::new(Vec::new()));
+        let handler_log = Rc::clone(&event_log);
+
+        let handler = move |evt| {
+            handler_log.borrow_mut().push(evt);
+        };
+
+        let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
+        let mut memory = Memory::new(cartridge);
+        memory.set_event_handler(Rc::new(handler));
+
+        memory.write_u8(0x9000, 0x26).unwrap();
+
+        let actual_events = event_log.borrow();
+
+        assert_eq!(
+            *actual_events,
+            vec![events::Event::MemoryWrite {
+                address: 0x9000.into(),
+                value: 0x26,
+                new_value: 0x26,
+            }]
+        );
+    }
+
+    #[test]
+    fn test_write_unwriteable() {
+        use core::cell::RefCell;
+        let event_log: Rc<RefCell<Vec<events::Event>>> = Rc::new(RefCell::new(Vec::new()));
+        let handler_log = Rc::clone(&event_log);
+
+        let handler = move |evt| {
+            handler_log.borrow_mut().push(evt);
+        };
+
+        let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
+        let mut memory = Memory::new(cartridge);
+        memory.set_event_handler(Rc::new(handler));
+
+        memory.write_u8(0x1000, 0x26).unwrap();
+
+        let actual_events = event_log.borrow();
+
+        assert_eq!(
+            *actual_events,
+            vec![events::Event::MemoryWrite {
+                address: 0x1000.into(),
+                value: 0x26,
+                new_value: 0x00,
+            }]
         );
     }
 }

@@ -95,9 +95,7 @@ impl RWTarget {
                 gb.write_register_u8(reg, value);
             }
             RWTarget::WordRegister(reg) => gb.write_register_u16(reg, val),
-            RWTarget::Cycles | RWTarget::Time => {
-                return Err(WriteError::Immutable)
-            }
+            RWTarget::Cycles | RWTarget::Time => return Err(WriteError::Immutable),
         }
         Ok(current_value.unwrap())
     }
@@ -113,9 +111,9 @@ impl FromStr for RWTarget {
 
     fn from_str(s: &str) -> Result<RWTarget, TargetParseError> {
         if s == "cycles" {
-            return Ok(RWTarget::Cycles)
+            return Ok(RWTarget::Cycles);
         } else if s == "time" {
-            return Ok(RWTarget::Time)
+            return Ok(RWTarget::Time);
         }
         parse_number(s)
             .map(|val| address::LiteralAddress(val).into())
