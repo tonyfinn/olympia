@@ -67,7 +67,7 @@ impl AddressOffset {
         let (new_addr, half_carry, carry) = if offset < 0 {
             let to_sub = u16::try_from(offset.abs()).unwrap();
             let (new, carry) = raw_base.overflowing_sub(to_sub);
-            let half_carry = (new & 0x10) != to_sub & 0x10;
+            let half_carry = ((raw_base & 0xF) + 0x10) - (to_sub & 0xF) < 0x10;
             (new, half_carry, carry)
         } else {
             let to_add = u16::try_from(offset.abs()).unwrap();
