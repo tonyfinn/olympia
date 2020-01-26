@@ -208,7 +208,7 @@ impl Cpu {
     }
 
     pub(crate) fn write_register_u16(&mut self, reg: registers::WordRegister, val: u16) {
-        self.registers.write_u16(reg, val)
+        self.registers.write_u16(reg, val);
     }
 
     pub(crate) fn read_register_u8(&self, reg: registers::ByteRegister) -> u8 {
@@ -216,7 +216,7 @@ impl Cpu {
     }
 
     pub(crate) fn write_register_u8(&mut self, reg: registers::ByteRegister, val: u8) {
-        self.registers.write_u8(reg, val)
+        self.registers.write_u8(reg, val);
     }
 
     pub(crate) fn read_flag(&self, flag: registers::Flag) -> bool {

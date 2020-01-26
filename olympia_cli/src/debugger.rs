@@ -249,7 +249,7 @@ impl<'a> CliDebugger<'a> {
     }
 
     fn add_breakpoint(&mut self, target: RWTarget, value: u16) -> io::Result<()> {
-        self.breakpoints.push(Breakpoint::new(target, value));
+        self.breakpoints.push(Breakpoint::new(target, value.into()));
         writeln!(self.out, "Added breakpoint for {} == {:X}", target, value)?;
         Ok(())
     }

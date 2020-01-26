@@ -37,6 +37,10 @@ pub enum RWTarget {
     /// Word in the given 16-bit register
     #[display(fmt = "register {:?}", "_0")]
     WordRegister(registers::WordRegister),
+    #[display(fmt = "cycles")]
+    Cycles,
+    #[display(fmt = "time")]
+    Time,
 }
 
 #[derive(Debug, From, Display)]
@@ -54,6 +58,8 @@ pub enum WriteError {
     Memory(address::LiteralAddress),
     #[display(fmt = "The value {:X} is too large for the destination", "_0")]
     ValueTooLarge(u16),
+    #[display(fmt = "Cannot update locations of this type")]
+    Immutable,
 }
 
 #[cfg(feature = "std")]
@@ -61,20 +67,22 @@ impl std::error::Error for WriteError {}
 
 impl RWTarget {
     /// Reads the value at the given target
-    pub fn read(self, gb: &gameboy::GameBoy) -> Result<u16, ReadError> {
+    pub fn read(self, gb: &gameboy::GameBoy) -> Result<u64, ReadError> {
         match self {
             RWTarget::Address(addr) => gb
                 .read_memory_u8(addr)
-                .map(u16::from)
+                .map(u64::from)
                 .map_err(|_| addr.into()),
-            RWTarget::ByteRegister(reg) => Ok(u16::from(gb.read_register_u8(reg))),
-            RWTarget::WordRegister(reg) => Ok(gb.read_register_u16(reg)),
+            RWTarget::ByteRegister(reg) => Ok(u64::from(gb.read_register_u8(reg))),
+            RWTarget::WordRegister(reg) => Ok(u64::from(gb.read_register_u16(reg))),
+            RWTarget::Cycles => Ok(gb.cycles_elapsed()),
+            RWTarget::Time => Ok(gb.cycles_elapsed() / (1024 * 1024)),
         }
     }
     /// Writes the value at the given target
     ///
     /// Returns the previous value if successful
-    pub fn write(self, gb: &mut gameboy::GameBoy, val: u16) -> Result<u16, WriteError> {
+    pub fn write(self, gb: &mut gameboy::GameBoy, val: u16) -> Result<u64, WriteError> {
         let current_value = self.read(gb);
         match self {
             RWTarget::Address(addr) => {
@@ -87,6 +95,9 @@ impl RWTarget {
                 gb.write_register_u8(reg, value);
             }
             RWTarget::WordRegister(reg) => gb.write_register_u16(reg, val),
+            RWTarget::Cycles | RWTarget::Time => {
+                return Err(WriteError::Immutable)
+            }
         }
         Ok(current_value.unwrap())
     }
@@ -101,6 +112,11 @@ impl FromStr for RWTarget {
     type Err = TargetParseError;
 
     fn from_str(s: &str) -> Result<RWTarget, TargetParseError> {
+        if s == "cycles" {
+            return Ok(RWTarget::Cycles)
+        } else if s == "time" {
+            return Ok(RWTarget::Time)
+        }
         parse_number(s)
             .map(|val| address::LiteralAddress(val).into())
             .map_err(|_| ())
@@ -125,14 +141,14 @@ impl FromStr for RWTarget {
 #[display(fmt = "Breakpoint: {} == {:X}", monitor, value)]
 pub struct Breakpoint {
     /// The value that should be checked
-    monitor: RWTarget,
+    pub monitor: RWTarget,
     /// Value to check against. For 8-bit registers or memory locations, only
     /// the lower 8-bits are checked
-    value: u16,
+    pub value: u64,
 }
 
 impl Breakpoint {
-    pub fn new(monitor: RWTarget, value: u16) -> Breakpoint {
+    pub fn new(monitor: RWTarget, value: u64) -> Breakpoint {
         Breakpoint { monitor, value }
     }
 
