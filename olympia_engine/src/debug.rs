@@ -134,7 +134,7 @@ impl FromStr for RWTarget {
     }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, Clone)]
 /// A breakpoint that triggers when a monitored value is set to a given value.
 #[display(fmt = "Breakpoint: {} == {:X}", monitor, value)]
 pub struct Breakpoint {

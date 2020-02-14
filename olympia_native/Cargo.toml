@@ -13,9 +13,9 @@ license = "GPL-3.0-or-later"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pixels = "0.0.2"
+derive_more = "0.99.2"
 olympia_engine = { version = "0.2.0", path = "../olympia_engine", features = ["std"] }
-winit = "0.20.0-alpha4"
+thiserror = "1.0.9"
 
 [dependencies.gdk]
 version = "0.12.0"
@@ -25,6 +25,14 @@ features = ["v3_22"]
 version = "0.8.0"
 features = ["v3_22"]
 
+[dependencies.glib]
+version = "0.9.0"
+features = ["v2_56"]
+
 [dependencies.gio]
 version = "0.8.0"
-features = ["v2_44"]
+features = ["v2_56"]
+
+[dependencies.pango]
+version = "0.8.0"
+features = ["v1_40"]

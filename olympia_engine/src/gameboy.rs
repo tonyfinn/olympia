@@ -32,6 +32,7 @@ use crate::rom::TargetConsole;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::convert::TryFrom;
+use derive_more::Display;
 use olympia_core::address;
 
 /// Primary struct for an emulated gameboy.
@@ -59,15 +60,20 @@ pub struct GameBoy {
     event_handler: Option<Rc<events::EventHandler>>,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Display)]
 /// Represents an error that occurred while performing
 /// an emulated instruction.
 pub enum StepError {
     /// Errors related to memory access
+    #[display(fmt = "Accessing invalid memory location")]
     Memory(memory::MemoryError),
     /// Opcodes that don't map to a valid instruction
+    #[display(fmt = "Attempted to exec invalid opcode {}", _0)]
     InvalidOpcode(u8),
 }
+
+#[cfg(feature = "std")]
+impl std::error::Error for StepError {}
 
 impl From<memory::MemoryError> for StepError {
     fn from(err: memory::MemoryError) -> Self {

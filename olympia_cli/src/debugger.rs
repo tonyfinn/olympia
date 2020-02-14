@@ -326,7 +326,10 @@ impl<'a> CliDebugger<'a> {
                     writeln!(self.out, "{}", message)?;
                 }
                 Err(
-                    ref e @ clap::Error {
+                    ref
+                    e
+                    @
+                    clap::Error {
                         kind: clap::ErrorKind::UnknownArgument,
                         ..
                     },
