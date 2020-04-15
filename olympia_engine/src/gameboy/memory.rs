@@ -1,12 +1,15 @@
 use crate::events;
 use crate::rom::Cartridge;
 
-use alloc::rc::Rc;
 use olympia_core::address;
 
 pub(crate) const DMA_REGISTER_ADDR: u16 = 0xff46;
 pub(crate) const LCD_CONTROL_ADDR: u16 = 0xFF40;
 pub(crate) const LCD_STATUS_ADDR: u16 = 0xFF41;
+pub(crate) const SCROLL_Y_ADDR: u16 = 0xFF42;
+pub(crate) const SCROLL_X_ADDR: u16 = 0xFF43;
+pub(crate) const WINDOW_Y_ADDR: u16 = 0xFF4A;
+pub(crate) const WINDOW_X_ADDR: u16 = 0xFF4B;
 pub(crate) const CURRENT_LINE_ADDR: u16 = 0xFF44;
 pub(crate) const LINE_CHECK_ADDR: u16 = 0xFF45;
 pub(crate) const INTERRUPT_ENABLE_ADDR: u16 = 0xffff;
@@ -98,10 +101,18 @@ pub struct MemoryRegisters {
     /// Bits 3-6 control interrupts, bit 2 inverts line checks, bit 0-1
     /// exposes current PPU mode
     pub(crate) lcdstat: u8,
+    /// Scroll the screen vertically this many pixels
+    pub(crate) scy: u8,
+    /// Scroll the screen horizontally this many pixels
+    pub(crate) scx: u8,
     /// Current line being drawn by the PPU
     pub(crate) ly: u8,
     /// Line to check LY against for interrupts on specific line
     pub(crate) lyc: u8,
+    /// Y Pixel offset (in screen co-ordinates, not tile map) to start window
+    pub(crate) wy: u8,
+    /// X Pixel offset (in screen co-ordinates, not tile map) to start window
+    pub(crate) wx: u8,
     /// Interrupts where their conditions have been triggered
     pub(crate) iflag: u8,
     /// Interrupts that are enabled and can cause CPU interrupts
@@ -114,8 +125,12 @@ impl MemoryRegisters {
             dma: 0,
             lcdc: 0x91,
             lcdstat: 0,
+            scy: 0,
+            scx: 0,
             ly: 0,
             lyc: 0,
+            wy: 0,
+            wx: 0,
             iflag: 0,
             ie: 0,
         }
@@ -126,8 +141,12 @@ impl MemoryRegisters {
             DMA_REGISTER_ADDR => Some(self.dma),
             LCD_CONTROL_ADDR => Some(self.lcdc),
             LCD_STATUS_ADDR => Some(self.lcdstat),
+            SCROLL_Y_ADDR => Some(self.scy),
+            SCROLL_X_ADDR => Some(self.scx),
             CURRENT_LINE_ADDR => Some(self.ly),
             LINE_CHECK_ADDR => Some(self.lyc),
+            WINDOW_Y_ADDR => Some(self.wy),
+            WINDOW_X_ADDR => Some(self.wx),
             INTERRUPT_FLAG_ADDR => Some(self.iflag),
             INTERRUPT_ENABLE_ADDR => Some(self.ie),
             _ => None,
@@ -141,8 +160,12 @@ impl MemoryRegisters {
             // Top bit doesn't exist
             // Lower two bits are mode flag
             LCD_STATUS_ADDR => masked_write(&mut self.lcdstat, value, 0b0111_1100),
+            SCROLL_Y_ADDR => self.scy = value,
+            SCROLL_X_ADDR => self.scx = value,
             CURRENT_LINE_ADDR => (), // Read only
             LINE_CHECK_ADDR => self.lyc = value,
+            WINDOW_Y_ADDR => self.wy = value,
+            WINDOW_X_ADDR => self.wx = value,
             INTERRUPT_FLAG_ADDR => masked_write(&mut self.iflag, value, 0x1F),
             INTERRUPT_ENABLE_ADDR => masked_write(&mut self.ie, value, 0x1F),
             _ => (),
@@ -420,12 +443,20 @@ mod tests {
 
         memory.write_u8(LCD_STATUS_ADDR, 0xFC).unwrap();
         memory.write_u8(LCD_CONTROL_ADDR, 0xFF).unwrap();
+        memory.write_u8(SCROLL_Y_ADDR, 0xAA).unwrap();
+        memory.write_u8(SCROLL_X_ADDR, 0x33).unwrap();
+        memory.write_u8(WINDOW_Y_ADDR, 0x3A).unwrap();
+        memory.write_u8(WINDOW_X_ADDR, 0xA3).unwrap();
 
         assert_eq!(memory.data.registers.lcdc, 0xFF);
         assert_eq!(memory.data.registers.lcdstat, 0x7F);
 
         assert_eq!(memory.read_u8(LCD_STATUS_ADDR).unwrap(), 0x7F);
         assert_eq!(memory.read_u8(LCD_CONTROL_ADDR).unwrap(), 0xFF);
+        assert_eq!(memory.read_u8(SCROLL_Y_ADDR).unwrap(), 0xAA);
+        assert_eq!(memory.read_u8(SCROLL_X_ADDR).unwrap(), 0x33);
+        assert_eq!(memory.read_u8(WINDOW_Y_ADDR).unwrap(), 0x3A);
+        assert_eq!(memory.read_u8(WINDOW_X_ADDR).unwrap(), 0xA3);
     }
 
     #[test]

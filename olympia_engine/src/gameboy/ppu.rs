@@ -9,12 +9,30 @@ const TOTAL_LINES: u8 = 154;
 const OAM_SCAN_CYCLES: u8 = 20;
 const LINE_CYCLES: u8 = 114;
 
-const MODE_LCDSTAT_MASK: u8 = 3;
-const MATCH_FLAG_LCDSTAT_MASK: u8 = 1 << 2;
-const HBLANK_LCDSTAT_MASK: u8 = 1 << 3;
-const VBLANK_LCDSTAT_MASK: u8 = 1 << 4;
-const OAM_SCAN_LCDSTAT_MASK: u8 = 1 << 5;
-const LINE_MATCH_INT_LCDSTAT_MASK: u8 = 1 << 6;
+const MODE_MASK: u8 = 3;
+const MODE_HBLANK: u8 = 0b00;
+const MODE_VBLANK: u8 = 0b01;
+const MODE_OAMSCAN: u8 = 0b10;
+const MODE_DRAWING: u8 = 0b11;
+
+const LCDSTAT_MATCH_ON_EQUAL: u8 = 1 << 2;
+const LCDSTAT_HBLANK_INTERRUPT: u8 = 1 << 3;
+const LCDSTAT_VBLANK_INTERRUPT: u8 = 1 << 4;
+const LCDSTAT_OAM_SCAN_INTERRUPT: u8 = 1 << 5;
+const LCDSTAT_LINE_MATCH_INTERRUPT: u8 = 1 << 6;
+
+const LCDC_SPRITE_ENABLE: u8 = 1 << 1;
+const LCDC_LARGE_SPRITE: u8 = 1 << 2;
+const LCDC_HIGH_BG_MAP: u8 = 1 << 3;
+const LCDC_LOW_BG_TILES: u8 = 1 << 4;
+const LCDC_WINDOW_ENABLED: u8 = 1 << 5;
+const LCDC_HIGH_WINDOW_MAP: u8 = 1 << 6;
+const LCDC_ENABLED: u8 = 1 << 7;
+
+const MEM_LOW_TILES: u16 = 0x8000;
+const MEM_HIGH_TILES: u16 = 0x8800;
+const MEM_LOW_MAP: u16 = 0x9800;
+const MEM_HIGH_MAP: u16 = 0x9C00;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum PPUPhase {
@@ -24,6 +42,7 @@ pub(crate) enum PPUPhase {
     VBlank,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Palette {
     Background,
     Window,
@@ -58,7 +77,7 @@ pub(crate) struct PPU {
     phase: PPUPhase,
     current_line: u8,
     cycles_on_line: u8,
-    next_pixel: u8,
+    current_pixel: u8,
 }
 
 impl PPU {
@@ -69,19 +88,22 @@ impl PPU {
             phase: PPUPhase::ObjectScan,
             current_line: 0,
             cycles_on_line: 0,
-            next_pixel: 0,
+            current_pixel: 0,
         }
     }
 
     pub(crate) fn run_cycle(&mut self, mem: &mut Memory) {
         if self.is_enabled(mem) {
+            if self.phase == PPUPhase::Drawing {
+                self.draw(mem);
+            }
             self.update_phase(mem);
         }
     }
 
     fn should_trigger_line_interrupt(&self, lcdstat: u8, check_line: u8, current_line: u8) -> bool {
-        (((lcdstat & MATCH_FLAG_LCDSTAT_MASK) != 0) == (current_line == check_line))
-            && ((lcdstat & LINE_MATCH_INT_LCDSTAT_MASK) != 0)
+        (((lcdstat & LCDSTAT_MATCH_ON_EQUAL) != 0) == (current_line == check_line))
+            && ((lcdstat & LCDSTAT_LINE_MATCH_INTERRUPT) != 0)
     }
 
     fn update_phase(&mut self, mem: &mut Memory) {
@@ -102,33 +124,121 @@ impl PPU {
             }
             if self.current_line == VISIBLE_LINES {
                 self.phase = PPUPhase::VBlank;
-                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_LCDSTAT_MASK) | 0b01;
+                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_VBLANK;
                 Interrupt::VBlank.set(&mut mem.registers_mut().ie);
-                if (mem.registers().lcdstat & VBLANK_LCDSTAT_MASK) != 0 {
+                if (mem.registers().lcdstat & LCDSTAT_VBLANK_INTERRUPT) != 0 {
                     Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
                 }
             } else if self.current_line < VISIBLE_LINES {
                 self.phase = PPUPhase::ObjectScan;
-                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_LCDSTAT_MASK) | 0b10;
-                if (mem.registers().lcdstat & OAM_SCAN_LCDSTAT_MASK) != 0 {
+                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_OAMSCAN;
+                if (mem.registers().lcdstat & LCDSTAT_OAM_SCAN_INTERRUPT) != 0 {
                     Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
                 }
             }
             mem.registers_mut().ly = self.current_line;
         } else if self.cycles_on_line == OAM_SCAN_CYCLES && self.current_line < VISIBLE_LINES {
             self.phase = PPUPhase::Drawing;
-            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_LCDSTAT_MASK) | 0b11;
-        } else if self.next_pixel >= VISIBLE_WIDTH {
+            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_DRAWING;
+        } else if self.current_pixel >= VISIBLE_WIDTH {
             self.phase = PPUPhase::HBlank;
-            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_LCDSTAT_MASK) | 0b00;
-            if (mem.registers().lcdstat & HBLANK_LCDSTAT_MASK) != 0 {
+            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_HBLANK;
+            if (mem.registers().lcdstat & LCDSTAT_HBLANK_INTERRUPT) != 0 {
                 Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
             }
         }
     }
 
+    fn read_pixel_palette_index(&self, mem: &Memory, tile_base: u16, x: u8, y: u8) -> u8 {
+        let lower_addr = tile_base + (u16::from(y) * 2);
+
+        let lower_byte = mem.read_u8(lower_addr).unwrap_or(0);
+        let upper_byte = mem.read_u8(lower_addr + 1).unwrap_or(0);
+
+        let upper_byte_value = (upper_byte >> x) & 1;
+        let lower_byte_value = (lower_byte >> x) & 1;
+
+        lower_byte_value | (upper_byte_value << 1)
+    }
+
+    fn draw(&mut self, mem: &Memory) {
+        let actual_x = mem.registers().scx + self.current_pixel;
+        let actual_y = mem.registers().scy + self.current_line;
+
+        let pixel = self.calculate_pixel(mem, actual_x, actual_y);
+        self.pixel_queue.push_back(pixel);
+        let fb_index = usize::from(actual_x) + (usize::from(actual_y) * usize::from(VISIBLE_WIDTH));
+        self.framebuffer[fb_index] = pixel;
+
+        self.current_pixel += 1;
+    }
+
+    fn calculate_pixel(&mut self, mem: &Memory, x: u8, y: u8) -> GBPixel {
+        let tile_x = x / 8;
+        let tile_y = y / 8;
+
+        let is_window = (self.current_pixel >= mem.registers().wx) 
+            && (self.current_line >= mem.registers().wy)
+            && self.window_enabled(mem);
+
+        let map_offset = if is_window { self.window_map_offset(mem) } else { self.background_map_offset(mem) };
+
+        let tile_id_addr = map_offset + (u16::from(tile_y) * 32) + u16::from(tile_x);
+        let tile_at_pixel = mem.read_u8(tile_id_addr).unwrap_or(0);
+        
+        let tile_base = self.tile_character_offset(mem) + (u16::from(tile_at_pixel) * 0x10);
+        let tile_offset_x = x % 8;
+        let tile_offset_y = y % 8;
+
+        let palette_index = self.read_pixel_palette_index(mem, tile_base, tile_offset_x, tile_offset_y);
+        let palette = if is_window { Palette::Window } else { Palette::Background };
+        GBPixel::new(palette, palette_index)
+    }
+
+    #[allow(dead_code)]
+    fn sprites_enabled(&self, mem: &Memory) -> bool {
+        (mem.registers().lcdc & LCDC_SPRITE_ENABLE) != 0
+    }
+
+    #[allow(dead_code)]
+    fn sprite_height(&self, mem: &Memory) -> u8 {
+        if mem.registers().lcdc & LCDC_LARGE_SPRITE == 0 {
+            8
+        } else {
+            16
+        }
+    }
+
+    fn background_map_offset(&self, mem: &Memory) -> u16 {
+        if (mem.registers().lcdc & LCDC_HIGH_BG_MAP) == 0 {
+            MEM_LOW_MAP
+        } else {
+            MEM_HIGH_MAP
+        }
+    }
+
+    fn tile_character_offset(&self, mem: &Memory) -> u16 {
+        if (mem.registers().lcdc & LCDC_LOW_BG_TILES) == 0 {
+            MEM_HIGH_TILES
+        } else {
+            MEM_LOW_TILES
+        }
+    }
+
+    fn window_enabled(&self, mem: &Memory) -> bool {
+        (mem.registers().lcdc & LCDC_WINDOW_ENABLED) != 0
+    }
+
+    fn window_map_offset(&self, mem: &Memory) -> u16 {
+        if (mem.registers().lcdc & LCDC_HIGH_WINDOW_MAP) == 0 {
+            MEM_LOW_MAP
+        } else {
+            MEM_HIGH_MAP
+        }
+    }
+
     fn is_enabled(&self, mem: &Memory) -> bool {
-        (mem.registers().lcdc & 0x80) == 0
+        (mem.registers().lcdc & LCDC_ENABLED) != 0
     }
 }
 
@@ -155,11 +265,11 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        ppu.next_pixel = VISIBLE_WIDTH;
-        memory.registers_mut().lcdstat = 0b00;
+        ppu.current_pixel = VISIBLE_WIDTH;
+        memory.registers_mut().lcdstat = MODE_HBLANK;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.current_line, 101);
-        assert_eq!(ppu.next_pixel, 0);
+        assert_eq!(ppu.current_pixel, 0);
         assert_eq!(ppu.cycles_on_line, 0);
         assert_eq!(ppu.phase, PPUPhase::ObjectScan);
         assert_eq!(memory.registers().lcdstat, 0b10);
@@ -172,7 +282,7 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        memory.registers_mut().lcdstat = 0b0010_0000;
+        memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_OAM_SCAN_INTERRUPT;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
             Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
@@ -187,7 +297,7 @@ mod test {
         ppu.current_line = 100;
         ppu.cycles_on_line = LINE_CYCLES - 1;
         memory.registers_mut().lyc = 101;
-        memory.registers_mut().lcdstat = 0b0100_0100;
+        memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_MATCH_ON_EQUAL;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
             Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
@@ -202,7 +312,7 @@ mod test {
         ppu.current_line = 101;
         ppu.cycles_on_line = LINE_CYCLES - 1;
         memory.registers_mut().lyc = 101;
-        memory.registers_mut().lcdstat = 0b0100_0100;
+        memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_MATCH_ON_EQUAL;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt = Interrupt::test(0x02, memory.registers().ie);
         assert!(lcd_active_interrupt.is_none());
@@ -216,7 +326,7 @@ mod test {
         ppu.current_line = 101;
         ppu.cycles_on_line = LINE_CYCLES - 1;
         memory.registers_mut().lyc = 101;
-        memory.registers_mut().lcdstat = 0b0100_0000;
+        memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
             Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
@@ -231,7 +341,7 @@ mod test {
         ppu.current_line = 100;
         ppu.cycles_on_line = LINE_CYCLES - 1;
         memory.registers_mut().lyc = 101;
-        memory.registers_mut().lcdstat = 0b0100_0000;
+        memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt = Interrupt::test(0x02, memory.registers().ie);
         assert!(lcd_active_interrupt.is_none());
@@ -244,11 +354,11 @@ mod test {
         ppu.phase = PPUPhase::Drawing;
         ppu.current_line = 101;
         ppu.cycles_on_line = LINE_CYCLES - 30;
-        ppu.next_pixel = VISIBLE_WIDTH;
+        ppu.current_pixel = VISIBLE_WIDTH;
         memory.registers_mut().lcdstat = 0b11;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.phase, PPUPhase::HBlank);
-        assert_eq!(memory.registers().lcdstat, 0b00);
+        assert_eq!(memory.registers().lcdstat & MODE_MASK, MODE_HBLANK);
     }
 
     #[test]
@@ -258,8 +368,8 @@ mod test {
         ppu.phase = PPUPhase::Drawing;
         ppu.current_line = 101;
         ppu.cycles_on_line = LINE_CYCLES - 30;
-        ppu.next_pixel = VISIBLE_WIDTH;
-        memory.registers_mut().lcdstat = 0b1011;
+        ppu.current_pixel = VISIBLE_WIDTH;
+        memory.registers_mut().lcdstat = MODE_DRAWING | LCDSTAT_HBLANK_INTERRUPT;
         ppu.update_phase(&mut memory);
         let active_interrupt =
             Interrupt::test(0x1F, memory.registers().ie).expect("No interrupt triggered");
@@ -273,11 +383,11 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = VISIBLE_LINES - 1;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        ppu.next_pixel = VISIBLE_WIDTH;
+        ppu.current_pixel = VISIBLE_WIDTH;
         memory.registers_mut().lcdstat = 0b11;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.phase, PPUPhase::VBlank);
-        assert_eq!(memory.registers().lcdstat, 0b01);
+        assert_eq!(memory.registers().lcdstat & MODE_MASK, MODE_VBLANK);
     }
 
     #[test]
@@ -287,13 +397,13 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = TOTAL_LINES - 1;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        ppu.next_pixel = VISIBLE_WIDTH;
+        ppu.current_pixel = VISIBLE_WIDTH;
         memory.registers_mut().lcdstat = 0b11;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.phase, PPUPhase::ObjectScan);
-        assert_eq!(memory.registers().lcdstat, 0b10);
+        assert_eq!(memory.registers().lcdstat & MODE_MASK, MODE_OAMSCAN);
         assert_eq!(ppu.current_line, 0);
-        assert_eq!(ppu.next_pixel, 0);
+        assert_eq!(ppu.current_pixel, 0);
         assert_eq!(ppu.cycles_on_line, 0);
     }
 
@@ -304,7 +414,7 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = VISIBLE_LINES - 1;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        memory.registers_mut().lcdstat = 0b0111_1011;
+        memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_OAM_SCAN_INTERRUPT | LCDSTAT_VBLANK_INTERRUPT | LCDSTAT_LINE_MATCH_INTERRUPT;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
             Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
@@ -321,13 +431,142 @@ mod test {
         ppu.phase = PPUPhase::ObjectScan;
         ppu.current_line = 100;
         ppu.cycles_on_line = OAM_SCAN_CYCLES - 1;
-        ppu.next_pixel = 0;
-        memory.registers_mut().lcdstat = 0b10;
+        ppu.current_pixel = 0;
+        memory.registers_mut().lcdstat = MODE_OAMSCAN;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.phase, PPUPhase::Drawing);
-        assert_eq!(memory.registers().lcdstat, 0b11);
+        assert_eq!(memory.registers().lcdstat & MODE_MASK, MODE_DRAWING);
         assert_eq!(ppu.current_line, 100);
-        assert_eq!(ppu.next_pixel, 0);
+        assert_eq!(ppu.current_pixel, 0);
         assert_eq!(ppu.cycles_on_line, OAM_SCAN_CYCLES);
+    }
+
+    #[test]
+    fn draw_phase_basic_bg() {
+        let mut ppu = PPU::new();
+        let mut memory = create_memory();
+        
+        memory.registers_mut().lcdc = LCDC_ENABLED;
+        memory.write_u8(MEM_HIGH_TILES + 0x10, 0b1111_0101).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x11, 0b1111_0011).unwrap();
+        memory.write_u8(MEM_LOW_MAP, 1).unwrap();
+
+        let expected_pixels = vec![
+            GBPixel::new(Palette::Background, 3),
+            GBPixel::new(Palette::Background, 2),
+            GBPixel::new(Palette::Background, 1),
+            GBPixel::new(Palette::Background, 0),
+            GBPixel::new(Palette::Background, 3),
+            GBPixel::new(Palette::Background, 3),
+            GBPixel::new(Palette::Background, 3),
+            GBPixel::new(Palette::Background, 3),
+        ];
+
+        for _ in 0..8 {
+            ppu.draw(&memory);
+        }
+
+        assert_eq!(expected_pixels, ppu.pixel_queue.drain(..).collect::<Vec<GBPixel>>());
+        assert_eq!(expected_pixels, Vec::from(&ppu.framebuffer[0..8]));
+    }
+
+    #[test]
+    fn draw_phase_bg_low_tiles_no_window() {
+        let mut ppu = PPU::new();
+        let mut memory = create_memory();
+        
+        memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_LOW_BG_TILES;
+        memory.write_u8(MEM_LOW_TILES + 0x10, 0xFF).unwrap();
+        memory.write_u8(MEM_LOW_TILES + 0x11, 0xFF).unwrap();
+        memory.write_u8(MEM_LOW_MAP, 1).unwrap();
+
+        ppu.draw(&memory);
+
+        assert_eq!(GBPixel::new(Palette::Background, 3), ppu.pixel_queue[0]);
+        assert_eq!(GBPixel::new(Palette::Background, 3), ppu.framebuffer[0]);
+    }
+
+    #[test]
+    fn draw_phase_bg_high_map_low_tiles_no_window() {
+        let mut ppu = PPU::new();
+        let mut memory = create_memory();
+        
+        memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_LOW_BG_TILES | LCDC_HIGH_BG_MAP;
+        memory.write_u8(MEM_LOW_TILES + 0x10, 0xFF).unwrap();
+        memory.write_u8(MEM_LOW_TILES + 0x11, 0xFF).unwrap();
+        memory.write_u8(MEM_HIGH_MAP, 1).unwrap();
+
+        ppu.draw(&memory);
+
+        assert_eq!(GBPixel::new(Palette::Background, 3), ppu.pixel_queue[0]);
+        assert_eq!(GBPixel::new(Palette::Background, 3), ppu.framebuffer[0]);
+    }
+
+    #[test]
+    fn draw_phase_window_transition() {
+        let mut ppu = PPU::new();
+        let mut memory = create_memory();
+        
+        memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_WINDOW_ENABLED | LCDC_HIGH_BG_MAP;
+        memory.registers_mut().wx = 4;
+        memory.registers_mut().wy = 0;
+        memory.write_u8(MEM_HIGH_TILES + 0x10, 0b1111_0101).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x11, 0b1111_0011).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x20, 0b0101_0000).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x21, 0b1010_0000).unwrap();
+        memory.write_u8(MEM_HIGH_MAP, 1).unwrap();
+        memory.write_u8(MEM_LOW_MAP, 2).unwrap();
+
+        let expected_pixels = vec![
+            GBPixel::new(Palette::Background, 3),
+            GBPixel::new(Palette::Background, 2),
+            GBPixel::new(Palette::Background, 1),
+            GBPixel::new(Palette::Background, 0),
+            GBPixel::new(Palette::Window, 1),
+            GBPixel::new(Palette::Window, 2),
+            GBPixel::new(Palette::Window, 1),
+            GBPixel::new(Palette::Window, 2),
+        ];
+
+        for _ in 0..8 {
+            ppu.draw(&memory);
+        }
+
+        assert_eq!(expected_pixels, ppu.pixel_queue.drain(..).collect::<Vec<GBPixel>>());
+        assert_eq!(expected_pixels, Vec::from(&ppu.framebuffer[0..8]));
+    }
+
+    #[test]
+    fn draw_phase_window_transition_window_high() {
+        let mut ppu = PPU::new();
+        let mut memory = create_memory();
+        
+        memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_WINDOW_ENABLED | LCDC_HIGH_WINDOW_MAP;
+        memory.registers_mut().wx = 4;
+        memory.registers_mut().wy = 0;
+        memory.write_u8(MEM_HIGH_TILES + 0x10, 0b1111_0101).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x11, 0b1111_0011).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x20, 0b0101_0000).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x21, 0b1010_0000).unwrap();
+        memory.write_u8(MEM_LOW_MAP, 1).unwrap();
+        memory.write_u8(MEM_HIGH_MAP, 2).unwrap();
+
+        let expected_pixels = vec![
+            GBPixel::new(Palette::Background, 3),
+            GBPixel::new(Palette::Background, 2),
+            GBPixel::new(Palette::Background, 1),
+            GBPixel::new(Palette::Background, 0),
+            GBPixel::new(Palette::Window, 1),
+            GBPixel::new(Palette::Window, 2),
+            GBPixel::new(Palette::Window, 1),
+            GBPixel::new(Palette::Window, 2),
+        ];
+
+        for _ in 0..8 {
+            ppu.draw(&memory);
+        }
+
+        assert_eq!(expected_pixels, ppu.pixel_queue.drain(..).collect::<Vec<GBPixel>>());
+        assert_eq!(expected_pixels, Vec::from(&ppu.framebuffer[0..8]));
     }
 }
