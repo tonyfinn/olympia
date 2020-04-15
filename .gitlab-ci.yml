@@ -1,4 +1,4 @@
-image: rust:1.42
+image: xd009642/tarpaulin:0.12.2
 
 stages:
     - test
@@ -8,7 +8,6 @@ test:
     before_script:
         - apt-get update && apt-get -y install libgtk-3-dev
     script:
-        - cargo install cargo-tarpaulin
         - cargo tarpaulin -o Html 
     artifacts:
         paths:
