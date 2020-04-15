@@ -1,5 +1,8 @@
 # Olympia
 
+[![pipeline status](https://gitlab.com/tonyfinn/olympia/badges/master/pipeline.svg)](https://gitlab.com/tonyfinn/olympia/-/commits/master)
+[![coverage report](https://gitlab.com/tonyfinn/olympia/badges/master/coverage.svg)](https://gitlab.com/tonyfinn/olympia/-/commits/master)
+
 Olympia is a gameboy emulator and toolkit, intended to run as a native or web assembly application targeting a cycle count accurate emulation.
 
 Currently it is in a very early stage, with mostly basic CPU instruction set emulation and a CLI debugger and disassembler completed.

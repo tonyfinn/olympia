@@ -15,6 +15,9 @@ repository = "https://gitlab.com/tonyfinn/olympia"
 documentation = "https://docs.rs/olympia_derive"
 edition = "2018"
 
+[badges]
+gitlab = { repository = "tonyfinn/olympia", branch = "master" }
+
 [lib]
 proc-macro = true
 

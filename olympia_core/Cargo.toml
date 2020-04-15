@@ -17,6 +17,8 @@ homepage = "https://gitlab.com/tonyfinn/olympia"
 repository = "https://gitlab.com/tonyfinn/olympia"
 documentation = "https://docs.rs/olympia_core"
 
+[badges]
+gitlab = { repository = "tonyfinn/olympia", branch = "master" }
 
 [dependencies]
 derive_more = "0.99.5"

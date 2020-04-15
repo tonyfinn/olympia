@@ -16,6 +16,9 @@ repository = "https://gitlab.com/tonyfinn/olympia"
 documentation = "https://docs.rs/olympia_engine"
 categories = ["emulators", "no-std"]
 
+[badges]
+gitlab = { repository = "tonyfinn/olympia", branch = "master" }
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]

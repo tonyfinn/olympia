@@ -13,3 +13,6 @@ readme = "../README.md"
 homepage = "https://gitlab.com/tonyfinn/olympia"
 repository = "https://gitlab.com/tonyfinn/olympia"
 documentation = "https://docs.rs/olympia"
+
+[badges]
+gitlab = { repository = "tonyfinn/olympia", branch = "master" }

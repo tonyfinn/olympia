@@ -12,6 +12,9 @@ license = "GPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[badges]
+gitlab = { repository = "tonyfinn/olympia", branch = "master" }
+
 [dependencies]
 derive_more = "0.99.5"
 olympia_engine = { version = "0.2.0", path = "../olympia_engine", features = ["std"] }
