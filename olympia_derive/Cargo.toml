@@ -26,4 +26,4 @@ thiserror = "1.0.9"
 olympia_core = { version = "0.1.0", path = "../olympia_core" }
 
 [dev-dependencies]
-runtime-macros = { git = "https://github.com/tonyfinn/runtime-macros", branch = "derive_support" }
+runtime-macros-derive = "0.4.0"
