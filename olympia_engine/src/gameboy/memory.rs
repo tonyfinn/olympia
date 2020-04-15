@@ -165,7 +165,7 @@ pub struct MemoryData {
 
 pub struct Memory {
     data: MemoryData,
-    event_handler: Option<Rc<events::EventHandler>>,
+    pub events: events::EventEmitter<events::MemoryWriteEvent>,
 }
 
 impl Memory {
@@ -179,7 +179,7 @@ impl Memory {
                 cartridge,
                 registers: MemoryRegisters::new(),
             },
-            event_handler: None,
+            events: events::EventEmitter::new(),
         }
     }
 
@@ -263,23 +263,17 @@ impl Memory {
         };
 
         if write_result.is_ok() {
-            if let Some(event_handler) = self.event_handler.clone() {
-                // need to read the actual new value in case of partial registers
-                // unmapped memory, or writes to ROM address space
-                let new_value = self.read_u8(address).unwrap_or(0xFF);
-                event_handler(events::Event::MemoryWrite {
-                    address,
-                    value,
-                    new_value,
-                });
-            }
+            // need to read the actual new value in case of partial registers
+            // unmapped memory, or writes to ROM address space
+            let new_value = self.read_u8(address).unwrap_or(0xFF);
+            self.events.emit(events::MemoryWriteEvent::new(
+                address,
+                value,
+                new_value,
+            ));
         }
 
         write_result
-    }
-
-    pub(crate) fn set_event_handler(&mut self, event_handler: Rc<events::EventHandler>) {
-        self.event_handler = Some(event_handler);
     }
 
     pub(crate) fn offset_iter(&self, start: address::LiteralAddress) -> MemoryIterator {
@@ -293,6 +287,7 @@ impl Memory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::rc::Rc;
 
     #[test]
     fn test_write_vram() {
@@ -453,16 +448,17 @@ mod tests {
     #[test]
     fn test_write_event() {
         use core::cell::RefCell;
-        let event_log: Rc<RefCell<Vec<events::Event>>> = Rc::new(RefCell::new(Vec::new()));
+        let event_log: Rc<RefCell<Vec<events::MemoryWriteEvent>>> = Rc::new(RefCell::new(Vec::new()));
         let handler_log = Rc::clone(&event_log);
 
-        let handler = move |evt| {
-            handler_log.borrow_mut().push(evt);
+        let handler = move |evt: &events::MemoryWriteEvent| {
+            handler_log.borrow_mut().push(evt.clone());
         };
 
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
         let mut memory = Memory::new(cartridge);
-        memory.set_event_handler(Rc::new(handler));
+        memory.events.on(Box::new(handler));
+
 
         memory.write_u8(0x9000, 0x26).unwrap();
 
@@ -470,27 +466,27 @@ mod tests {
 
         assert_eq!(
             *actual_events,
-            vec![events::Event::MemoryWrite {
-                address: 0x9000.into(),
-                value: 0x26,
-                new_value: 0x26,
-            }]
+            vec![events::MemoryWriteEvent::new(
+                0x9000.into(),
+                0x26,
+                0x26,
+            ).into()]
         );
     }
 
     #[test]
     fn test_write_unwriteable() {
         use core::cell::RefCell;
-        let event_log: Rc<RefCell<Vec<events::Event>>> = Rc::new(RefCell::new(Vec::new()));
+        let event_log: Rc<RefCell<Vec<events::MemoryWriteEvent>>> = Rc::new(RefCell::new(Vec::new()));
         let handler_log = Rc::clone(&event_log);
 
-        let handler = move |evt| {
-            handler_log.borrow_mut().push(evt);
+        let handler = move |evt: &events::MemoryWriteEvent| {
+            handler_log.borrow_mut().push(evt.clone());
         };
 
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
         let mut memory = Memory::new(cartridge);
-        memory.set_event_handler(Rc::new(handler));
+        memory.events.on(Box::new(handler));
 
         memory.write_u8(0x1000, 0x26).unwrap();
 
@@ -498,11 +494,11 @@ mod tests {
 
         assert_eq!(
             *actual_events,
-            vec![events::Event::MemoryWrite {
-                address: 0x1000.into(),
-                value: 0x26,
-                new_value: 0x00,
-            }]
+            vec![events::MemoryWriteEvent::new(
+                0x1000.into(),
+                0x26,
+                0x00,
+            ).into()]
         );
     }
 }

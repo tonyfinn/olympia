@@ -77,7 +77,7 @@ struct Registers {
     hl: u16,
     sp: u16,
     pc: u16,
-    event_handler: Option<Rc<events::EventHandler>>,
+    events: events::EventEmitter<events::RegisterWriteEvent>,
 }
 
 impl Registers {
@@ -139,9 +139,7 @@ impl Registers {
             registers::WordRegister::SP => self.sp = value,
             registers::WordRegister::PC => self.pc = value,
         }
-        if let Some(event_handler) = self.event_handler.clone() {
-            event_handler(events::Event::RegisterWrite { reg, value });
-        }
+        self.events.emit(events::RegisterWriteEvent::new(reg, value).into());
     }
 
     fn write_u16(&mut self, reg: registers::WordRegister, value: u16) {
@@ -156,7 +154,7 @@ impl Registers {
             hl: model.default_hl(target),
             sp: 0xfffe,
             pc: 0x100,
-            event_handler: None,
+            events: events::EventEmitter::new(),
         }
     }
 
@@ -170,10 +168,6 @@ impl Registers {
 
     fn reset_flag(&mut self, flag: registers::Flag) {
         self.af &= !(1u16 << flag.bit());
-    }
-
-    pub(crate) fn set_event_handler(&mut self, event_handler: Rc<events::EventHandler>) {
-        self.event_handler = Some(event_handler);
     }
 }
 
@@ -200,17 +194,22 @@ pub(crate) struct Cpu {
     registers: Registers,
     pub(crate) interrupts_enabled: InterruptState,
     pub(crate) power_saving: PowerSavingMode,
+    pub(crate) events: Rc<events::EventEmitter<events::RegisterWriteEvent>>
     // address_bus: AddressBus
 }
 
 impl Cpu {
     pub(crate) fn new(model: super::GameBoyModel, target: rom::TargetConsole) -> Cpu {
-        Cpu {
+        let cpu = Cpu {
             registers: Registers::default_for_model(model, target),
             interrupts_enabled: InterruptState::Disabled,
             power_saving: PowerSavingMode::None,
+            events: Rc::new(events::EventEmitter::new()),
             // address_bus: AddressBus::default()
-        }
+        };
+
+        events::propagate_events(&cpu.registers.events, cpu.events.clone());
+        cpu
     }
 
     pub(crate) fn read_register_u16(&self, reg: registers::WordRegister) -> u16 {
@@ -247,10 +246,6 @@ impl Cpu {
 
     pub(crate) fn reset_flag(&mut self, flag: registers::Flag) {
         self.registers.reset_flag(flag)
-    }
-
-    pub(crate) fn set_event_handler(&mut self, event_handler: Rc<events::EventHandler>) {
-        self.registers.set_event_handler(event_handler);
     }
 }
 
@@ -376,18 +371,18 @@ mod tests {
     #[test]
     fn test_write_event() {
         use core::cell::RefCell;
-        let event_log: Rc<RefCell<Vec<events::Event>>> = Rc::new(RefCell::new(Vec::new()));
+        let event_log: Rc<RefCell<Vec<events::RegisterWriteEvent>>> = Rc::new(RefCell::new(Vec::new()));
         let handler_log = Rc::clone(&event_log);
 
-        let handler = move |evt| {
-            handler_log.borrow_mut().push(evt);
+        let handler = move |evt: &events::RegisterWriteEvent| {
+            handler_log.borrow_mut().push(evt.clone());
         };
 
         let mut cpu = Cpu::new(GameBoyModel::GameBoy, rom::TargetConsole::GameBoyOnly);
 
         cpu.write_register_u16(registers::WordRegister::DE, 0x4633);
 
-        cpu.set_event_handler(Rc::new(handler));
+        cpu.events.on(Box::new(handler));
         cpu.write_register_u16(registers::WordRegister::BC, 0x2365);
         cpu.write_register_u8(registers::ByteRegister::E, 0x64);
 
@@ -396,14 +391,14 @@ mod tests {
         assert_eq!(
             *actual_events,
             vec![
-                events::Event::RegisterWrite {
-                    reg: registers::WordRegister::BC,
-                    value: 0x2365
-                },
-                events::Event::RegisterWrite {
-                    reg: registers::WordRegister::DE,
-                    value: 0x4664,
-                }
+                events::RegisterWriteEvent::new(
+                    registers::WordRegister::BC,
+                    0x2365
+                ).into(),
+                events::RegisterWriteEvent::new(
+                    registers::WordRegister::DE,
+                    0x4664
+                ).into(),
             ]
         );
     }

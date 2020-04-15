@@ -31,14 +31,30 @@ pub enum Palette {
     Sprite1,
 }
 
-pub struct QueuedPixel {
+impl Default for Palette {
+    fn default() -> Self {
+        Palette::Background
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub struct GBPixel {
     palette: Palette,
-    palette_index: u8,
+    index: u8,
+}
+
+impl GBPixel {
+    fn new(palette: Palette, index: u8) -> GBPixel {
+        GBPixel {
+            palette,
+            index
+        }
+    }
 }
 
 pub(crate) struct PPU {
-    framebuffer: [u8; (VISIBLE_LINES as usize) * (VISIBLE_WIDTH as usize)],
-    pixel_queue: VecDeque<QueuedPixel>,
+    framebuffer: [GBPixel; (VISIBLE_LINES as usize) * (VISIBLE_WIDTH as usize)],
+    pixel_queue: VecDeque<GBPixel>,
     phase: PPUPhase,
     current_line: u8,
     cycles_on_line: u8,
@@ -48,7 +64,7 @@ pub(crate) struct PPU {
 impl PPU {
     fn new() -> PPU {
         PPU {
-            framebuffer: [0; (VISIBLE_LINES as usize) * (VISIBLE_WIDTH as usize)],
+            framebuffer: [GBPixel::default(); (VISIBLE_LINES as usize) * (VISIBLE_WIDTH as usize)],
             pixel_queue: VecDeque::new(),
             phase: PPUPhase::ObjectScan,
             current_line: 0,
@@ -72,7 +88,7 @@ impl PPU {
         self.cycles_on_line += 1;
         if self.cycles_on_line == LINE_CYCLES {
             self.cycles_on_line = 0;
-            self.next_pixel = 0;
+            self.current_pixel = 0;
             self.current_line += 1;
             if self.current_line == TOTAL_LINES {
                 self.current_line = 0;

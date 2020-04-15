@@ -18,6 +18,7 @@ pub(crate) mod memory;
 mod ppu;
 
 pub use memory::{MemoryError, MemoryResult};
+pub use ppu::GBPixel;
 
 use crate::events;
 use crate::gameboy::cpu::Cpu;
@@ -57,7 +58,7 @@ pub struct GameBoy {
     dma: DmaUnit,
     runtime_decoder: Rc<new_instructions::RuntimeDecoder>,
     clocks_elapsed: u64,
-    event_handler: Option<Rc<events::EventHandler>>,
+    events: Rc<events::EventEmitter<events::Event>>,
 }
 
 #[derive(PartialEq, Eq, Debug, Display)]
@@ -96,15 +97,20 @@ impl GameBoy {
     ///   or exclusive.
     ///
     pub fn new(cartridge: rom::Cartridge, model: GameBoyModel) -> GameBoy {
-        GameBoy {
+        let gb = GameBoy {
             cpu: Cpu::new(model, cartridge.target),
             mem: memory::Memory::new(cartridge),
             dma: Default::default(),
             ppu: Default::default(),
             runtime_decoder: Rc::new(new_instructions::RuntimeDecoder::new()),
             clocks_elapsed: 0,
-            event_handler: None,
-        }
+            events: Rc::new(events::EventEmitter::new()),
+        };
+
+        events::propagate_events(&gb.cpu.events, gb.events.clone());
+        events::propagate_events(&gb.mem.events, gb.events.clone());
+
+        gb
     }
 
     /// Read a value from the given memory address.
@@ -318,16 +324,6 @@ impl GameBoy {
     pub(crate) fn read_pc(&self) -> address::LiteralAddress {
         let value = self.cpu.read_register_u16(wr::PC);
         address::LiteralAddress(value)
-    }
-
-    pub fn set_event_handler<T>(&mut self, handler: T)
-    where
-        T: Into<Rc<events::EventHandler>>,
-    {
-        let handler_rc = handler.into();
-        self.event_handler = Some(handler_rc.clone());
-        self.mem.set_event_handler(handler_rc.clone());
-        self.cpu.set_event_handler(handler_rc.clone());
     }
 
     fn check_interrupts(&mut self) -> StepResult<bool> {
@@ -750,11 +746,11 @@ mod test {
         let event_log: Rc<RefCell<Vec<events::Event>>> = Rc::new(RefCell::new(Vec::new()));
         let handler_log = Rc::clone(&event_log);
 
-        let handler: Box<dyn Fn(events::Event) -> ()> = Box::new(move |evt| {
-            handler_log.borrow_mut().push(evt);
+        let handler: events::EventHandler<events::Event> = Box::new(move |evt| {
+            handler_log.borrow_mut().push(evt.clone());
         });
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
-        gb.set_event_handler(handler);
+        gb.events.on(handler);
 
         gb.write_memory_u8(0x9456, 0x24).unwrap();
         gb.write_register_u16(wr::BC, 0x1234);
@@ -764,15 +760,15 @@ mod test {
         assert_eq!(
             *actual_events,
             vec![
-                events::Event::MemoryWrite {
-                    address: 0x9456.into(),
-                    value: 0x24,
-                    new_value: 0x24,
-                },
-                events::Event::RegisterWrite {
-                    reg: wr::BC,
-                    value: 0x1234
-                }
+                events::MemoryWriteEvent::new(
+                    0x9456.into(),
+                    0x24,
+                    0x24,
+                ).into(),
+                events::RegisterWriteEvent::new(
+                    wr::BC,
+                    0x1234
+                ).into(),
             ]
         );
     }
