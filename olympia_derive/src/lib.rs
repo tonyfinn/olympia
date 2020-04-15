@@ -470,7 +470,7 @@ mod coverage_tests {
         path.push("tests");
         path.push("basic_instruction.rs");
         let file = fs::File::open(path).unwrap();
-        runtime_macros::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
+        runtime_macros_derive::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
             olympia_instruction_inner(input).unwrap()
         })
         .unwrap();
@@ -482,7 +482,7 @@ mod coverage_tests {
         path.push("tests");
         path.push("extended_one_inner.rs");
         let file = fs::File::open(path).unwrap();
-        runtime_macros::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
+        runtime_macros_derive::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
             olympia_instruction_inner(input).unwrap()
         })
         .unwrap();
@@ -494,7 +494,7 @@ mod coverage_tests {
         path.push("tests");
         path.push("inner_and_appended.rs");
         let file = fs::File::open(path).unwrap();
-        runtime_macros::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
+        runtime_macros_derive::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
             olympia_instruction_inner(input).unwrap()
         })
         .unwrap();
@@ -506,7 +506,7 @@ mod coverage_tests {
         path.push("tests");
         path.push("one_appended_param.rs");
         let file = fs::File::open(path).unwrap();
-        runtime_macros::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
+        runtime_macros_derive::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
             olympia_instruction_inner(input).unwrap()
         })
         .unwrap();
@@ -518,7 +518,7 @@ mod coverage_tests {
         path.push("tests");
         path.push("one_inner_param.rs");
         let file = fs::File::open(path).unwrap();
-        runtime_macros::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
+        runtime_macros_derive::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
             olympia_instruction_inner(input).unwrap()
         })
         .unwrap();
@@ -530,7 +530,7 @@ mod coverage_tests {
         path.push("tests");
         path.push("two_constant_params.rs");
         let file = fs::File::open(path).unwrap();
-        runtime_macros::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
+        runtime_macros_derive::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
             olympia_instruction_inner(input).unwrap()
         })
         .unwrap();
@@ -542,7 +542,7 @@ mod coverage_tests {
         path.push("tests");
         path.push("three_params.rs");
         let file = fs::File::open(path).unwrap();
-        runtime_macros::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
+        runtime_macros_derive::emulate_derive_expansion_fallible(file, "OlympiaInstruction", |input| {
             olympia_instruction_inner(input).unwrap()
         })
         .unwrap();
