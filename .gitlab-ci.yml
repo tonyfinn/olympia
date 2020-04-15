@@ -1,0 +1,15 @@
+image: rust:1.42
+
+stages:
+    - test
+
+test:
+    stage: test
+    before_script:
+        - apt-get install libgtk-3-dev
+    script:
+        - cargo tarpaulin -o Html 
+    artifacts:
+        paths:
+            - target/tarpaulin/coverage.json
+            - tarpaulin-report.html
