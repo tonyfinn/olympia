@@ -16,3 +16,4 @@ documentation = "https://docs.rs/olympia"
 
 [badges]
 gitlab = { repository = "tonyfinn/olympia", branch = "master" }
+coveralls = { repository = "tonyfinn/olympia", branch = "master", service = "gitlab" }

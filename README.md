@@ -1,7 +1,6 @@
 # Olympia
 
-[![pipeline status](https://gitlab.com/tonyfinn/olympia/badges/master/pipeline.svg)](https://gitlab.com/tonyfinn/olympia/-/commits/master)
-[![coverage report](https://gitlab.com/tonyfinn/olympia/badges/master/coverage.svg)](https://gitlab.com/tonyfinn/olympia/-/commits/master)
+[![pipeline status](https://gitlab.com/tonyfinn/olympia/badges/master/pipeline.svg)](https://gitlab.com/tonyfinn/olympia/-/commits/master)[![Coverage Status](https://coveralls.io/repos/gitlab/tonyfinn/olympia/badge.svg?branch=master)](https://coveralls.io/gitlab/tonyfinn/olympia?branch=master)
 
 Olympia is a gameboy emulator and toolkit, intended to run as a native or web assembly application targeting a cycle count accurate emulation.
 

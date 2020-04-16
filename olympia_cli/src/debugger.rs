@@ -39,8 +39,8 @@ impl fmt::Display for RangeParseError {
             LowerBoundInvalid => write!(f, "Lower bound invalid"),
             UpperBoundInvalid => write!(f, "Upper bound invalid"),
             ParseFailed(e) => write!(f, "Failed to parse range: {}", e),
-            NoSeperator => write!(f, "No seperator ':' found"),
-            ExtraSeperator => write!(f, "Too many seperators ':' found"),
+            NoSeperator => write!(f, "Unknown named range or missing seperator ':' for numbered range"),
+            ExtraSeperator => write!(f, "Invalid numbered range. Format: <start>:<end>"),
         }
     }
 }
@@ -498,6 +498,22 @@ mod test {
         assert_eq!(actual_output, expected_output);
     }
 
+    fn assert_debug_error_contains(gb: gameboy::GameBoy, input: &str, expected: &str) {
+        let mut captured_output = Vec::new();
+        let mut captured_error = Vec::new();
+
+        debug(
+            gb,
+            &mut io::BufReader::new(input.as_bytes()),
+            &mut captured_output,
+            &mut captured_error,
+        )
+        .unwrap();
+
+        let actual_error = String::from_utf8_lossy(&captured_error);
+        assert!(actual_error.contains(expected), "Expected error missing. Expected error:\n\t{}\nActual error:\n\t{}\n", expected, actual_error);
+    }
+
     fn run_debug_script(gb: gameboy::GameBoy, input: &[&str]) -> io::Result<TestResult> {
         let joined = input.join("\n");
         let inb = &mut io::BufReader::new(joined.as_bytes());
@@ -626,32 +642,25 @@ mod test {
     }
 
     #[test]
+    fn test_print_invalid_range_extra_colon() {
+        let gb = get_test_gbcpu();
+
+        assert_debug_error_contains(gb, "pb 0:1:2\n", "Invalid numbered range. Format: <start>:<end>");
+    }
+
+    #[test]
+    fn test_print_invalid_range_no_colon() {
+        let gb = get_test_gbcpu();
+
+        assert_debug_error_contains(gb, "pb abc\n", "Unknown named range or missing seperator ':' for numbered range");
+    }
+
+
+    #[test]
     fn test_unknown_command() {
-        let mut gb = get_test_gbcpu();
+        let gb = get_test_gbcpu();
 
-        for x in 0..=0x1fu8 {
-            let addr = 0xffe0 + u16::from(x);
-            gb.write_memory_u8(addr, x).unwrap()
-        }
-
-        let input = "unknown\n";
-        let mut captured_output = Vec::new();
-        let mut captured_error = Vec::new();
-
-        debug(
-            gb,
-            &mut io::BufReader::new(input.as_bytes()),
-            &mut captured_output,
-            &mut captured_error,
-        )
-        .unwrap();
-
-        let expected_error =
-            String::from("> Unknown command: \"unknown\". List commands with \"help\"\n> ");
-
-        let actual_error = String::from_utf8_lossy(&captured_error);
-
-        assert_eq!(actual_error, expected_error);
+        assert_debug_error_contains(gb, "unknown\n", "Unknown command: \"unknown\". List commands with \"help\"");
     }
 
     #[test]
