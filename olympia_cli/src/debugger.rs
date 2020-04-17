@@ -39,7 +39,10 @@ impl fmt::Display for RangeParseError {
             LowerBoundInvalid => write!(f, "Lower bound invalid"),
             UpperBoundInvalid => write!(f, "Upper bound invalid"),
             ParseFailed(e) => write!(f, "Failed to parse range: {}", e),
-            NoSeperator => write!(f, "Unknown named range or missing seperator ':' for numbered range"),
+            NoSeperator => write!(
+                f,
+                "Unknown named range or missing seperator ':' for numbered range"
+            ),
             ExtraSeperator => write!(f, "Invalid numbered range. Format: <start>:<end>"),
         }
     }
@@ -511,7 +514,12 @@ mod test {
         .unwrap();
 
         let actual_error = String::from_utf8_lossy(&captured_error);
-        assert!(actual_error.contains(expected), "Expected error missing. Expected error:\n\t{}\nActual error:\n\t{}\n", expected, actual_error);
+        assert!(
+            actual_error.contains(expected),
+            "Expected error missing. Expected error:\n\t{}\nActual error:\n\t{}\n",
+            expected,
+            actual_error
+        );
     }
 
     fn run_debug_script(gb: gameboy::GameBoy, input: &[&str]) -> io::Result<TestResult> {
@@ -645,22 +653,33 @@ mod test {
     fn test_print_invalid_range_extra_colon() {
         let gb = get_test_gbcpu();
 
-        assert_debug_error_contains(gb, "pb 0:1:2\n", "Invalid numbered range. Format: <start>:<end>");
+        assert_debug_error_contains(
+            gb,
+            "pb 0:1:2\n",
+            "Invalid numbered range. Format: <start>:<end>",
+        );
     }
 
     #[test]
     fn test_print_invalid_range_no_colon() {
         let gb = get_test_gbcpu();
 
-        assert_debug_error_contains(gb, "pb abc\n", "Unknown named range or missing seperator ':' for numbered range");
+        assert_debug_error_contains(
+            gb,
+            "pb abc\n",
+            "Unknown named range or missing seperator ':' for numbered range",
+        );
     }
-
 
     #[test]
     fn test_unknown_command() {
         let gb = get_test_gbcpu();
 
-        assert_debug_error_contains(gb, "unknown\n", "Unknown command: \"unknown\". List commands with \"help\"");
+        assert_debug_error_contains(
+            gb,
+            "unknown\n",
+            "Unknown command: \"unknown\". List commands with \"help\"",
+        );
     }
 
     #[test]

@@ -1,4 +1,6 @@
-use crate::emulator;
+use crate::builder_struct;
+use crate::emulator::{commands::QueryMemoryResponse, remote::RemoteEmulator};
+
 use glib::clone;
 use gtk::prelude::*;
 use olympia_engine::registers::WordRegister;
@@ -40,12 +42,15 @@ impl MemoryViewerRow {
         self.addr.set_text(&format!("0x{:04X}", offset))
     }
 
-    fn update(&self, offset: u16, pc: u16, result: &emulator::QueryMemoryResponse) {
+    fn update(&self, offset: u16, pc: u16, result: &QueryMemoryResponse) {
         self.set_offset(offset);
         let data_offset = offset - result.start_addr;
         for i in 0..16 {
             let address_value_index = data_offset + i;
-            let memory_value = result.data.get(address_value_index as usize).and_then(|x| x.clone());
+            let memory_value = result
+                .data
+                .get(address_value_index as usize)
+                .and_then(|x| x.clone());
             let is_pc = offset + i == pc;
             let formatted = match memory_value {
                 Some(val) => format!("{:02X}", val),
@@ -58,30 +63,62 @@ impl MemoryViewerRow {
     }
 }
 
+builder_struct!(
+    pub struct MemoryViewerWidget {
+        #[ogtk(id = "MemoryViewerAddressEntry")]
+        address_entry: gtk::Entry,
+        #[ogtk(id = "MemoryViewerPanel")]
+        panel: gtk::Box,
+        #[ogtk(id = "MemoryViewerPCButton")]
+        pc_button: gtk::Button,
+        #[ogtk(id = "MemoryViewerGoButton")]
+        go_button: gtk::Button,
+    }
+);
+
 pub struct MemoryViewer {
     offset: RefCell<u16>,
+    widget: MemoryViewerWidget,
     rows: Vec<MemoryViewerRow>,
-    adapter: Rc<emulator::EmulatorAdapter>,
+    emu: Rc<RemoteEmulator>,
 }
 
 impl MemoryViewer {
-    pub(crate) fn from_builder(builder: &gtk::Builder, num_visible_rows: u16, adapter: Rc<emulator::EmulatorAdapter>) -> Rc<MemoryViewer> {
+    pub(crate) fn from_widget(
+        widget: MemoryViewerWidget,
+        emu: Rc<RemoteEmulator>,
+        num_visible_rows: u16,
+    ) -> Rc<MemoryViewer> {
         let rows = (0..num_visible_rows)
             .map(|row| MemoryViewerRow::new(row * 0x10))
             .collect();
         let viewer = Rc::new(MemoryViewer {
             offset: RefCell::new(0),
             rows: rows,
-            adapter,
+            widget,
+            emu,
         });
-        viewer.connect_ui_events(builder);
+        viewer.connect_ui_events();
         viewer.connect_adapter_events();
         viewer
     }
 
+    pub(crate) fn from_builder(
+        builder: &gtk::Builder,
+        emu: Rc<RemoteEmulator>,
+        num_visible_rows: u16,
+    ) -> Rc<MemoryViewer> {
+        let widget = MemoryViewerWidget::from_builder(builder).unwrap();
+        MemoryViewer::from_widget(widget, emu, num_visible_rows)
+    }
+
     fn address_range(&self) -> (u16, u16) {
         let start_addr = self.offset.borrow().clone();
-        let end_addr = self.offset.borrow().clone().saturating_add(self.rows.len() as u16 * 0x10);
+        let end_addr = self
+            .offset
+            .borrow()
+            .clone()
+            .saturating_add(self.rows.len() as u16 * 0x10);
         (start_addr, end_addr)
     }
 
@@ -115,7 +152,7 @@ impl MemoryViewer {
         event_catcher
     }
 
-    fn render(&self, pc: u16, result: emulator::QueryMemoryResponse) {
+    fn render(&self, pc: u16, result: QueryMemoryResponse) {
         let offset = result.start_addr;
         self.offset.replace(offset);
         for (i, row) in self.rows.iter().enumerate() {
@@ -125,61 +162,61 @@ impl MemoryViewer {
     }
 
     async fn set_target_to_pc(self: Rc<Self>, address_entry: gtk::Entry) -> () {
-        let result = self.adapter.query_registers().await;
+        let result = self.emu.query_registers().await;
         if let Ok(registers) = result {
             let pc_value = registers.read_u16(WordRegister::PC);
             address_entry.set_text(&format!("{:04X}", pc_value));
         }
     }
-    
-    fn connect_ui_events(self: &Rc<Self>, builder: &gtk::Builder) {
-        let address_entry: gtk::Entry = builder.get_object("MemoryViewerAddressEntry").unwrap();
-        address_entry.set_text("0000");
 
-        let viewer_panel: gtk::Box = builder.get_object("MemoryViewerPanel").unwrap();
+    fn connect_ui_events(self: &Rc<Self>) {
+        self.widget.address_entry.set_text("0000");
+
         let viewer_box = self.get_layout();
         viewer_box.connect_scroll_event(clone!(@strong self as mem_viewer => move |_, evt| {
             mem_viewer.clone().handle_scroll_evt(evt);
             Inhibit(true)
         }));
         viewer_box.add_events(gdk::EventMask::SCROLL_MASK);
-        viewer_panel.add(&viewer_box);
+        self.widget.panel.add(&viewer_box);
 
-        let pc_button: gtk::Button = builder.get_object("MemoryViewerPCButton").unwrap();
-        pc_button.connect_clicked(
-            clone!(@strong self as mem_viewer, @strong address_entry => move |_| {
+        self.widget.pc_button.connect_clicked(
+            clone!(@strong self as mem_viewer, @strong self.widget.address_entry as address_entry => move |_| {
                 let ctx = glib::MainContext::default();
                 ctx.spawn_local(mem_viewer.clone().set_target_to_pc(address_entry.clone()));
             }),
         );
-        let go_button: gtk::Button = builder.get_object("MemoryViewerGoButton").unwrap();
-        go_button.connect_clicked(
-            clone!(@strong self as mem_viewer, @strong address_entry => move |_| {
+
+        self.widget.go_button.connect_clicked(
+            clone!(@strong self as mem_viewer, @strong self.widget.address_entry as address_entry => move |_| {
                 mem_viewer.clone().goto_address(&address_entry)
             }),
         );
-        address_entry.connect_activate(clone!(@strong self as mem_viewer => move |entry| {
-            mem_viewer.clone().goto_address(&entry)
-        }));
+        self.widget.address_entry.connect_activate(
+            clone!(@strong self as mem_viewer => move |entry| {
+                mem_viewer.clone().goto_address(&entry)
+            }),
+        );
     }
 
     fn connect_adapter_events(self: &Rc<Self>) {
         let (tx, rx) = glib::MainContext::channel(glib::source::PRIORITY_DEFAULT);
-        self.adapter.on_step(tx);
+        self.emu.on_step(tx);
         let ctx = glib::MainContext::default();
-        rx.attach(Some(&ctx), clone!(@strong self as viewer, @strong ctx => move |_| {
-            ctx.spawn_local(viewer.clone().refresh());
-            glib::Continue(true)
-        }));
+        rx.attach(
+            Some(&ctx),
+            clone!(@strong self as viewer, @strong ctx => move |_| {
+                ctx.spawn_local(viewer.clone().refresh());
+                glib::Continue(true)
+            }),
+        );
     }
 
     async fn refresh(self: Rc<Self>) {
         let (start_addr, end_addr) = self.address_range();
-        let query_result = self.adapter.query_memory(start_addr, end_addr).await;
+        let query_result = self.emu.query_memory(start_addr, end_addr).await;
         match query_result {
-            Ok(mem_response) => {
-                self.render(self.adapter.pc(), mem_response)
-            },
+            Ok(mem_response) => self.render(self.emu.pc(), mem_response),
             Err(_) => {}
         }
     }
@@ -200,7 +237,7 @@ impl MemoryViewer {
         match evt.get_direction() {
             gdk::ScrollDirection::Down => self.scroll_down(1),
             gdk::ScrollDirection::Up => self.scroll_up(1),
-            _ => ()
+            _ => (),
         };
         ctx.spawn_local(self.refresh());
     }

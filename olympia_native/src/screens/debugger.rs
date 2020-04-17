@@ -2,21 +2,17 @@ use gio::prelude::*;
 use glib::clone;
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow};
+use std::boxed::Box;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use crate::emulator::EmulatorAdapter;
+use crate::emulator::remote::{GlibEmulatorChannel, RemoteEmulator};
 use crate::utils;
-use crate::widgets::{
-    BreakpointViewer,
-    MemoryViewer,
-    PlaybackControls,
-    RegisterLabels,
-};
+use crate::widgets::{BreakpointViewer, MemoryViewer, PlaybackControls, RegisterLabels};
 
 #[allow(dead_code)]
 pub(crate) struct Debugger {
-    adapter: Rc<EmulatorAdapter>,
+    emu: Rc<RemoteEmulator>,
     breakpoint_viewer: Rc<BreakpointViewer>,
     memory_viewer: Rc<MemoryViewer>,
     register_labels: Rc<RegisterLabels>,
@@ -25,24 +21,24 @@ pub(crate) struct Debugger {
 }
 
 impl Debugger {
-
     pub(crate) fn new(app: &Application) -> Rc<Debugger> {
         let ctx = glib::MainContext::default();
-        let adapter = Rc::new(EmulatorAdapter::new(&ctx));
+        let glib_emu = Box::new(GlibEmulatorChannel::new());
+        let emu = Rc::new(RemoteEmulator::new(glib_emu));
 
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
-        let playback_controls = PlaybackControls::from_builder(&builder, adapter.clone());
+        let playback_controls = PlaybackControls::from_builder(&builder, emu.clone());
         let window: ApplicationWindow = builder.get_object("MainWindow").unwrap();
         let open_action = gio::SimpleAction::new("open", None);
-        let register_labels = RegisterLabels::from_builder(&builder, adapter.clone());
-        let memory_viewer = MemoryViewer::from_builder(&builder, 17, adapter.clone());
-        let breakpoint_viewer = BreakpointViewer::from_builder(&builder, adapter.clone());
+        let register_labels = RegisterLabels::from_builder(&builder, emu.clone());
+        let memory_viewer = MemoryViewer::from_builder(&builder, emu.clone(), 17);
+        let breakpoint_viewer = BreakpointViewer::from_builder(&builder, emu.clone());
 
         window.set_application(Some(app));
         window.add_action(&open_action);
 
         let debugger = Rc::new(Debugger {
-            adapter,
+            emu,
             breakpoint_viewer,
             memory_viewer,
             playback_controls,
@@ -70,7 +66,7 @@ impl Debugger {
     }
 
     async fn load_rom(self: Rc<Self>, filename: PathBuf) -> () {
-        utils::run_fallible(self.adapter.load_rom(filename), Some(&self.window)).await;
+        utils::run_fallible(self.emu.load_rom(filename), Some(&self.window)).await;
     }
 
     pub(crate) fn show_all(&self) {

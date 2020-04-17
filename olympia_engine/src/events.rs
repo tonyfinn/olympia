@@ -1,9 +1,9 @@
 use crate::address;
+use crate::gameboy::GBPixel;
+use crate::registers;
+use alloc::collections::BTreeMap;
 use core::borrow::Borrow;
 use core::cell::RefCell;
-use alloc::collections::BTreeMap;
-use crate::registers;
-use crate::gameboy::GBPixel;
 
 use derive_more::{Constructor, From, TryInto};
 
@@ -72,7 +72,7 @@ impl<'a, T> EventEmitter<T> {
             queued_removals: RefCell::new(Vec::new()),
         }
     }
-    
+
     pub fn on(&self, f: EventHandler<T>) -> EventHandlerId {
         let event_handler_id = self.next_handler_id();
         if self.is_emitting.borrow().clone() {
@@ -100,9 +100,11 @@ impl<'a, T> EventEmitter<T> {
     }
 
     fn queue_handler(&self, event_handler_id: EventHandlerId, f: EventHandler<T>) {
-        self.queued_handlers.borrow_mut().push((event_handler_id, f));
+        self.queued_handlers
+            .borrow_mut()
+            .push((event_handler_id, f));
     }
-    
+
     pub fn emit(&self, evt: T) {
         self.is_emitting.replace(true);
         for handler in self.event_handlers.borrow().values() {
@@ -122,8 +124,9 @@ impl<'a, T> EventEmitter<T> {
 }
 
 pub fn propagate_events<I, O, E>(inner_events: &EventEmitter<I>, outer_events: E) -> EventHandlerId
-    where I: Into<O> + Clone,
-        E: 'static + Borrow<EventEmitter<O>>,
+where
+    I: Into<O> + Clone,
+    E: 'static + Borrow<EventEmitter<O>>,
 {
     inner_events.on(Box::new(move |inner_item| {
         let cloned: I = inner_item.clone();

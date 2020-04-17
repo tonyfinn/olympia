@@ -1,3 +1,4 @@
+mod builder;
 mod emulator;
 mod screens;
 mod utils;

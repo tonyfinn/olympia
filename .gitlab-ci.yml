@@ -15,5 +15,6 @@ test:
     artifacts:
         paths:
             - target/coverage/tarpaulin-report.html
+            - target/coverage/cobertura.xml
         reports:
             cobertura: target/coverage/cobertura.xml

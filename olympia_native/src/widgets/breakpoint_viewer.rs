@@ -1,55 +1,66 @@
-use crate::emulator::UiBreakpoint;
+use crate::builder_struct;
+use crate::emulator::{commands::UiBreakpoint, remote::RemoteEmulator};
+use crate::utils;
 
 use glib::clone;
 use gtk::prelude::*;
 use olympia_engine::debug::{Breakpoint, RWTarget};
 use std::rc::Rc;
 
-use crate::emulator::EmulatorAdapter;
-use crate::utils;
+builder_struct!(
+    pub(crate) struct BreakpointViewerWidget {
+        #[ogtk(id = "DebuggerBreakpointAdd")]
+        add_button: gtk::Button,
+        #[ogtk(id = "DebuggerBreakpointMonitorEntry")]
+        monitor_input: gtk::Entry,
+        #[ogtk(id = "BreakpointListStore")]
+        store: gtk::ListStore,
+        #[ogtk(id = "DebuggerExpectedValueEntry")]
+        value_input: gtk::Entry,
+    }
+);
 
 pub(crate) struct BreakpointViewer {
-    adapter: Rc<EmulatorAdapter>,
-    add_button: gtk::Button,
-    monitor_input: gtk::Entry,
-    store: gtk::ListStore,
-    value_input: gtk::Entry,
+    emu: Rc<RemoteEmulator>,
+    widget: BreakpointViewerWidget,
 }
 
 impl BreakpointViewer {
+    pub(crate) fn from_widget(
+        widget: BreakpointViewerWidget,
+        emu: Rc<RemoteEmulator>,
+    ) -> Rc<BreakpointViewer> {
+        let bpv = Rc::new(BreakpointViewer { widget, emu });
 
-    pub(crate) fn from_builder(builder: &gtk::Builder, adapter: Rc<EmulatorAdapter>) -> Rc<BreakpointViewer> {
-        let store: gtk::ListStore = builder.get_object("BreakpointListStore").unwrap();
-        let monitor_input: gtk::Entry = builder
-            .get_object("DebuggerBreakpointMonitorEntry")
-            .unwrap();
-        let value_input: gtk::Entry = builder.get_object("DebuggerExpectedValueEntry").unwrap();
-        let add_button: gtk::Button = builder.get_object("DebuggerBreakpointAdd").unwrap();
-        let bpv = Rc::new(BreakpointViewer {
-            adapter,
-            add_button,
-            monitor_input,
-            store,
-            value_input,
-        });
         bpv.connect_ui_events();
         bpv
     }
 
+    pub(crate) fn from_builder(
+        builder: &gtk::Builder,
+        emu: Rc<RemoteEmulator>,
+    ) -> Rc<BreakpointViewer> {
+        let widget = BreakpointViewerWidget::from_builder(builder).unwrap();
+        BreakpointViewer::from_widget(widget, emu)
+    }
+
     pub fn connect_ui_events(self: &Rc<Self>) {
         let ctx = glib::MainContext::default();
-        self.add_button.connect_clicked(clone!(@strong self as bpv, @strong ctx => move |_| {
-            ctx.spawn_local(bpv.clone().add_breakpoint())
-        }));
+        self.widget.add_button.connect_clicked(
+            clone!(@strong self as bpv, @strong ctx => move |_| {
+                ctx.spawn_local(bpv.clone().add_breakpoint())
+            }),
+        );
     }
 
     fn parse_breakpoint(&self) -> Option<UiBreakpoint> {
         let target: Option<RWTarget> = self
+            .widget
             .monitor_input
             .get_text()
             .and_then(|s| s.as_str().parse().ok());
         let value = if let Some(RWTarget::Cycles) = target {
-            self.value_input.get_text().and_then(|text| {
+            self.widget.value_input.get_text().and_then(|text| {
                 let s = text.as_str();
                 let (num, multiplier) = if s.ends_with("s") {
                     let s = s.replace("s", "");
@@ -60,7 +71,8 @@ impl BreakpointViewer {
                 u64::from_str_radix(&num, 16).ok().map(|x| x * multiplier)
             })
         } else {
-            self.value_input
+            self.widget
+                .value_input
                 .get_text()
                 .and_then(|s| u64::from_str_radix(s.as_str(), 16).ok())
         };
@@ -72,8 +84,8 @@ impl BreakpointViewer {
 
     async fn add_breakpoint(self: Rc<Self>) {
         if let Some(ref breakpoint) = self.parse_breakpoint() {
-            utils::run_infallible(self.adapter.add_breakpoint(breakpoint.clone())).await;
-            self.store.insert_with_values(
+            utils::run_infallible(self.emu.add_breakpoint(breakpoint.clone())).await;
+            self.widget.store.insert_with_values(
                 None,
                 &[0, 1, 2],
                 &[

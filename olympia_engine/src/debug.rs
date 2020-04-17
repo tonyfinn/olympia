@@ -25,7 +25,7 @@ pub fn parse_number(src: &str) -> Result<u16, core::num::ParseIntError> {
     }
 }
 
-#[derive(Debug, From, Clone, Copy, Display)]
+#[derive(Debug, From, Clone, Copy, Display, PartialEq, Eq)]
 /// Types of value that can be read or written
 pub enum RWTarget {
     /// Byte at the given memory location
@@ -134,7 +134,7 @@ impl FromStr for RWTarget {
     }
 }
 
-#[derive(Debug, Display, Clone)]
+#[derive(Debug, Display, Clone, PartialEq, Eq)]
 /// A breakpoint that triggers when a monitored value is set to a given value.
 #[display(fmt = "Breakpoint: {} == {:X}", monitor, value)]
 pub struct Breakpoint {

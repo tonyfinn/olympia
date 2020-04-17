@@ -289,11 +289,8 @@ impl Memory {
             // need to read the actual new value in case of partial registers
             // unmapped memory, or writes to ROM address space
             let new_value = self.read_u8(address).unwrap_or(0xFF);
-            self.events.emit(events::MemoryWriteEvent::new(
-                address,
-                value,
-                new_value,
-            ));
+            self.events
+                .emit(events::MemoryWriteEvent::new(address, value, new_value));
         }
 
         write_result
@@ -479,7 +476,8 @@ mod tests {
     #[test]
     fn test_write_event() {
         use core::cell::RefCell;
-        let event_log: Rc<RefCell<Vec<events::MemoryWriteEvent>>> = Rc::new(RefCell::new(Vec::new()));
+        let event_log: Rc<RefCell<Vec<events::MemoryWriteEvent>>> =
+            Rc::new(RefCell::new(Vec::new()));
         let handler_log = Rc::clone(&event_log);
 
         let handler = move |evt: &events::MemoryWriteEvent| {
@@ -490,25 +488,21 @@ mod tests {
         let mut memory = Memory::new(cartridge);
         memory.events.on(Box::new(handler));
 
-
         memory.write_u8(0x9000, 0x26).unwrap();
 
         let actual_events = event_log.borrow();
 
         assert_eq!(
             *actual_events,
-            vec![events::MemoryWriteEvent::new(
-                0x9000.into(),
-                0x26,
-                0x26,
-            ).into()]
+            vec![events::MemoryWriteEvent::new(0x9000.into(), 0x26, 0x26,).into()]
         );
     }
 
     #[test]
     fn test_write_unwriteable() {
         use core::cell::RefCell;
-        let event_log: Rc<RefCell<Vec<events::MemoryWriteEvent>>> = Rc::new(RefCell::new(Vec::new()));
+        let event_log: Rc<RefCell<Vec<events::MemoryWriteEvent>>> =
+            Rc::new(RefCell::new(Vec::new()));
         let handler_log = Rc::clone(&event_log);
 
         let handler = move |evt: &events::MemoryWriteEvent| {
@@ -525,11 +519,7 @@ mod tests {
 
         assert_eq!(
             *actual_events,
-            vec![events::MemoryWriteEvent::new(
-                0x1000.into(),
-                0x26,
-                0x00,
-            ).into()]
+            vec![events::MemoryWriteEvent::new(0x1000.into(), 0x26, 0x00,).into()]
         );
     }
 }

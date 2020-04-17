@@ -64,10 +64,7 @@ pub struct GBPixel {
 
 impl GBPixel {
     fn new(palette: Palette, index: u8) -> GBPixel {
-        GBPixel {
-            palette,
-            index
-        }
+        GBPixel { palette, index }
     }
 }
 
@@ -177,21 +174,30 @@ impl PPU {
         let tile_x = x / 8;
         let tile_y = y / 8;
 
-        let is_window = (self.current_pixel >= mem.registers().wx) 
+        let is_window = (self.current_pixel >= mem.registers().wx)
             && (self.current_line >= mem.registers().wy)
             && self.window_enabled(mem);
 
-        let map_offset = if is_window { self.window_map_offset(mem) } else { self.background_map_offset(mem) };
+        let map_offset = if is_window {
+            self.window_map_offset(mem)
+        } else {
+            self.background_map_offset(mem)
+        };
 
         let tile_id_addr = map_offset + (u16::from(tile_y) * 32) + u16::from(tile_x);
         let tile_at_pixel = mem.read_u8(tile_id_addr).unwrap_or(0);
-        
+
         let tile_base = self.tile_character_offset(mem) + (u16::from(tile_at_pixel) * 0x10);
         let tile_offset_x = x % 8;
         let tile_offset_y = y % 8;
 
-        let palette_index = self.read_pixel_palette_index(mem, tile_base, tile_offset_x, tile_offset_y);
-        let palette = if is_window { Palette::Window } else { Palette::Background };
+        let palette_index =
+            self.read_pixel_palette_index(mem, tile_base, tile_offset_x, tile_offset_y);
+        let palette = if is_window {
+            Palette::Window
+        } else {
+            Palette::Background
+        };
         GBPixel::new(palette, palette_index)
     }
 
@@ -297,7 +303,8 @@ mod test {
         ppu.current_line = 100;
         ppu.cycles_on_line = LINE_CYCLES - 1;
         memory.registers_mut().lyc = 101;
-        memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_MATCH_ON_EQUAL;
+        memory.registers_mut().lcdstat =
+            MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_MATCH_ON_EQUAL;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
             Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
@@ -312,7 +319,8 @@ mod test {
         ppu.current_line = 101;
         ppu.cycles_on_line = LINE_CYCLES - 1;
         memory.registers_mut().lyc = 101;
-        memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_MATCH_ON_EQUAL;
+        memory.registers_mut().lcdstat =
+            MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_MATCH_ON_EQUAL;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt = Interrupt::test(0x02, memory.registers().ie);
         assert!(lcd_active_interrupt.is_none());
@@ -414,7 +422,11 @@ mod test {
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = VISIBLE_LINES - 1;
         ppu.cycles_on_line = LINE_CYCLES - 1;
-        memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_OAM_SCAN_INTERRUPT | LCDSTAT_VBLANK_INTERRUPT | LCDSTAT_LINE_MATCH_INTERRUPT;
+        memory.registers_mut().lcdstat = MODE_HBLANK
+            | LCDSTAT_LINE_MATCH_INTERRUPT
+            | LCDSTAT_OAM_SCAN_INTERRUPT
+            | LCDSTAT_VBLANK_INTERRUPT
+            | LCDSTAT_LINE_MATCH_INTERRUPT;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
             Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
@@ -445,7 +457,7 @@ mod test {
     fn draw_phase_basic_bg() {
         let mut ppu = PPU::new();
         let mut memory = create_memory();
-        
+
         memory.registers_mut().lcdc = LCDC_ENABLED;
         memory.write_u8(MEM_HIGH_TILES + 0x10, 0b1111_0101).unwrap();
         memory.write_u8(MEM_HIGH_TILES + 0x11, 0b1111_0011).unwrap();
@@ -466,7 +478,10 @@ mod test {
             ppu.draw(&memory);
         }
 
-        assert_eq!(expected_pixels, ppu.pixel_queue.drain(..).collect::<Vec<GBPixel>>());
+        assert_eq!(
+            expected_pixels,
+            ppu.pixel_queue.drain(..).collect::<Vec<GBPixel>>()
+        );
         assert_eq!(expected_pixels, Vec::from(&ppu.framebuffer[0..8]));
     }
 
@@ -474,7 +489,7 @@ mod test {
     fn draw_phase_bg_low_tiles_no_window() {
         let mut ppu = PPU::new();
         let mut memory = create_memory();
-        
+
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_LOW_BG_TILES;
         memory.write_u8(MEM_LOW_TILES + 0x10, 0xFF).unwrap();
         memory.write_u8(MEM_LOW_TILES + 0x11, 0xFF).unwrap();
@@ -490,7 +505,7 @@ mod test {
     fn draw_phase_bg_high_map_low_tiles_no_window() {
         let mut ppu = PPU::new();
         let mut memory = create_memory();
-        
+
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_LOW_BG_TILES | LCDC_HIGH_BG_MAP;
         memory.write_u8(MEM_LOW_TILES + 0x10, 0xFF).unwrap();
         memory.write_u8(MEM_LOW_TILES + 0x11, 0xFF).unwrap();
@@ -506,7 +521,7 @@ mod test {
     fn draw_phase_window_transition() {
         let mut ppu = PPU::new();
         let mut memory = create_memory();
-        
+
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_WINDOW_ENABLED | LCDC_HIGH_BG_MAP;
         memory.registers_mut().wx = 4;
         memory.registers_mut().wy = 0;
@@ -532,7 +547,10 @@ mod test {
             ppu.draw(&memory);
         }
 
-        assert_eq!(expected_pixels, ppu.pixel_queue.drain(..).collect::<Vec<GBPixel>>());
+        assert_eq!(
+            expected_pixels,
+            ppu.pixel_queue.drain(..).collect::<Vec<GBPixel>>()
+        );
         assert_eq!(expected_pixels, Vec::from(&ppu.framebuffer[0..8]));
     }
 
@@ -540,7 +558,7 @@ mod test {
     fn draw_phase_window_transition_window_high() {
         let mut ppu = PPU::new();
         let mut memory = create_memory();
-        
+
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_WINDOW_ENABLED | LCDC_HIGH_WINDOW_MAP;
         memory.registers_mut().wx = 4;
         memory.registers_mut().wy = 0;
@@ -566,7 +584,10 @@ mod test {
             ppu.draw(&memory);
         }
 
-        assert_eq!(expected_pixels, ppu.pixel_queue.drain(..).collect::<Vec<GBPixel>>());
+        assert_eq!(
+            expected_pixels,
+            ppu.pixel_queue.drain(..).collect::<Vec<GBPixel>>()
+        );
         assert_eq!(expected_pixels, Vec::from(&ppu.framebuffer[0..8]));
     }
 }

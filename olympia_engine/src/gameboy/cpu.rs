@@ -7,6 +7,8 @@ use alloc::rc::Rc;
 pub use crate::registers::{ByteRegister, WordRegister};
 use crate::registers::{ByteRegister as br, WordRegister as wr};
 
+pub const CYCLE_FREQ: u32 = 1024 * 1024; // 1 Mhz
+
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub(crate) enum InterruptState {
     Pending,
@@ -139,7 +141,8 @@ impl Registers {
             registers::WordRegister::SP => self.sp = value,
             registers::WordRegister::PC => self.pc = value,
         }
-        self.events.emit(events::RegisterWriteEvent::new(reg, value).into());
+        self.events
+            .emit(events::RegisterWriteEvent::new(reg, value).into());
     }
 
     fn write_u16(&mut self, reg: registers::WordRegister, value: u16) {
@@ -194,8 +197,7 @@ pub(crate) struct Cpu {
     registers: Registers,
     pub(crate) interrupts_enabled: InterruptState,
     pub(crate) power_saving: PowerSavingMode,
-    pub(crate) events: Rc<events::EventEmitter<events::RegisterWriteEvent>>
-    // address_bus: AddressBus
+    pub(crate) events: Rc<events::EventEmitter<events::RegisterWriteEvent>>, // address_bus: AddressBus
 }
 
 impl Cpu {
@@ -371,7 +373,8 @@ mod tests {
     #[test]
     fn test_write_event() {
         use core::cell::RefCell;
-        let event_log: Rc<RefCell<Vec<events::RegisterWriteEvent>>> = Rc::new(RefCell::new(Vec::new()));
+        let event_log: Rc<RefCell<Vec<events::RegisterWriteEvent>>> =
+            Rc::new(RefCell::new(Vec::new()));
         let handler_log = Rc::clone(&event_log);
 
         let handler = move |evt: &events::RegisterWriteEvent| {
@@ -391,14 +394,8 @@ mod tests {
         assert_eq!(
             *actual_events,
             vec![
-                events::RegisterWriteEvent::new(
-                    registers::WordRegister::BC,
-                    0x2365
-                ).into(),
-                events::RegisterWriteEvent::new(
-                    registers::WordRegister::DE,
-                    0x4664
-                ).into(),
+                events::RegisterWriteEvent::new(registers::WordRegister::BC, 0x2365).into(),
+                events::RegisterWriteEvent::new(registers::WordRegister::DE, 0x4664).into(),
             ]
         );
     }

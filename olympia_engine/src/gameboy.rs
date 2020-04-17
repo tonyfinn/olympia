@@ -17,6 +17,7 @@ mod dma;
 pub(crate) mod memory;
 mod ppu;
 
+pub use cpu::CYCLE_FREQ;
 pub use memory::{MemoryError, MemoryResult};
 pub use ppu::GBPixel;
 
@@ -58,6 +59,7 @@ pub struct GameBoy {
     dma: DmaUnit,
     runtime_decoder: Rc<new_instructions::RuntimeDecoder>,
     clocks_elapsed: u64,
+    time_elapsed: f64,
     events: Rc<events::EventEmitter<events::Event>>,
 }
 
@@ -104,6 +106,7 @@ impl GameBoy {
             ppu: Default::default(),
             runtime_decoder: Rc::new(new_instructions::RuntimeDecoder::new()),
             clocks_elapsed: 0,
+            time_elapsed: 0.0,
             events: Rc::new(events::EventEmitter::new()),
         };
 
@@ -111,6 +114,10 @@ impl GameBoy {
         events::propagate_events(&gb.mem.events, gb.events.clone());
 
         gb
+    }
+
+    pub fn add_exec_time(&mut self, time: f64) {
+        self.time_elapsed += time;
     }
 
     /// Read a value from the given memory address.
@@ -418,6 +425,11 @@ impl GameBoy {
     /// Each machine cycle represents 4 CPU clocks.
     pub fn cycles_elapsed(&self) -> u64 {
         self.clocks_elapsed() / 4
+    }
+
+    /// Query much clock time has been spent emulating
+    pub fn time_elapsed(&self) -> f64 {
+        self.time_elapsed
     }
 }
 
@@ -760,15 +772,8 @@ mod test {
         assert_eq!(
             *actual_events,
             vec![
-                events::MemoryWriteEvent::new(
-                    0x9456.into(),
-                    0x24,
-                    0x24,
-                ).into(),
-                events::RegisterWriteEvent::new(
-                    wr::BC,
-                    0x1234
-                ).into(),
+                events::MemoryWriteEvent::new(0x9456.into(), 0x24, 0x24,).into(),
+                events::RegisterWriteEvent::new(wr::BC, 0x1234).into(),
             ]
         );
     }
