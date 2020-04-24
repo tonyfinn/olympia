@@ -6,9 +6,9 @@ stages:
 test:
     stage: test
     before_script:
-        - apt-get update && apt-get -y install libgtk-3-dev
+        - apt-get update && apt-get -y install libgtk-3-dev xvfb
     script:
-        - cargo tarpaulin --coveralls $COVERALLS_TOKEN
+        - Xvfb :1 & DISPLAY=:1 cargo tarpaulin --coveralls $COVERALLS_TOKEN
     only:
         - master
         - merge_requests
