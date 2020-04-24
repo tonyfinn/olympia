@@ -21,16 +21,22 @@ builder_struct!(
 );
 
 pub(crate) struct BreakpointViewer {
+    context: glib::MainContext,
     emu: Rc<RemoteEmulator>,
     widget: BreakpointViewerWidget,
 }
 
 impl BreakpointViewer {
     pub(crate) fn from_widget(
-        widget: BreakpointViewerWidget,
+        context: glib::MainContext,
         emu: Rc<RemoteEmulator>,
+        widget: BreakpointViewerWidget,
     ) -> Rc<BreakpointViewer> {
-        let bpv = Rc::new(BreakpointViewer { widget, emu });
+        let bpv = Rc::new(BreakpointViewer {
+            context,
+            emu,
+            widget,
+        });
 
         bpv.connect_ui_events();
         bpv
@@ -38,16 +44,16 @@ impl BreakpointViewer {
 
     pub(crate) fn from_builder(
         builder: &gtk::Builder,
+        context: glib::MainContext,
         emu: Rc<RemoteEmulator>,
     ) -> Rc<BreakpointViewer> {
         let widget = BreakpointViewerWidget::from_builder(builder).unwrap();
-        BreakpointViewer::from_widget(widget, emu)
+        BreakpointViewer::from_widget(context, emu, widget)
     }
 
     pub fn connect_ui_events(self: &Rc<Self>) {
-        let ctx = glib::MainContext::default();
         self.widget.add_button.connect_clicked(
-            clone!(@strong self as bpv, @strong ctx => move |_| {
+            clone!(@strong self as bpv, @strong self.context as ctx => move |_| {
                 ctx.spawn_local(bpv.clone().add_breakpoint())
             }),
         );

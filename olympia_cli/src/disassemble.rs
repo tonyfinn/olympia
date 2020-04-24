@@ -60,10 +60,10 @@ impl<T: Iterator<Item = u8>> Iterator for FormattingIterator<T> {
     }
 }
 
-pub(crate) fn do_disassemble<O: io::Write>(
+pub(crate) fn do_disassemble(
     data: Vec<u8>,
     verbose: bool,
-    output: &mut O,
+    output: &mut dyn std::io::Write,
 ) -> io::Result<()> {
     let formatting_iterator = FormattingIterator::new(verbose, data.into_iter());
 

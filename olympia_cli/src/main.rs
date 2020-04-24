@@ -1,8 +1,8 @@
 mod debugger;
 mod disassemble;
 
-use std::error;
-use std::fmt;
+use derive_more::{Display, Error, From};
+
 use std::io;
 use std::path::PathBuf;
 
@@ -10,42 +10,12 @@ use olympia_engine::gameboy;
 use olympia_engine::rom;
 use structopt::StructOpt;
 
-#[derive(Debug)]
+#[derive(Debug, Display, From, Error)]
 enum OlympiaError {
+    #[display(fmt = "IO error: {}", "_0")]
     Io(std::io::Error),
+    #[display(fmt = "Cartridge error: {}", "_0")]
     Cartridge(rom::CartridgeError),
-}
-
-impl From<std::io::Error> for OlympiaError {
-    fn from(err: std::io::Error) -> Self {
-        OlympiaError::Io(err)
-    }
-}
-
-impl From<rom::CartridgeError> for OlympiaError {
-    fn from(err: rom::CartridgeError) -> Self {
-        OlympiaError::Cartridge(err)
-    }
-}
-
-impl fmt::Display for OlympiaError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use OlympiaError::*;
-        match self {
-            Cartridge(e) => write!(f, "Cartridge error: {}", e),
-            Io(e) => write!(f, "IO error: {}", e),
-        }
-    }
-}
-
-impl error::Error for OlympiaError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        use OlympiaError::*;
-        match self {
-            Cartridge(e) => Some(e),
-            Io(e) => Some(e),
-        }
-    }
 }
 
 type OlympiaResult<T> = Result<T, OlympiaError>;
@@ -133,30 +103,79 @@ fn parse_cartridge(rom_path: &PathBuf) -> OlympiaResult<rom::Cartridge> {
     Ok(cartridge)
 }
 
-fn main() -> OlympiaResult<()> {
-    let args = OlympiaArgs::from_args();
-    let mut err = find_err_out(&args);
+fn run_cli(
+    args: OlympiaArgs,
+    in_: &mut dyn io::Read,
+    out: &mut dyn io::Write,
+    err: &mut dyn io::Write,
+) -> OlympiaResult<()> {
     match args.cmd {
-        OlympiaCommand::RomInfo { rom } => {
-            print_rom_info(parse_cartridge(&rom)?, &mut io::stdout())?
-        }
+        OlympiaCommand::RomInfo { rom } => print_rom_info(parse_cartridge(&rom)?, out)?,
         OlympiaCommand::Debug { rom } => debugger::debug(
             gameboy::GameBoy::new(parse_cartridge(&rom)?, gameboy::GameBoyModel::GameBoy),
-            &mut io::stdin(),
-            &mut io::stdout(),
-            err.as_mut(),
+            in_,
+            out,
+            err,
         )?,
         OlympiaCommand::Disassemble { verbose, rom } => {
             let data = std::fs::read(rom)?;
-            disassemble::do_disassemble(data, verbose, &mut io::stdout())?
+            disassemble::do_disassemble(data, verbose, out)?
         }
     }
     Ok(())
 }
 
+fn main() -> OlympiaResult<()> {
+    let args = OlympiaArgs::from_args();
+    let mut err = find_err_out(&args);
+    run_cli(args, &mut io::stdin(), &mut io::stdout(), err.as_mut())
+}
+
 #[cfg(test)]
 pub mod test {
     use super::*;
+
+    #[test]
+    fn test_rom_info_e2e() {
+        let mut rom = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        rom.pop(); // workspace folder
+        rom.push("res/fizzbuzz.gb");
+        let mut in_: &[u8] = &[];
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        let args = OlympiaArgs {
+            quiet: false,
+            cmd: OlympiaCommand::RomInfo { rom },
+        };
+
+        run_cli(args, &mut in_, &mut out, &mut err).unwrap();
+
+        let actual_output = String::from_utf8_lossy(&out);
+        let expected_output = ["Cartridge Type: Static ROM", "ROM Size: 32KiB"].join("\n");
+
+        assert_eq!(actual_output, expected_output);
+    }
+
+    #[test]
+    fn test_debug_e2e() {
+        let mut rom = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        rom.pop(); // workspace folder
+        rom.push("res/fizzbuzz.gb");
+        let mut in_: &[u8] = "step\nr PC\ncc".as_ref();
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        let args = OlympiaArgs {
+            quiet: false,
+            cmd: OlympiaCommand::Debug { rom },
+        };
+
+        run_cli(args, &mut in_, &mut out, &mut err).unwrap();
+
+        let actual_output = String::from_utf8_lossy(&out);
+        let expected_output = "101\nCycles: 4 / M-Cycles: 1\n";
+
+        assert_eq!(actual_output, expected_output);
+    }
 
     #[test]
     fn test_rom_info_srom() {

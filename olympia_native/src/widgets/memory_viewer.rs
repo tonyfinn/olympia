@@ -37,6 +37,13 @@ impl MemoryViewerRow {
         }
     }
 
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn cell(&self, idx: usize) -> Option<&gtk::Label> {
+        self.value_labels.get(idx)
+    }
+
     fn set_offset(&self, offset: u16) {
         self.offset.replace(offset);
         self.addr.set_text(&format!("0x{:04X}", offset))
@@ -77,26 +84,29 @@ builder_struct!(
 );
 
 pub struct MemoryViewer {
+    context: glib::MainContext,
+    emu: Rc<RemoteEmulator>,
+    rows: Vec<MemoryViewerRow>,
     offset: RefCell<u16>,
     widget: MemoryViewerWidget,
-    rows: Vec<MemoryViewerRow>,
-    emu: Rc<RemoteEmulator>,
 }
 
 impl MemoryViewer {
     pub(crate) fn from_widget(
-        widget: MemoryViewerWidget,
+        context: glib::MainContext,
         emu: Rc<RemoteEmulator>,
+        widget: MemoryViewerWidget,
         num_visible_rows: u16,
     ) -> Rc<MemoryViewer> {
         let rows = (0..num_visible_rows)
             .map(|row| MemoryViewerRow::new(row * 0x10))
             .collect();
         let viewer = Rc::new(MemoryViewer {
-            offset: RefCell::new(0),
-            rows: rows,
-            widget,
+            context,
             emu,
+            rows: rows,
+            offset: RefCell::new(0),
+            widget,
         });
         viewer.connect_ui_events();
         viewer.connect_adapter_events();
@@ -105,11 +115,18 @@ impl MemoryViewer {
 
     pub(crate) fn from_builder(
         builder: &gtk::Builder,
+        context: glib::MainContext,
         emu: Rc<RemoteEmulator>,
         num_visible_rows: u16,
     ) -> Rc<MemoryViewer> {
         let widget = MemoryViewerWidget::from_builder(builder).unwrap();
-        MemoryViewer::from_widget(widget, emu, num_visible_rows)
+        MemoryViewer::from_widget(context, emu, widget, num_visible_rows)
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn row(&self, idx: usize) -> Option<&MemoryViewerRow> {
+        self.rows.get(idx)
     }
 
     fn address_range(&self) -> (u16, u16) {
@@ -181,8 +198,7 @@ impl MemoryViewer {
         self.widget.panel.add(&viewer_box);
 
         self.widget.pc_button.connect_clicked(
-            clone!(@strong self as mem_viewer, @strong self.widget.address_entry as address_entry => move |_| {
-                let ctx = glib::MainContext::default();
+            clone!(@strong self as mem_viewer, @strong self.context as ctx, @strong self.widget.address_entry as address_entry => move |_| {
                 ctx.spawn_local(mem_viewer.clone().set_target_to_pc(address_entry.clone()));
             }),
         );
@@ -202,10 +218,9 @@ impl MemoryViewer {
     fn connect_adapter_events(self: &Rc<Self>) {
         let (tx, rx) = glib::MainContext::channel(glib::source::PRIORITY_DEFAULT);
         self.emu.on_step(tx);
-        let ctx = glib::MainContext::default();
         rx.attach(
-            Some(&ctx),
-            clone!(@strong self as viewer, @strong ctx => move |_| {
+            Some(&self.context),
+            clone!(@strong self as viewer, @strong self.context as ctx => move |_| {
                 ctx.spawn_local(viewer.clone().refresh());
                 glib::Continue(true)
             }),
@@ -223,9 +238,10 @@ impl MemoryViewer {
 
     fn goto_address(self: Rc<Self>, address_entry: &gtk::Entry) {
         if let Some(text) = address_entry.get_text() {
-            let parsed = u16::from_str_radix(text.as_str(), 16);
+            let text_string = text.as_str();
+            let parsed = u16::from_str_radix(text_string, 16);
             if let Ok(val) = parsed {
-                let ctx = glib::MainContext::default();
+                let ctx = self.context.clone();
                 self.offset.replace(self.resolve(val));
                 ctx.spawn_local(self.refresh())
             }
@@ -233,12 +249,85 @@ impl MemoryViewer {
     }
 
     fn handle_scroll_evt(self: Rc<Self>, evt: &gdk::EventScroll) {
-        let ctx = glib::MainContext::default();
+        let ctx = self.context.clone();
         match evt.get_direction() {
             gdk::ScrollDirection::Down => self.scroll_down(1),
             gdk::ScrollDirection::Up => self.scroll_up(1),
             _ => (),
         };
         ctx.spawn_local(self.refresh());
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::utils::test_utils;
+
+    fn setup_widget() -> (glib::MainContext, Rc<RemoteEmulator>, Rc<MemoryViewer>) {
+        test_utils::setup_gtk().unwrap();
+        let context = test_utils::setup_context();
+        let emu = Rc::new(test_utils::get_unloaded_remote_emu(context.clone()));
+        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let component = MemoryViewer::from_builder(&builder, context.clone(), emu.clone(), 16);
+        (context, emu, component)
+    }
+
+    #[test]
+    fn gtk_test_initial_load() {
+        let (_, _, component) = setup_widget();
+
+        for i in 0..16 {
+            let row = component.row(i).expect(&format!("No row found at {}", i));
+            for j in 0..16 {
+                let col = row.cell(j).expect(&format!("No cell found at row {} column {}", i, j));
+                assert_eq!(col.get_text().unwrap(), "--");
+            }
+        }
+    }
+
+    #[test]
+    fn gtk_test_rom_loaded() {
+        let (context, emu, component) = setup_widget();
+
+        let task = async {
+            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+            emu.query_memory(0x00, 0xFF).await
+        };
+        let memory_data = test_utils::wait_for_task(&context, task).unwrap();
+
+        test_utils::next_tick(&context, &emu);
+
+        for i in 0..16 {
+            let row = component.row(i).expect(&format!("No row found at {}", i));
+            for j in 0..16 {
+                let col = row.cell(j).expect(&format!("No cell found at row {} column {}", i, j));
+                let actual_value = memory_data.data.get((i * 0x10) + j).unwrap().unwrap();
+                assert_eq!(col.get_text().unwrap().as_str(), format!("{:02X}", actual_value));
+            }
+        }
+    }
+
+    #[test]
+    fn gtk_test_goto_address() {
+        let (context, emu, component) = setup_widget();
+
+        let task = async {
+            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+        };
+
+        test_utils::wait_for_task(&context, task);
+
+        component.widget.address_entry.get_buffer().set_text("8000");
+        component.widget.go_button.clicked();
+        test_utils::next_tick(&context, &emu);
+
+        for i in 0..16 {
+            let row = component.row(i).expect(&format!("No row found at {}", i));
+            for j in 0..16 {
+                let col = row.cell(j).expect(&format!("No cell found at row {} column {}", i, j));
+                assert_eq!(col.get_text().unwrap().as_str(), "00");
+            }
+        }
     }
 }

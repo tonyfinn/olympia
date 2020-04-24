@@ -33,3 +33,89 @@ where
         show_error_dialog(e, window);
     }
 }
+
+#[cfg(test)]
+pub(crate) mod test_utils {
+    use crate::emulator::remote::{GlibEmulatorChannel, RemoteEmulator};
+    use glib::error::BoolError;
+    use std::{
+        future::Future,
+        path::{Path, PathBuf},
+        time::{Duration, Instant},
+    };
+
+    pub fn wait_for_task<T>(ctx: &glib::MainContext, t: impl Future<Output = T>) -> T {
+        let start_time = Instant::now();
+        let result = ctx.block_on(t);
+        let timeout = Duration::from_millis(1000);
+        while ctx.pending() {
+            if start_time.elapsed() > timeout {
+                panic!("Timeout of {:?} elapsed", timeout);
+            }
+            ctx.iteration(true);
+        }
+        result
+    }
+
+    pub fn digest_events(ctx: &glib::MainContext) {
+        let start_time = Instant::now();
+        let timeout = Duration::from_millis(1000);
+        while ctx.pending() {
+            if start_time.elapsed() > timeout {
+                panic!("Timeout of {:?} elapsed", timeout);
+            }
+            ctx.iteration(true);
+        }
+    }
+
+    pub(crate) fn fizzbuzz_path() -> PathBuf {
+        let mut path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_owned();
+        path.push("res");
+        path.push("fizzbuzz.gb");
+        path
+    }
+
+    /// Gets a sample remote emulator setup with no ROM loaded
+    pub(crate) fn get_unloaded_remote_emu(
+        context: glib::MainContext,
+    ) -> crate::emulator::remote::RemoteEmulator {
+        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
+        let emu = RemoteEmulator::new(channel);
+        emu
+    }
+
+    // Gets a sample remote emulator setup loaded with a fizzbuzz ROM
+    pub(crate) fn get_loaded_remote_emu(
+        context: glib::MainContext,
+    ) -> crate::emulator::remote::RemoteEmulator {
+        let emu = get_unloaded_remote_emu(context.clone());
+
+        let task = async {
+            emu.load_rom(fizzbuzz_path()).await.unwrap();
+        };
+        wait_for_task(&context, task);
+        emu
+    }
+
+    /// Initialises GTK with a default MainContext for test purposes
+    pub(crate) fn setup_gtk() -> Result<(), BoolError> {
+        if !gtk::is_initialized() {
+            gtk::init().expect("Failed to init GTK");
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn next_tick(context: &glib::MainContext, emu: &RemoteEmulator) {
+        wait_for_task(&context, emu.query_registers()).unwrap();
+    }
+
+    pub(crate) fn setup_context() -> glib::MainContext {
+        let context = glib::MainContext::new();
+        context.acquire();
+        context
+    }
+}

@@ -1,0 +1,9 @@
+[normal_tests]
+args = ["--skip", "gtk_"]
+
+[single_thead_gtk_tests]
+args = ["--test-threads", "1", "gtk_"]
+
+[report]
+output-dir = "target/coverage"
+out = ["Html", "Xml"]

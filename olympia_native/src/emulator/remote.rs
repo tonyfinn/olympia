@@ -328,38 +328,24 @@ impl RemoteEmulator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::test_utils;
     use olympia_engine::debug::Breakpoint;
     use olympia_engine::registers::WordRegister;
-    use std::path::{Path, PathBuf};
-    use std::time::{Duration, Instant};
-
-    fn rom_path() -> PathBuf {
-        let mut path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .to_owned();
-        path.push("res");
-        path.push("fizzbuzz.gb");
-        path
-    }
+    use std::time::Duration;
 
     #[test]
     fn test_load_rom() {
-        let context = glib::MainContext::new();
-        context.acquire();
-        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
-        let emu = RemoteEmulator::new(channel);
-        let resp = context.block_on(emu.load_rom(rom_path()));
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
+        let resp = context.block_on(emu.load_rom(test_utils::fizzbuzz_path()));
         assert_eq!(resp, Ok(()));
     }
 
     #[test]
     fn test_load_rom_error() {
-        let context = glib::MainContext::new();
-        context.acquire();
-        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
-        let emu = RemoteEmulator::new(channel);
-        let mut path = rom_path();
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
+        let mut path = test_utils::fizzbuzz_path();
         path.push("doesnotexist");
         let resp = context.block_on(emu.load_rom(path));
         assert!(matches!(resp, Err(LoadRomError::Unreadable(_))));
@@ -380,73 +366,52 @@ mod tests {
         (tx, tracked)
     }
 
-    fn wait_for_task<T>(ctx: &glib::MainContext, t: impl Future<Output = T>) -> T {
-        let start_time = Instant::now();
-        let result = ctx.block_on(t);
-        let timeout = Duration::from_millis(1000);
-        while ctx.pending() {
-            if start_time.elapsed() > timeout {
-                panic!("Timeout of {:?} elapsed", timeout);
-            }
-            ctx.iteration(true);
-        }
-        result
-    }
-
-    fn digest_events(ctx: &glib::MainContext) {
-        let start_time = Instant::now();
-        let timeout = Duration::from_millis(1000);
-        while ctx.pending() {
-            if start_time.elapsed() > timeout {
-                panic!("Timeout of {:?} elapsed", timeout);
-            }
-            ctx.iteration(true);
-        }
-    }
-
     #[test]
     fn test_load_starts_paused() {
-        let context = glib::MainContext::new();
-        context.acquire();
-        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
-        let emu = RemoteEmulator::new(channel);
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (tx, events) = track_emulator_event(&context);
         emu.on_mode_change(tx);
         let task = async {
-            emu.load_rom(rom_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
         };
-        wait_for_task(&context, task);
+        test_utils::wait_for_task(&context, task);
         assert_eq!(events.borrow().clone(), vec![ExecMode::Paused]);
     }
 
     #[test]
-    fn test_step_notify() {
-        let context = glib::MainContext::new();
-        context.acquire();
-        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
-        let emu = RemoteEmulator::new(channel);
+    fn test_step() {
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (tx, events) = track_emulator_event(&context);
         emu.on_step(tx);
         let task = async {
-            emu.load_rom(rom_path()).await.unwrap();
-            emu.step().await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+            emu.step().await
         };
-        wait_for_task(&context, task);
+        let step_result = test_utils::wait_for_task(&context, task);
         assert_eq!(events.borrow().clone(), vec![(), ()]);
+        assert_eq!(step_result, Ok(()))
+    }
+
+    #[test]
+    fn test_step_unloaded() {
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
+        let task = async { emu.step().await };
+        let step_result = test_utils::wait_for_task(&context, task);
+        assert_eq!(step_result, Err(commands::Error::NoRomLoaded))
     }
 
     #[test]
     fn test_query_memory() {
-        let context = glib::MainContext::new();
-        context.acquire();
-        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
-        let emu = RemoteEmulator::new(channel);
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_loaded_remote_emu(context.clone());
         let task = async {
-            emu.load_rom(rom_path()).await.unwrap();
             emu.step().await.unwrap();
             emu.query_memory(0x00, 0x04).await
         };
-        let memory_result = wait_for_task(&context, task);
+        let memory_result = test_utils::wait_for_task(&context, task);
         let expected_data = vec![201, 0, 0, 0, 0].into_iter().map(|x| Some(x)).collect();
         assert_eq!(
             memory_result,
@@ -458,17 +423,23 @@ mod tests {
     }
 
     #[test]
+    fn test_query_memory_unloaded() {
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
+        let task = async { emu.query_memory(0x00, 0x04).await };
+        let memory_result = test_utils::wait_for_task(&context, task);
+        assert_eq!(memory_result, Err(commands::Error::NoRomLoaded))
+    }
+
+    #[test]
     fn test_query_register() {
-        let context = glib::MainContext::new();
-        context.acquire();
-        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
-        let emu = RemoteEmulator::new(channel);
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_loaded_remote_emu(context.clone());
         let task = async {
-            emu.load_rom(rom_path()).await.unwrap();
             emu.step().await.unwrap();
             emu.query_registers().await
         };
-        let register_result = wait_for_task(&context, task);
+        let register_result = test_utils::wait_for_task(&context, task);
         assert_eq!(
             register_result,
             Ok(QueryRegistersResponse {
@@ -483,26 +454,33 @@ mod tests {
     }
 
     #[test]
+    fn test_query_register_unloaded() {
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
+        let task = async { emu.query_registers().await };
+        let register_result = test_utils::wait_for_task(&context, task);
+        assert_eq!(register_result, Err(commands::Error::NoRomLoaded))
+    }
+
+    #[test]
     fn test_run_to_breakpoint() {
-        let context = glib::MainContext::new();
-        context.acquire();
-        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
-        let emu = RemoteEmulator::new(channel);
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (tx, events) = track_emulator_event(&context);
         emu.on_mode_change(tx);
         let bp: UiBreakpoint = Breakpoint::new(WordRegister::PC.into(), 0x150).into();
         let task = async {
-            emu.load_rom(rom_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
             emu.add_breakpoint(bp.clone()).await.unwrap();
         };
-        wait_for_task(&context, task);
+        test_utils::wait_for_task(&context, task);
         let play_task = async {
             emu.set_mode(ExecMode::Standard).await.unwrap();
         };
-        wait_for_task(&context, play_task);
+        test_utils::wait_for_task(&context, play_task);
         std::thread::sleep(Duration::from_millis(200));
-        digest_events(&context);
-        let emulation_time = wait_for_task(&context, emu.exec_time()).unwrap();
+        test_utils::digest_events(&context);
+        let emulation_time = test_utils::wait_for_task(&context, emu.exec_time()).unwrap();
         // 1 cycle for NOP, 4 for JUMP
         let actual_gb_time =
             Duration::from_secs_f64(5.0 / f64::from(olympia_engine::gameboy::CYCLE_FREQ));
@@ -519,24 +497,22 @@ mod tests {
 
     #[test]
     fn test_ff_to_breakpoint() {
-        let context = glib::MainContext::new();
-        context.acquire();
-        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
-        let emu = RemoteEmulator::new(channel);
+        let context = test_utils::setup_context();
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (tx, events) = track_emulator_event(&context);
         emu.on_mode_change(tx);
         let bp: UiBreakpoint = Breakpoint::new(WordRegister::PC.into(), 0x150).into();
         let task = async {
-            emu.load_rom(rom_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
             emu.add_breakpoint(bp.clone()).await.unwrap();
         };
-        wait_for_task(&context, task);
+        test_utils::wait_for_task(&context, task);
         let play_task = async {
             emu.set_mode(ExecMode::Uncapped).await.unwrap();
         };
-        wait_for_task(&context, play_task);
+        test_utils::wait_for_task(&context, play_task);
         std::thread::sleep(Duration::from_millis(200));
-        digest_events(&context);
+        test_utils::digest_events(&context);
         assert_eq!(
             events.borrow().clone(),
             vec![

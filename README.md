@@ -33,6 +33,14 @@ Missing features:
 
 `olympia_native` - This provides a native UI to run the emulator
 
+## Testing
+
+Tests using GTK must run single threaded. This leaves the following options for running tests:
+
+* Use `test.sh` to split test runs into two runs, one for other tests and one for GTK tests
+* Use `cargo test --test-threads 1` to run all tests in one thread
+* Use `cargo test --skip gtk_` to skip gtk tests.
+
 ## License
 
 Olympia is licensed under the GPL v3+, available at LICENSE.txt. (c) Tony Finn 2019

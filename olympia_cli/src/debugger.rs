@@ -1,7 +1,7 @@
-use std::fmt;
 use std::io;
 use std::ops;
 
+use derive_more::{Display, Error, From};
 use olympia_engine::{
     debug::{parse_number, Breakpoint, RWTarget},
     gameboy,
@@ -13,39 +13,18 @@ const PROMPT: &str = "> ";
 
 type ByteRange = (ops::Bound<u16>, ops::Bound<u16>);
 
-#[derive(Debug)]
+#[derive(Debug, Display, From, Error)]
 pub enum RangeParseError {
+    #[display(fmt = "Lower Bound Invalid")]
     LowerBoundInvalid,
+    #[display(fmt = "Upper Bound Invalid")]
     UpperBoundInvalid,
+    #[display(fmt = "Failed to parse range: {}", "_0")]
     ParseFailed(std::num::ParseIntError),
+    #[display(fmt = "Unknown named range or missing seperator ':' for numbered range")]
     NoSeperator,
+    #[display(fmt = "Invalid numbered range. Format: <start>:<end>")]
     ExtraSeperator,
-}
-
-impl std::error::Error for RangeParseError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        if let RangeParseError::ParseFailed(e) = self {
-            Some(e)
-        } else {
-            None
-        }
-    }
-}
-
-impl fmt::Display for RangeParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use RangeParseError::*;
-        match self {
-            LowerBoundInvalid => write!(f, "Lower bound invalid"),
-            UpperBoundInvalid => write!(f, "Upper bound invalid"),
-            ParseFailed(e) => write!(f, "Failed to parse range: {}", e),
-            NoSeperator => write!(
-                f,
-                "Unknown named range or missing seperator ':' for numbered range"
-            ),
-            ExtraSeperator => write!(f, "Invalid numbered range. Format: <start>:<end>"),
-        }
-    }
 }
 
 fn parse_bound(src: &str) -> Result<ops::Bound<u16>, RangeParseError> {

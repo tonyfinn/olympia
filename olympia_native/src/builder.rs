@@ -5,13 +5,15 @@ pub struct MissingUIElement(pub(crate) String);
 
 #[macro_export]
 macro_rules! builder_struct {
-    ($vis:vis struct $struct_name:ident {
-        $(
-            #[ogtk(id=$id:literal)]
-            $field_name:ident: $ty:ty
-        ),+
-        $(,)?
-    }) => {
+    (
+        $vis:vis struct $struct_name:ident {
+            $(
+                #[ogtk(id=$id:literal)]
+                $field_name:ident: $ty:ty
+            ),+
+            $(,)?
+        }
+    ) => {
         $vis struct $struct_name {
             $($field_name: $ty),+
         }

@@ -22,9 +22,8 @@ pub(crate) fn get_data_path() -> PathBuf {
 }
 
 pub(crate) fn get_cli_bin() -> PathBuf {
-    let mut path = find_crate_root();
-    path.push("target");
-    path.push("debug");
-    path.push("olympia_cli");
+    let path_str: &'static str = env!("CARGO_BIN_EXE_olympia_cli");
+    let mut path = PathBuf::new();
+    path.push(path_str);
     path
 }

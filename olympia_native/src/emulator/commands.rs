@@ -89,7 +89,7 @@ impl QueryRegistersResponse {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct QueryMemoryResponse {
     pub start_addr: u16,
     pub data: Vec<Option<u8>>,
@@ -152,4 +152,50 @@ pub(crate) enum EmulatorThreadOutput {
     Error(Error),
     Response(CommandId, EmulatorResponse),
     ModeChange(ExecMode),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn query_register_response_lookup() {
+        let response = QueryRegistersResponse {
+            af: 0x1234,
+            bc: 0x2345,
+            de: 0x3456,
+            hl: 0x4567,
+            pc: 0x5678,
+            sp: 0x6789,
+        };
+
+        assert_eq!(response.read_u16(WordRegister::AF), 0x1234);
+        assert_eq!(response.read_u16(WordRegister::BC), 0x2345);
+        assert_eq!(response.read_u16(WordRegister::DE), 0x3456);
+        assert_eq!(response.read_u16(WordRegister::HL), 0x4567);
+        assert_eq!(response.read_u16(WordRegister::PC), 0x5678);
+        assert_eq!(response.read_u16(WordRegister::SP), 0x6789);
+    }
+
+    #[test]
+    fn load_rom_error_equality() {
+        let invalid_rom_a1 = LoadRomError::InvalidRom(CartridgeError::UnsupportedRamSize(0x80));
+        let invalid_rom_a2 = LoadRomError::InvalidRom(CartridgeError::UnsupportedRamSize(0x80));
+        let invalid_rom_b =
+            LoadRomError::InvalidRom(CartridgeError::UnsupportedCartridgeType(0x12));
+
+        let io_error_a1 =
+            LoadRomError::Unreadable(std::io::Error::new(std::io::ErrorKind::Interrupted, "foo"));
+        let io_error_a2 =
+            LoadRomError::Unreadable(std::io::Error::new(std::io::ErrorKind::Interrupted, "foo"));
+        let io_error_b =
+            LoadRomError::Unreadable(std::io::Error::new(std::io::ErrorKind::NotFound, "foo"));
+
+        assert_eq!(invalid_rom_a1, invalid_rom_a2);
+        assert_eq!(io_error_a1, io_error_a2);
+
+        assert_ne!(invalid_rom_a1, invalid_rom_b);
+        assert_ne!(io_error_a2, io_error_b);
+        assert_ne!(invalid_rom_a1, io_error_a1);
+    }
 }

@@ -27,12 +27,12 @@ impl Debugger {
         let emu = Rc::new(RemoteEmulator::new(glib_emu));
 
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
-        let playback_controls = PlaybackControls::from_builder(&builder, emu.clone());
+        let playback_controls = PlaybackControls::from_builder(&builder, ctx.clone(), emu.clone());
         let window: ApplicationWindow = builder.get_object("MainWindow").unwrap();
         let open_action = gio::SimpleAction::new("open", None);
-        let register_labels = RegisterLabels::from_builder(&builder, emu.clone());
-        let memory_viewer = MemoryViewer::from_builder(&builder, emu.clone(), 17);
-        let breakpoint_viewer = BreakpointViewer::from_builder(&builder, emu.clone());
+        let register_labels = RegisterLabels::from_builder(&builder, ctx.clone(), emu.clone());
+        let memory_viewer = MemoryViewer::from_builder(&builder, ctx.clone(), emu.clone(), 17);
+        let breakpoint_viewer = BreakpointViewer::from_builder(&builder, ctx.clone(), emu.clone());
 
         window.set_application(Some(app));
         window.add_action(&open_action);
