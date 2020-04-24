@@ -1,4 +1,4 @@
-image: xd009642/tarpaulin:0.12.2
+image: xd009642/tarpaulin:develop
 
 stages:
     - test
