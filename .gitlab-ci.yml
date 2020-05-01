@@ -4,6 +4,13 @@ stages:
     - test
 
 test:
+    cache:
+        key:
+            files: 
+                - Cargo.lock
+        paths:
+            - target/debug
+            - .cargo
     stage: test
     artifacts:
         paths:
@@ -12,4 +19,4 @@ test:
         reports:
             cobertura: target/coverage/cobertura.xml
     script:
-        - Xvfb :1 && DISPLAY=:1 build/test.sh
+        - Xvfb :1 & CARGO_HOME=./.cargo DISPLAY=:1 build/test.sh
