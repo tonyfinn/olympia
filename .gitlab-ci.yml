@@ -1,6 +1,7 @@
 image: registry.gitlab.com/tonyfinn/olympia/test_container
 
 stages:
+    - build
     - test
 
 test:
@@ -20,3 +21,14 @@ test:
             cobertura: target/coverage/cobertura.xml
     script:
         - Xvfb :1 & CARGO_HOME=./.cargo DISPLAY=:1 build/test.sh
+
+docker_container:
+    when: manual
+    image: docker:19.03.8
+    stage: build
+    services:
+      - docker:19.03.8-dind
+    script:
+      - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+      - cd build/test_container && docker build -t $CI_REGISTRY/tonyfinn/olympia/test_container:latest .
+      - docker push $CI_REGISTRY/tonyfinn/olympia/test_container:latest  
