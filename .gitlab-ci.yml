@@ -23,12 +23,11 @@ test:
         - Xvfb :1 & CARGO_HOME=./.cargo DISPLAY=:1 build/test.sh
 
 docker_container:
-    when: manual
     rules:
-        -   if: '$CI_COMMIT_REF_NAME == "master"'
-            changes:
-            - build/test_container/*
-            when: always
+        - if: '$CI_COMMIT_REF_NAME == "master"'
+          changes:
+          - build/test_container/*
+          when: always
     image: docker:19.03.8
     stage: build
     services:
