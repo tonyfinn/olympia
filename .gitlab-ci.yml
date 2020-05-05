@@ -15,7 +15,6 @@ test:
     stage: test
     variables:
         GIT_STRATEGY: clone
-        GIT_CHECKOUT: "false"
     artifacts:
         paths:
             - target/coverage/tarpaulin-report.html
