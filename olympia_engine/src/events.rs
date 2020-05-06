@@ -10,17 +10,17 @@ use derive_more::{Constructor, From, TryInto};
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Constructor)]
 pub struct MemoryWriteEvent {
     /// Location written to
-    address: address::LiteralAddress,
+    pub address: address::LiteralAddress,
     /// Value written to that location
-    value: u8,
+    pub value: u8,
     /// The actual new value after the write
-    new_value: u8,
+    pub new_value: u8,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Constructor)]
 pub struct RegisterWriteEvent {
-    reg: registers::WordRegister,
-    value: u16,
+    pub reg: registers::WordRegister,
+    pub value: u16,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

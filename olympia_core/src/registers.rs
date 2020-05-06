@@ -50,6 +50,13 @@ pub enum WordRegister {
     PC,
 }
 
+impl WordRegister {
+    pub fn all() -> [WordRegister; 6] {
+        use WordRegister as wr;
+        [wr::AF, wr::BC, wr::DE, wr::HL, wr::SP, wr::PC]
+    }
+}
+
 impl core::str::FromStr for WordRegister {
     type Err = RegisterParseError;
 

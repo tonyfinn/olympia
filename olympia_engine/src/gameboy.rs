@@ -60,7 +60,7 @@ pub struct GameBoy {
     runtime_decoder: Rc<new_instructions::RuntimeDecoder>,
     clocks_elapsed: u64,
     time_elapsed: f64,
-    events: Rc<events::EventEmitter<events::Event>>,
+    pub events: Rc<events::EventEmitter<events::Event>>,
 }
 
 #[derive(PartialEq, Eq, Debug, Display)]

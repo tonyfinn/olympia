@@ -73,37 +73,48 @@ impl RegisterLabels {
         self.emu.on_step(tx);
         rx.attach(
             Some(&self.context),
-            clone!(@strong self as labels, @strong self.context as context => move |_| {
+            clone!(@weak self as labels, @strong self.context as context => @default-return glib::Continue(false), move |_| {
                 context.spawn_local(labels.clone().update());
+                glib::Continue(true)
+            }),
+        );
+
+        let (tx, rx) = glib::MainContext::channel(glib::source::PRIORITY_DEFAULT);
+        self.emu.on_register_write(tx);
+        rx.attach(
+            Some(&self.context),
+            clone!(@weak self as labels => @default-return glib::Continue(false), move |rw| {
+                labels.handle_register_write(rw.reg, rw.value);
                 glib::Continue(true)
             }),
         );
     }
 
-    fn inputs(&self) -> [&gtk::Entry; 6] {
-        [
-            &self.widget.af_input,
-            &self.widget.bc_input,
-            &self.widget.de_input,
-            &self.widget.sp_input,
-            &self.widget.hl_input,
-            &self.widget.pc_input,
-        ]
+    fn handle_register_write(&self, reg: WordRegister, value: u16) {
+        self.label_for_register(reg)
+            .set_text(&format!("{:04X}", value));
     }
 
-    fn register_inputs(&self) -> [(&gtk::Entry, WordRegister); 6] {
-        [
-            (&self.widget.af_input, WordRegister::AF),
-            (&self.widget.bc_input, WordRegister::BC),
-            (&self.widget.de_input, WordRegister::DE),
-            (&self.widget.sp_input, WordRegister::SP),
-            (&self.widget.hl_input, WordRegister::HL),
-            (&self.widget.pc_input, WordRegister::PC),
-        ]
+    fn register_inputs(&self) -> Vec<(&gtk::Entry, WordRegister)> {
+        WordRegister::all()
+            .iter()
+            .map(|reg| (self.label_for_register(*reg), *reg))
+            .collect()
+    }
+
+    fn label_for_register(&self, reg: WordRegister) -> &gtk::Entry {
+        match reg {
+            WordRegister::AF => &self.widget.af_input,
+            WordRegister::BC => &self.widget.bc_input,
+            WordRegister::DE => &self.widget.de_input,
+            WordRegister::HL => &self.widget.hl_input,
+            WordRegister::SP => &self.widget.sp_input,
+            WordRegister::PC => &self.widget.pc_input,
+        }
     }
 
     fn set_editable(&self, editable: bool) {
-        for input in self.inputs().iter_mut() {
+        for (input, _) in self.register_inputs().iter_mut() {
             input.set_editable(editable);
         }
     }
@@ -193,6 +204,22 @@ mod tests {
         assert_eq!(hl_text, Some(format!("{:04X}", actual_registers.hl)));
         assert_eq!(pc_text, Some(format!("{:04X}", actual_registers.pc)));
         assert_eq!(sp_text, Some(format!("{:04X}", actual_registers.sp)));
+        context.release();
+    }
+
+    #[test]
+    fn gtk_handle_write() {
+        test_utils::setup_gtk().unwrap();
+        let context = test_utils::setup_context();
+        let emu = Rc::new(test_utils::get_loaded_remote_emu(context.clone()));
+        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
+
+        component.handle_register_write(WordRegister::BC, 0x8080);
+
+        let bc_text: Option<String> = component.widget.bc_input.get_text().map(|txt| txt.into());
+
+        assert_eq!(bc_text, Some("8080".into()));
         context.release();
     }
 }

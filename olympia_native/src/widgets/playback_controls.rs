@@ -62,7 +62,7 @@ impl PlaybackControls {
         self.emu.on_mode_change(tx);
         rx.attach(
             Some(&self.context),
-            clone!(@strong self as controls => move |mode| {
+            clone!(@weak self as controls => @default-return glib::Continue(false), move |mode| {
                 controls.apply_mode(mode);
                 glib::Continue(true)
             }),
@@ -71,31 +71,31 @@ impl PlaybackControls {
 
     fn connect_ui_events(self: &Rc<Self>) {
         let ctx = self.context.clone();
-        self.widget.step.connect_clicked(
-            clone!(@strong self as controls, @strong ctx => move |_| {
+        self.widget
+            .step
+            .connect_clicked(clone!(@weak self as controls, @strong ctx => move |_| {
                 ctx.spawn_local(controls.clone().step());
-            }),
-        );
-        self.widget.play.connect_toggled(
-            clone!(@strong self as controls, @strong ctx => move |_| {
+            }));
+        self.widget
+            .play
+            .connect_toggled(clone!(@weak self as controls, @strong ctx => move |_| {
                 let new_mode = if controls.widget.play.get_active() {
                     ExecMode::Standard
                 } else {
                     ExecMode::Paused
                 };
                 ctx.spawn_local(controls.clone().set_mode(new_mode));
-            }),
-        );
-        self.widget.fast.connect_toggled(
-            clone!(@strong self as controls, @strong ctx => move |_| {
+            }));
+        self.widget
+            .fast
+            .connect_toggled(clone!(@weak self as controls, @strong ctx => move |_| {
                 let new_mode = if controls.widget.fast.get_active() {
                     ExecMode::Uncapped
                 } else {
                     ExecMode::Paused
                 };
                 ctx.spawn_local(controls.clone().set_mode(new_mode));
-            }),
-        );
+            }));
     }
 
     pub(crate) fn apply_mode(&self, mode: ExecMode) {

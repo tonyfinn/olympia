@@ -6,6 +6,7 @@ use crate::emulator::{
     },
     emu_thread::EmulatorThread,
 };
+use olympia_engine::events as engine_events;
 
 use glib::clone;
 
@@ -81,6 +82,11 @@ where
 struct AdapterEventListeners {
     mode_change: HashMap<u32, glib::Sender<ExecMode>>,
     step: HashMap<u32, glib::Sender<()>>,
+    register_write: HashMap<u32, glib::Sender<engine_events::RegisterWriteEvent>>,
+    memory_write: HashMap<u32, glib::Sender<engine_events::MemoryWriteEvent>>,
+    hblank: HashMap<u32, glib::Sender<engine_events::HBlankEvent>>,
+    vblank: HashMap<u32, glib::Sender<engine_events::VBlankEvent>>,
+    step_complete: HashMap<u32, glib::Sender<engine_events::StepCompleteEvent>>,
     next_listener_id: u32,
 }
 
@@ -89,6 +95,11 @@ impl AdapterEventListeners {
         AdapterEventListeners {
             mode_change: HashMap::new(),
             step: HashMap::new(),
+            register_write: HashMap::new(),
+            memory_write: HashMap::new(),
+            hblank: HashMap::new(),
+            vblank: HashMap::new(),
+            step_complete: HashMap::new(),
             next_listener_id: 0,
         }
     }
@@ -103,6 +114,16 @@ impl AdapterEventListeners {
         self.next_listener_id += 1;
     }
 
+    fn add_register_write(&mut self, tx: glib::Sender<engine_events::RegisterWriteEvent>) {
+        self.register_write.insert(self.next_listener_id, tx);
+        self.next_listener_id += 1;
+    }
+
+    fn add_memory_write(&mut self, tx: glib::Sender<engine_events::MemoryWriteEvent>) {
+        self.memory_write.insert(self.next_listener_id, tx);
+        self.next_listener_id += 1;
+    }
+
     fn notify_listeners<T: Clone>(listeners: &mut HashMap<u32, glib::Sender<T>>, value: T) {
         let mut listener_ids_to_remove = Vec::new();
         for (id, listener) in listeners.iter_mut() {
@@ -114,6 +135,23 @@ impl AdapterEventListeners {
         }
         for id in listener_ids_to_remove {
             listeners.remove(&id);
+        }
+    }
+
+    fn notify_engine_event(&mut self, event: engine_events::Event) {
+        use engine_events::Event as ee;
+        match event {
+            ee::RegisterWrite(e) => {
+                AdapterEventListeners::notify_listeners(&mut self.register_write, e)
+            }
+            ee::MemoryWrite(e) => {
+                AdapterEventListeners::notify_listeners(&mut self.memory_write, e)
+            }
+            ee::HBlank(e) => AdapterEventListeners::notify_listeners(&mut self.hblank, e),
+            ee::VBlank(e) => AdapterEventListeners::notify_listeners(&mut self.vblank, e),
+            ee::StepComplete(e) => {
+                AdapterEventListeners::notify_listeners(&mut self.step_complete, e)
+            }
         }
     }
 
@@ -183,7 +221,7 @@ impl InternalEmulatorAdapter {
         let pending_responses = Rc::new(RefCell::new(PendingResponses::default()));
         let event_listeners = Rc::new(RefCell::new(AdapterEventListeners::new()));
         channel.handle_output(Box::new(
-            clone!(@strong pending_responses as responses, @strong event_listeners => move |output| {
+            clone!(@weak pending_responses as responses, @weak event_listeners => @default-return Continue(false), move |output| {
                 let mut pending_responses = responses.borrow_mut();
                 match output {
                     EmulatorThreadOutput::Response(id, resp) => {
@@ -195,6 +233,9 @@ impl InternalEmulatorAdapter {
                     EmulatorThreadOutput::ModeChange(mode) => {
                         event_listeners.borrow_mut().notify_mode_change(mode);
                     },
+                    EmulatorThreadOutput::Event(evt) => {
+                        event_listeners.borrow_mut().notify_engine_event(evt);
+                    }
                     _ => {},
                 }
                 Continue(true)
@@ -235,6 +276,20 @@ impl RemoteEmulator {
 
     pub(crate) fn on_step(&self, tx: glib::Sender<()>) {
         self.adapter.event_listeners.borrow_mut().add_step(tx)
+    }
+
+    pub(crate) fn on_register_write(&self, tx: glib::Sender<engine_events::RegisterWriteEvent>) {
+        self.adapter
+            .event_listeners
+            .borrow_mut()
+            .add_register_write(tx)
+    }
+
+    pub(crate) fn on_memory_write(&self, tx: glib::Sender<engine_events::MemoryWriteEvent>) {
+        self.adapter
+            .event_listeners
+            .borrow_mut()
+            .add_memory_write(tx)
     }
 
     pub(crate) fn on_mode_change(&self, tx: glib::Sender<ExecMode>) {

@@ -53,7 +53,7 @@ impl BreakpointViewer {
 
     pub fn connect_ui_events(self: &Rc<Self>) {
         self.widget.add_button.connect_clicked(
-            clone!(@strong self as bpv, @strong self.context as ctx => move |_| {
+            clone!(@weak self as bpv, @strong self.context as ctx => move |_| {
                 ctx.spawn_local(bpv.clone().add_breakpoint())
             }),
         );
