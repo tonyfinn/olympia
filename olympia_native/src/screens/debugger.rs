@@ -8,12 +8,15 @@ use std::rc::Rc;
 
 use crate::emulator::remote::{GlibEmulatorChannel, RemoteEmulator};
 use crate::utils;
-use crate::widgets::{BreakpointViewer, MemoryViewer, PlaybackControls, RegisterLabels};
+use crate::widgets::{
+    BreakpointViewer, EmulatorDisplay, MemoryViewer, PlaybackControls, RegisterLabels,
+};
 
 #[allow(dead_code)]
 pub(crate) struct Debugger {
     emu: Rc<RemoteEmulator>,
     breakpoint_viewer: Rc<BreakpointViewer>,
+    emulator_display: Rc<EmulatorDisplay>,
     memory_viewer: Rc<MemoryViewer>,
     register_labels: Rc<RegisterLabels>,
     playback_controls: Rc<PlaybackControls>,
@@ -31,6 +34,7 @@ impl Debugger {
         let window: ApplicationWindow = builder.get_object("MainWindow").unwrap();
         let open_action = gio::SimpleAction::new("open", None);
         let register_labels = RegisterLabels::from_builder(&builder, ctx.clone(), emu.clone());
+        let emulator_display = EmulatorDisplay::from_builder(&builder, ctx.clone(), emu.clone());
         let memory_viewer = MemoryViewer::from_builder(&builder, ctx.clone(), emu.clone(), 17);
         let breakpoint_viewer = BreakpointViewer::from_builder(&builder, ctx.clone(), emu.clone());
 
@@ -40,6 +44,7 @@ impl Debugger {
         let debugger = Rc::new(Debugger {
             emu,
             breakpoint_viewer,
+            emulator_display,
             memory_viewer,
             playback_controls,
             register_labels,

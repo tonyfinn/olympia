@@ -255,6 +255,8 @@ impl Cpu {
 mod tests {
     use super::*;
     use crate::gameboy::GameBoyModel;
+    use alloc::boxed::Box;
+    use alloc::vec::Vec;
 
     #[test]
     fn test_reg_write_u8_read_u8() {

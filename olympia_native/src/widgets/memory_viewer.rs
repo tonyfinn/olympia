@@ -1,10 +1,12 @@
-use crate::builder_struct;
-use crate::emulator::{commands::QueryMemoryResponse, remote::RemoteEmulator};
+use crate::emulator::{
+    commands::{QueryMemoryResponse, Repeat},
+    remote::RemoteEmulator,
+};
+use crate::{builder_struct, provide_context};
 
 use glib::clone;
 use gtk::prelude::*;
-use olympia_engine::address::LiteralAddress;
-use olympia_engine::registers::WordRegister;
+use olympia_engine::{address::LiteralAddress, events::MemoryWriteEvent, registers::WordRegister};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -89,6 +91,8 @@ pub struct MemoryViewer {
     widget: MemoryViewerWidget,
 }
 
+provide_context!(MemoryViewer);
+
 impl MemoryViewer {
     pub(crate) fn from_widget(
         context: glib::MainContext,
@@ -121,8 +125,6 @@ impl MemoryViewer {
         MemoryViewer::from_widget(context, emu, widget, num_visible_rows)
     }
 
-    #[cfg(test)]
-    #[allow(dead_code)]
     fn row(&self, idx: usize) -> Option<&MemoryViewerRow> {
         self.rows.get(idx)
     }
@@ -184,6 +186,16 @@ impl MemoryViewer {
         }
     }
 
+    fn go_clicked(self: Rc<Self>) {
+        self.clone().goto_address(&self.widget.address_entry)
+    }
+
+    fn pc_clicked(self: Rc<Self>) {
+        let ctx = &self.context;
+        let address_entry = &self.widget.address_entry;
+        ctx.spawn_local(self.clone().set_target_to_pc(address_entry.clone()));
+    }
+
     fn connect_ui_events(self: &Rc<Self>) {
         self.widget.address_entry.set_text("0000");
 
@@ -195,22 +207,21 @@ impl MemoryViewer {
         viewer_box.add_events(gdk::EventMask::SCROLL_MASK);
         self.widget.panel.add(&viewer_box);
 
-        self.widget.pc_button.connect_clicked(
-            clone!(@weak self as mem_viewer, @strong self.context as ctx, @strong self.widget.address_entry as address_entry => move |_| {
-                ctx.spawn_local(mem_viewer.clone().set_target_to_pc(address_entry.clone()));
-            }),
-        );
-
-        self.widget.go_button.connect_clicked(
-            clone!(@weak self as mem_viewer, @strong self.widget.address_entry as address_entry => move |_| {
-                mem_viewer.clone().goto_address(&address_entry)
-            }),
-        );
-        self.widget.address_entry.connect_activate(
-            clone!(@weak self as mem_viewer => move |entry| {
-                mem_viewer.clone().goto_address(&entry)
-            }),
-        );
+        self.widget
+            .pc_button
+            .connect_clicked(clone!(@weak self as mem_viewer => move |_| {
+                mem_viewer.pc_clicked();
+            }));
+        self.widget
+            .go_button
+            .connect_clicked(clone!(@weak self as mem_viewer => move |_| {
+                mem_viewer.go_clicked();
+            }));
+        self.widget
+            .address_entry
+            .connect_activate(clone!(@weak self as mem_viewer => move |_| {
+                mem_viewer.go_clicked();
+            }));
     }
 
     fn handle_write(&self, addr: LiteralAddress, val: u8) {
@@ -221,33 +232,29 @@ impl MemoryViewer {
             let cell_index = addr_value & 0xF;
             let row_index = (address_of_row - start_addr) / 0x10;
             println!("Setting row {} cell {} to {}", row_index, cell_index, val);
-            self.rows
-                .get(usize::from(row_index))
+            self.row(usize::from(row_index))
                 .and_then(|row| row.cell(usize::from(cell_index)))
                 .map(|cell| cell.set_text(&format!("{:02X}", val)));
         }
     }
 
+    fn handle_step(self: &Rc<Self>) {
+        self.context.spawn_local(self.clone().refresh());
+    }
+
     fn connect_adapter_events(self: &Rc<Self>) {
-        let (tx, rx) = glib::MainContext::channel(glib::source::PRIORITY_DEFAULT);
-        self.emu.on_step(tx);
-        rx.attach(
-            Some(&self.context),
-            clone!(@weak self as viewer, @strong self.context as ctx => @default-return glib::Continue(false), move |_| {
-                ctx.spawn_local(viewer.clone().refresh());
-                glib::Continue(true)
+        self.emu.on_step(
+            &self.context,
+            clone!(@weak self as viewer => @default-return Repeat(false), move |_| {
+                viewer.handle_step();
+                Repeat(true)
             }),
         );
 
-        let (tx, rx) = glib::MainContext::channel(glib::source::PRIORITY_DEFAULT);
-        self.emu.on_memory_write(tx);
-        rx.attach(
-            Some(&self.context),
-            clone!(@strong self as viewer => @default-return glib::Continue(false), move |mw| {
+        self.emu
+            .add_listener(self.clone(), move |viewer, mw: MemoryWriteEvent| {
                 viewer.handle_write(mw.address, mw.new_value);
-                glib::Continue(true)
-            }),
-        );
+            });
     }
 
     async fn refresh(self: Rc<Self>) {
@@ -306,9 +313,7 @@ mod test {
         for i in 0..16 {
             let row = component.row(i).expect(&format!("No row found at {}", i));
             for j in 0..16 {
-                let col = row
-                    .cell(j)
-                    .expect(&format!("No cell found at row {} column {}", i, j));
+                let col = row.cell(j).expect(&format!("No cell found at row {} column {}", i, j));
                 assert_eq!(col.get_text().unwrap(), "--");
             }
         }
@@ -329,18 +334,13 @@ mod test {
         for i in 0..16 {
             let row = component.row(i).expect(&format!("No row found at {}", i));
             for j in 0..16 {
-                let col = row
-                    .cell(j)
-                    .expect(&format!("No cell found at row {} column {}", i, j));
+                let col = row.cell(j).expect(&format!("No cell found at row {} column {}", i, j));
                 let actual_value = memory_data.data.get((i * 0x10) + j).unwrap().unwrap();
-                assert_eq!(
-                    col.get_text().unwrap().as_str(),
-                    format!("{:02X}", actual_value)
-                );
+                assert_eq!(col.get_text().unwrap().as_str(), format!("{:02X}", actual_value));
             }
         }
-    }
-
+    }    
+    
     #[test]
     fn gtk_handle_write() {
         let (context, emu, component) = setup_widget(2);
@@ -354,7 +354,6 @@ mod test {
         component.widget.address_entry.get_buffer().set_text("8000");
         component.widget.go_button.clicked();
         test_utils::next_tick(&context, &emu);
-
         for x in 0..0x30 {
             let addr = 0x7FF0 + u16::from(x);
             component.handle_write(addr.into(), x);
@@ -391,9 +390,7 @@ mod test {
         for i in 0..16 {
             let row = component.row(i).expect(&format!("No row found at {}", i));
             for j in 0..16 {
-                let col = row
-                    .cell(j)
-                    .expect(&format!("No cell found at row {} column {}", i, j));
+                let col = row.cell(j).expect(&format!("No cell found at row {} column {}", i, j));
                 assert_eq!(col.get_text().unwrap().as_str(), "00");
             }
         }

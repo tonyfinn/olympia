@@ -1,6 +1,12 @@
-use crate::builder_struct;
-use crate::emulator::{commands::ExecMode, remote::RemoteEmulator};
-use crate::utils;
+use crate::{
+    builder_struct,
+    provide_context,
+    emulator::{
+        commands::{ExecMode, Repeat},
+        remote::RemoteEmulator,
+    },
+    utils,
+};
 use glib::clone;
 use gtk::prelude::*;
 use std::rc::Rc;
@@ -21,6 +27,8 @@ pub(crate) struct PlaybackControls {
     emu: Rc<RemoteEmulator>,
     widget: PlaybackControlsWidget,
 }
+
+provide_context!(PlaybackControls);
 
 impl PlaybackControls {
     pub(crate) fn from_widget(
@@ -58,48 +66,56 @@ impl PlaybackControls {
     }
 
     fn connect_adapter_events(self: &Rc<Self>) {
-        let (tx, rx) = glib::MainContext::channel(glib::source::PRIORITY_DEFAULT);
-        self.emu.on_mode_change(tx);
-        rx.attach(
-            Some(&self.context),
-            clone!(@weak self as controls => @default-return glib::Continue(false), move |mode| {
+        self.emu.on_mode_change(
+            &self.context,
+            clone!(@weak self as controls => @default-return Repeat(false), move |mode| {
                 controls.apply_mode(mode);
-                glib::Continue(true)
+                Repeat(true)
             }),
         );
     }
 
+    fn step_clicked(self: &Rc<Self>) {
+        self.context.spawn_local(self.clone().step());
+    }
+
+    fn play_clicked(self: &Rc<Self>) {
+        let new_mode = if self.widget.play.get_active() {
+            ExecMode::Standard
+        } else {
+            ExecMode::Paused
+        };
+        self.context.spawn_local(self.clone().set_mode(new_mode));
+    }
+
+    fn fast_clicked(self: &Rc<Self>) {
+        let new_mode = if self.widget.fast.get_active() {
+            ExecMode::Uncapped
+        } else {
+            ExecMode::Paused
+        };
+        self.context.spawn_local(self.clone().set_mode(new_mode));
+    }
+
     fn connect_ui_events(self: &Rc<Self>) {
-        let ctx = self.context.clone();
         self.widget
             .step
-            .connect_clicked(clone!(@weak self as controls, @strong ctx => move |_| {
-                ctx.spawn_local(controls.clone().step());
+            .connect_clicked(clone!(@weak self as controls => move |_| {
+                controls.step_clicked();
             }));
         self.widget
             .play
-            .connect_toggled(clone!(@weak self as controls, @strong ctx => move |_| {
-                let new_mode = if controls.widget.play.get_active() {
-                    ExecMode::Standard
-                } else {
-                    ExecMode::Paused
-                };
-                ctx.spawn_local(controls.clone().set_mode(new_mode));
+            .connect_toggled(clone!(@weak self as controls => move |_| {
+                controls.play_clicked();
             }));
         self.widget
             .fast
-            .connect_toggled(clone!(@weak self as controls, @strong ctx => move |_| {
-                let new_mode = if controls.widget.fast.get_active() {
-                    ExecMode::Uncapped
-                } else {
-                    ExecMode::Paused
-                };
-                ctx.spawn_local(controls.clone().set_mode(new_mode));
+            .connect_toggled(clone!(@weak self as controls => move |_| {
+                controls.fast_clicked();
             }));
     }
 
     pub(crate) fn apply_mode(&self, mode: ExecMode) {
-        println!("Applying mode {:?}", mode);
         self.widget.play.set_sensitive(mode != ExecMode::Unloaded);
         self.widget.play.set_active(mode == ExecMode::Standard);
         self.widget.step.set_sensitive(mode == ExecMode::Paused);

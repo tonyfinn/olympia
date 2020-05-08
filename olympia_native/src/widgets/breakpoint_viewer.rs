@@ -1,6 +1,6 @@
-use crate::builder_struct;
 use crate::emulator::{commands::UiBreakpoint, remote::RemoteEmulator};
 use crate::utils;
+use crate::{builder_struct, provide_context};
 
 use glib::clone;
 use gtk::prelude::*;
@@ -25,6 +25,8 @@ pub(crate) struct BreakpointViewer {
     emu: Rc<RemoteEmulator>,
     widget: BreakpointViewerWidget,
 }
+
+provide_context!(BreakpointViewer);
 
 impl BreakpointViewer {
     pub(crate) fn from_widget(
@@ -51,12 +53,16 @@ impl BreakpointViewer {
         BreakpointViewer::from_widget(context, emu, widget)
     }
 
+    fn add_clicked(self: &Rc<Self>) {
+        self.context.spawn_local(self.clone().add_breakpoint());
+    }
+
     pub fn connect_ui_events(self: &Rc<Self>) {
-        self.widget.add_button.connect_clicked(
-            clone!(@weak self as bpv, @strong self.context as ctx => move |_| {
-                ctx.spawn_local(bpv.clone().add_breakpoint())
-            }),
-        );
+        self.widget
+            .add_button
+            .connect_clicked(clone!(@weak self as bpv => move |_| {
+                bpv.add_clicked();
+            }));
     }
 
     fn parse_breakpoint(&self) -> Option<UiBreakpoint> {

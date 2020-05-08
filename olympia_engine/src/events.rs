@@ -1,7 +1,10 @@
 use crate::address;
 use crate::gameboy::GBPixel;
 use crate::registers;
+use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
+use core::any::TypeId;
 use core::borrow::Borrow;
 use core::cell::RefCell;
 
@@ -31,7 +34,13 @@ pub struct StepCompleteEvent;
 
 #[derive(Debug, PartialEq, Eq, Clone, Constructor)]
 pub struct HBlankEvent {
-    pixels: Vec<GBPixel>,
+    pub pixels: Vec<GBPixel>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, From)]
+pub enum PPUEvent {
+    VBlank(VBlankEvent),
+    HBlank(HBlankEvent),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, From, TryInto)]
@@ -49,10 +58,32 @@ pub enum Event {
     StepComplete(StepCompleteEvent),
 }
 
+impl Event {
+    pub fn event_type_id(&self) -> TypeId {
+        use Event::*;
+        match self {
+            MemoryWrite(_) => TypeId::of::<MemoryWriteEvent>(),
+            RegisterWrite(_) => TypeId::of::<RegisterWriteEvent>(),
+            HBlank(_) => TypeId::of::<HBlankEvent>(),
+            VBlank(_) => TypeId::of::<VBlankEvent>(),
+            StepComplete(_) => TypeId::of::<StepCompleteEvent>(),
+        }
+    }
+}
+
+impl From<PPUEvent> for Event {
+    fn from(ppue: PPUEvent) -> Event {
+        match ppue {
+            PPUEvent::VBlank(e) => Event::VBlank(e),
+            PPUEvent::HBlank(e) => Event::HBlank(e),
+        }
+    }
+}
+
 pub type EventHandler<T> = Box<dyn Fn(&T) -> () + 'static>;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
-pub struct EventHandlerId(u64);
+pub struct EventHandlerId(pub u64);
 
 pub struct EventEmitter<T> {
     event_handlers: RefCell<BTreeMap<EventHandlerId, EventHandler<T>>>,

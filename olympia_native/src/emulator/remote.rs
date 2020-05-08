@@ -1,16 +1,24 @@
-use crate::emulator::{
-    commands,
-    commands::{
-        CommandId, Continue, EmulatorCommand, EmulatorResponse, EmulatorThreadOutput, ExecMode,
-        ExecTime, LoadRomError, QueryMemoryResponse, QueryRegistersResponse, UiBreakpoint,
+use crate::{
+    emulator::{
+        commands,
+        commands::{
+            CommandId, EmulatorCommand, EmulatorResponse, EmulatorThreadOutput, ExecMode, ExecTime,
+            LoadRomError, QueryMemoryResponse, QueryRegistersResponse, Repeat, UiBreakpoint,
+        },
+        emu_thread::EmulatorThread,
     },
-    emu_thread::EmulatorThread,
+    utils::HasGlibContext,
 };
-use olympia_engine::events as engine_events;
+use derive_more::{Display, Error};
+use olympia_engine::events::{
+    Event as EngineEvent,
+    EventHandlerId,
+};
 
 use glib::clone;
 
 use std::{
+    any::TypeId,
     cell::RefCell,
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -79,15 +87,49 @@ where
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Display, Error)]
+pub enum EventSendError {
+    #[display(fmt = "Invalid type of event for channel")]
+    TypeError,
+    #[display(fmt = "Channel closed")]
+    ClosedChannelError,
+}
+
+impl<T> From<mpsc::SendError<T>> for EventSendError {
+    fn from(_: mpsc::SendError<T>) -> EventSendError {
+        EventSendError::ClosedChannelError
+    }
+}
+
+pub trait Sender<T> {
+    fn send(&self, evt: T) -> Result<(), EventSendError>;
+}
+
+impl<T, R> Sender<T> for glib::Sender<R>
+where
+    R: TryFrom<T>,
+{
+    fn send(&self, event: T) -> Result<(), EventSendError> {
+        match event.try_into() {
+            Ok(evt) => self
+                .send(evt)
+                .map_err(|_| EventSendError::ClosedChannelError),
+            Err(_) => Err(EventSendError::TypeError),
+        }
+    }
+}
+
+impl<T> Sender<T> for Box<dyn Sender<T>> {
+    fn send(&self, event: T) -> Result<(), EventSendError> {
+        Sender::<T>::send(self.as_ref(), event)
+    }
+}
+
 struct AdapterEventListeners {
-    mode_change: HashMap<u32, glib::Sender<ExecMode>>,
-    step: HashMap<u32, glib::Sender<()>>,
-    register_write: HashMap<u32, glib::Sender<engine_events::RegisterWriteEvent>>,
-    memory_write: HashMap<u32, glib::Sender<engine_events::MemoryWriteEvent>>,
-    hblank: HashMap<u32, glib::Sender<engine_events::HBlankEvent>>,
-    vblank: HashMap<u32, glib::Sender<engine_events::VBlankEvent>>,
-    step_complete: HashMap<u32, glib::Sender<engine_events::StepCompleteEvent>>,
-    next_listener_id: u32,
+    mode_change: HashMap<EventHandlerId, glib::Sender<ExecMode>>,
+    step: HashMap<EventHandlerId, glib::Sender<()>>,
+    engine_listeners: HashMap<TypeId, HashMap<EventHandlerId, Box<dyn Sender<EngineEvent>>>>,
+    next_listener_id: u64,
 }
 
 impl AdapterEventListeners {
@@ -95,42 +137,53 @@ impl AdapterEventListeners {
         AdapterEventListeners {
             mode_change: HashMap::new(),
             step: HashMap::new(),
-            register_write: HashMap::new(),
-            memory_write: HashMap::new(),
-            hblank: HashMap::new(),
-            vblank: HashMap::new(),
-            step_complete: HashMap::new(),
+            engine_listeners: HashMap::new(),
             next_listener_id: 0,
         }
     }
 
-    fn add_step(&mut self, tx: glib::Sender<()>) {
-        self.step.insert(self.next_listener_id, tx);
+    fn register_event<T, F>(&mut self, context: &glib::MainContext, f: F) -> EventHandlerId
+    where
+        T: TryFrom<EngineEvent> + 'static,
+        F: Fn(T) -> Repeat + 'static,
+    {
+        let event_handler_id = EventHandlerId(self.next_listener_id);
+        let (tx, rx) = glib::MainContext::channel::<T>(glib::PRIORITY_DEFAULT);
+        let wrapped = Box::new(tx);
+        let type_id = TypeId::of::<T>();
+        let map = self
+            .engine_listeners
+            .entry(type_id)
+            .or_insert_with(|| HashMap::new());
+        map.insert(event_handler_id, wrapped);
         self.next_listener_id += 1;
+
+        rx.attach(Some(context), move |evt| f(evt).into());
+
+        event_handler_id
     }
 
-    fn add_mode_change(&mut self, tx: glib::Sender<ExecMode>) {
-        self.mode_change.insert(self.next_listener_id, tx);
+    fn add_mode_change(&mut self, tx: glib::Sender<ExecMode>) -> EventHandlerId {
+        let event_handler_id = EventHandlerId(self.next_listener_id);
+        self.mode_change.insert(event_handler_id, tx);
         self.next_listener_id += 1;
+        event_handler_id
     }
 
-    fn add_register_write(&mut self, tx: glib::Sender<engine_events::RegisterWriteEvent>) {
-        self.register_write.insert(self.next_listener_id, tx);
+    fn add_step(&mut self, tx: glib::Sender<()>) -> EventHandlerId {
+        let event_handler_id = EventHandlerId(self.next_listener_id);
+        self.step.insert(event_handler_id, tx);
         self.next_listener_id += 1;
+        event_handler_id
     }
 
-    fn add_memory_write(&mut self, tx: glib::Sender<engine_events::MemoryWriteEvent>) {
-        self.memory_write.insert(self.next_listener_id, tx);
-        self.next_listener_id += 1;
-    }
-
-    fn notify_listeners<T: Clone>(listeners: &mut HashMap<u32, glib::Sender<T>>, value: T) {
+    fn notify_listeners<T: Clone, S: Sender<T>>(listeners: &mut HashMap<EventHandlerId, S>, evt: T) {
         let mut listener_ids_to_remove = Vec::new();
         for (id, listener) in listeners.iter_mut() {
-            let send_result = listener.send(value.clone());
+            let send_result = listener.send(evt.clone());
             if send_result.is_err() {
                 listener_ids_to_remove.push(id.clone());
-                eprintln!("Removing listener {} due to closed channel", id);
+                eprintln!("Removing listener {:?} due to closed channel", id);
             }
         }
         for id in listener_ids_to_remove {
@@ -138,20 +191,10 @@ impl AdapterEventListeners {
         }
     }
 
-    fn notify_engine_event(&mut self, event: engine_events::Event) {
-        use engine_events::Event as ee;
-        match event {
-            ee::RegisterWrite(e) => {
-                AdapterEventListeners::notify_listeners(&mut self.register_write, e)
-            }
-            ee::MemoryWrite(e) => {
-                AdapterEventListeners::notify_listeners(&mut self.memory_write, e)
-            }
-            ee::HBlank(e) => AdapterEventListeners::notify_listeners(&mut self.hblank, e),
-            ee::VBlank(e) => AdapterEventListeners::notify_listeners(&mut self.vblank, e),
-            ee::StepComplete(e) => {
-                AdapterEventListeners::notify_listeners(&mut self.step_complete, e)
-            }
+    fn notify_engine_event(&mut self, event: EngineEvent) {
+        let event_type_id = event.event_type_id();
+        if let Some(listeners) = self.engine_listeners.get_mut(&event_type_id) {
+            AdapterEventListeners::notify_listeners(listeners, event);
         }
     }
 
@@ -166,7 +209,7 @@ impl AdapterEventListeners {
 
 pub(crate) trait RemoteEmulatorChannel {
     fn send(&self, cmd: EmulatorCommand) -> CommandId;
-    fn handle_output(&mut self, f: Box<dyn Fn(EmulatorThreadOutput) -> Continue>);
+    fn handle_output(&mut self, f: Box<dyn Fn(EmulatorThreadOutput) -> Repeat>);
 }
 
 pub(crate) struct GlibEmulatorChannel {
@@ -202,7 +245,7 @@ impl RemoteEmulatorChannel for GlibEmulatorChannel {
         cmd_id
     }
 
-    fn handle_output(&mut self, f: Box<dyn Fn(EmulatorThreadOutput) -> Continue>) {
+    fn handle_output(&mut self, f: Box<dyn Fn(EmulatorThreadOutput) -> Repeat>) {
         self.rx
             .take()
             .expect("Attempted to register two output sources")
@@ -221,7 +264,7 @@ impl InternalEmulatorAdapter {
         let pending_responses = Rc::new(RefCell::new(PendingResponses::default()));
         let event_listeners = Rc::new(RefCell::new(AdapterEventListeners::new()));
         channel.handle_output(Box::new(
-            clone!(@weak pending_responses as responses, @weak event_listeners => @default-return Continue(false), move |output| {
+            clone!(@weak pending_responses as responses, @weak event_listeners => @default-return Repeat(false), move |output| {
                 let mut pending_responses = responses.borrow_mut();
                 match output {
                     EmulatorThreadOutput::Response(id, resp) => {
@@ -233,12 +276,12 @@ impl InternalEmulatorAdapter {
                     EmulatorThreadOutput::ModeChange(mode) => {
                         event_listeners.borrow_mut().notify_mode_change(mode);
                     },
-                    EmulatorThreadOutput::Event(evt) => {
-                        event_listeners.borrow_mut().notify_engine_event(evt);
-                    }
-                    _ => {},
+                    EmulatorThreadOutput::Event(event) => {
+                        event_listeners.borrow_mut().notify_engine_event(event);
+                    },
+                    _ => {}
                 }
-                Continue(true)
+                Repeat(true)
             }),
         ));
         InternalEmulatorAdapter {
@@ -274,25 +317,47 @@ impl RemoteEmulator {
         }
     }
 
-    pub(crate) fn on_step(&self, tx: glib::Sender<()>) {
+    pub(crate) fn on<E, F>(&self, context: &glib::MainContext, f: F) -> EventHandlerId
+    where
+        E: TryFrom<EngineEvent> + 'static,
+        F: Fn(E) -> Repeat + 'static,
+    {
+        self.adapter
+            .event_listeners
+            .borrow_mut()
+            .register_event(context, f)
+    }
+
+    pub(crate) fn add_listener<E, F, W>(&self, widget: Rc<W>, handler: F) -> EventHandlerId
+    where
+        W: HasGlibContext + 'static,
+        F: Fn(Rc<W>, E) -> () + 'static,
+        E: TryFrom<EngineEvent> + 'static,
+    {
+        self.on(
+            widget.get_context(),
+            clone!(@weak widget => @default-return Repeat(false), move |evt| {
+                handler(widget, evt);
+                Repeat(true)
+            }),
+        )
+    }
+
+    pub(crate) fn on_step<F>(&self, context: &glib::MainContext, f: F) -> EventHandlerId
+    where
+        F: Fn(()) -> Repeat + 'static,
+    {
+        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        rx.attach(Some(&context), move |evt| f(evt).into());
         self.adapter.event_listeners.borrow_mut().add_step(tx)
     }
 
-    pub(crate) fn on_register_write(&self, tx: glib::Sender<engine_events::RegisterWriteEvent>) {
-        self.adapter
-            .event_listeners
-            .borrow_mut()
-            .add_register_write(tx)
-    }
-
-    pub(crate) fn on_memory_write(&self, tx: glib::Sender<engine_events::MemoryWriteEvent>) {
-        self.adapter
-            .event_listeners
-            .borrow_mut()
-            .add_memory_write(tx)
-    }
-
-    pub(crate) fn on_mode_change(&self, tx: glib::Sender<ExecMode>) {
+    pub(crate) fn on_mode_change<F>(&self, context: &glib::MainContext, f: F) -> EventHandlerId
+    where
+        F: Fn(ExecMode) -> Repeat + 'static,
+    {
+        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+        rx.attach(Some(&context), move |evt| f(evt).into());
         self.adapter
             .event_listeners
             .borrow_mut()
@@ -406,27 +471,22 @@ mod tests {
         assert!(matches!(resp, Err(LoadRomError::Unreadable(_))));
     }
 
-    fn track_emulator_event<T: 'static>(
-        ctx: &glib::MainContext,
-    ) -> (glib::Sender<T>, Rc<RefCell<Vec<T>>>) {
-        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
+    fn track_event<T: 'static>() -> (impl Fn(T) -> Repeat + 'static, Rc<RefCell<Vec<T>>>) {
         let tracked = Rc::new(RefCell::new(Vec::new()));
-        rx.attach(
-            Some(ctx),
-            clone!(@strong tracked => move |arg| {
-                tracked.borrow_mut().push(arg);
-                glib::Continue(true)
-            }),
-        );
-        (tx, tracked)
+        let other_ref = tracked.clone();
+        let f = move |arg| {
+            other_ref.borrow_mut().push(arg);
+            Repeat(true)
+        };
+        (f, tracked)
     }
 
     #[test]
     fn test_load_starts_paused() {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let (tx, events) = track_emulator_event(&context);
-        emu.on_mode_change(tx);
+        let (f, events) = track_event();
+        emu.on_mode_change(&context, f);
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
         };
@@ -438,8 +498,8 @@ mod tests {
     fn test_step() {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let (tx, events) = track_emulator_event(&context);
-        emu.on_step(tx);
+        let (f, events) = track_event();
+        emu.on_step(&context, f);
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
             emu.step().await
@@ -521,8 +581,8 @@ mod tests {
     fn test_run_to_breakpoint() {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let (tx, events) = track_emulator_event(&context);
-        emu.on_mode_change(tx);
+        let (f, events) = track_event();
+        emu.on_mode_change(&context, f);
         let bp: UiBreakpoint = Breakpoint::new(WordRegister::PC.into(), 0x150).into();
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
@@ -554,8 +614,8 @@ mod tests {
     fn test_ff_to_breakpoint() {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let (tx, events) = track_emulator_event(&context);
-        emu.on_mode_change(tx);
+        let (f, events) = track_event();
+        emu.on_mode_change(&context, f);
         let bp: UiBreakpoint = Breakpoint::new(WordRegister::PC.into(), 0x150).into();
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();

@@ -307,7 +307,9 @@ impl Memory {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::boxed::Box;
     use alloc::rc::Rc;
+    use alloc::vec::Vec;
 
     #[test]
     fn test_write_vram() {

@@ -34,6 +34,21 @@ where
     }
 }
 
+pub trait HasGlibContext {
+    fn get_context(&self) -> &glib::MainContext;
+}
+
+#[macro_export]
+macro_rules! provide_context {
+    ($widget:ident) => {
+        impl crate::utils::HasGlibContext for $widget {
+            fn get_context(&self) -> &glib::MainContext {
+                &self.context
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::emulator::remote::{GlibEmulatorChannel, RemoteEmulator};

@@ -2,3 +2,6 @@
 **/*.rs.bk
 tarpaulin-report.html
 *~
+res/*.o
+res/*.sav
+.vscode/

@@ -1,13 +1,15 @@
 use alloc::collections::VecDeque;
 
-use crate::gameboy::cpu::Interrupt;
-use crate::gameboy::memory::Memory;
+use crate::{
+    events::{EventEmitter, HBlankEvent, PPUEvent, VBlankEvent},
+    gameboy::{cpu::Interrupt, memory::Memory},
+};
 
 const VISIBLE_WIDTH: u8 = 160;
 const VISIBLE_LINES: u8 = 144;
 const TOTAL_LINES: u8 = 154;
-const OAM_SCAN_CYCLES: u8 = 20;
-const LINE_CYCLES: u8 = 114;
+const OAM_SCAN_CYCLES: u16 = 20;
+const LINE_CYCLES: u16 = 114;
 
 const MODE_MASK: u8 = 3;
 const MODE_HBLANK: u8 = 0b00;
@@ -58,12 +60,12 @@ impl Default for Palette {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub struct GBPixel {
-    palette: Palette,
-    index: u8,
+    pub palette: Palette,
+    pub index: u8,
 }
 
 impl GBPixel {
-    fn new(palette: Palette, index: u8) -> GBPixel {
+    pub fn new(palette: Palette, index: u8) -> GBPixel {
         GBPixel { palette, index }
     }
 }
@@ -73,8 +75,9 @@ pub(crate) struct PPU {
     pixel_queue: VecDeque<GBPixel>,
     phase: PPUPhase,
     current_line: u8,
-    cycles_on_line: u8,
+    clocks_on_line: u16,
     current_pixel: u8,
+    pub(crate) events: EventEmitter<PPUEvent>,
 }
 
 impl PPU {
@@ -84,17 +87,20 @@ impl PPU {
             pixel_queue: VecDeque::new(),
             phase: PPUPhase::ObjectScan,
             current_line: 0,
-            cycles_on_line: 0,
+            clocks_on_line: 0,
             current_pixel: 0,
+            events: EventEmitter::new(),
         }
     }
 
     pub(crate) fn run_cycle(&mut self, mem: &mut Memory) {
         if self.is_enabled(mem) {
-            if self.phase == PPUPhase::Drawing {
-                self.draw(mem);
+            for _ in 0..4 {
+                if self.phase == PPUPhase::Drawing {
+                    self.draw(mem);
+                }
+                self.update_phase(mem);
             }
-            self.update_phase(mem);
         }
     }
 
@@ -104,9 +110,10 @@ impl PPU {
     }
 
     fn update_phase(&mut self, mem: &mut Memory) {
-        self.cycles_on_line += 1;
-        if self.cycles_on_line == LINE_CYCLES {
-            self.cycles_on_line = 0;
+        self.clocks_on_line += 1;
+        let cycles_on_line = self.clocks_on_line / 4;
+        if cycles_on_line == LINE_CYCLES {
+            self.clocks_on_line = 0;
             self.current_pixel = 0;
             self.current_line += 1;
             if self.current_line == TOTAL_LINES {
@@ -120,6 +127,7 @@ impl PPU {
                 Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
             }
             if self.current_line == VISIBLE_LINES {
+                self.events.emit(VBlankEvent.into());
                 self.phase = PPUPhase::VBlank;
                 mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_VBLANK;
                 Interrupt::VBlank.set(&mut mem.registers_mut().ie);
@@ -134,10 +142,12 @@ impl PPU {
                 }
             }
             mem.registers_mut().ly = self.current_line;
-        } else if self.cycles_on_line == OAM_SCAN_CYCLES && self.current_line < VISIBLE_LINES {
+        } else if cycles_on_line == OAM_SCAN_CYCLES && self.current_line < VISIBLE_LINES {
             self.phase = PPUPhase::Drawing;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_DRAWING;
-        } else if self.current_pixel >= VISIBLE_WIDTH {
+        } else if self.current_pixel >= VISIBLE_WIDTH && self.phase == PPUPhase::Drawing {
+            let pixels = self.pixel_queue.drain(..).collect();
+            self.events.emit(HBlankEvent { pixels }.into());
             self.phase = PPUPhase::HBlank;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_HBLANK;
             if (mem.registers().lcdstat & LCDSTAT_HBLANK_INTERRUPT) != 0 {
@@ -152,13 +162,16 @@ impl PPU {
         let lower_byte = mem.read_u8(lower_addr).unwrap_or(0);
         let upper_byte = mem.read_u8(lower_addr + 1).unwrap_or(0);
 
-        let upper_byte_value = (upper_byte >> x) & 1;
-        let lower_byte_value = (lower_byte >> x) & 1;
+        let upper_byte_value = (upper_byte >> (7 - x)) & 1;
+        let lower_byte_value = (lower_byte >> (7 - x)) & 1;
 
         lower_byte_value | (upper_byte_value << 1)
     }
 
     fn draw(&mut self, mem: &Memory) {
+        if self.current_pixel >= VISIBLE_WIDTH {
+            return;
+        }
         let actual_x = mem.registers().scx + self.current_pixel;
         let actual_y = mem.registers().scy + self.current_line;
 
@@ -258,10 +271,29 @@ impl Default for PPU {
 mod test {
     use super::*;
     use crate::rom::Cartridge;
+    use alloc::boxed::Box;
+    use alloc::rc::Rc;
+    use alloc::vec::Vec;
+    use core::cell::RefCell;
 
     fn create_memory() -> Memory {
         let cart = Cartridge::from_data(vec![0; 0x1000]).unwrap();
         Memory::new(cart)
+    }
+
+    fn gameboy_graphics(pixels: [u8; 8]) -> [u8; 2] {
+        let mut lower_byte = 0;
+        let mut upper_byte = 0;
+
+        for pixel in pixels.iter() {
+            let lower_bit = pixel & 1;
+            let upper_bit = (pixel & 2) >> 1;
+
+            lower_byte = (lower_byte << 1) | lower_bit;
+            upper_byte = (upper_byte << 1) | upper_bit;
+        }
+
+        [lower_byte, upper_byte]
     }
 
     #[test]
@@ -270,13 +302,13 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
-        ppu.cycles_on_line = LINE_CYCLES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
         ppu.current_pixel = VISIBLE_WIDTH;
         memory.registers_mut().lcdstat = MODE_HBLANK;
         ppu.update_phase(&mut memory);
         assert_eq!(ppu.current_line, 101);
         assert_eq!(ppu.current_pixel, 0);
-        assert_eq!(ppu.cycles_on_line, 0);
+        assert_eq!(ppu.clocks_on_line, 0);
         assert_eq!(ppu.phase, PPUPhase::ObjectScan);
         assert_eq!(memory.registers().lcdstat, 0b10);
     }
@@ -287,7 +319,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
-        ppu.cycles_on_line = LINE_CYCLES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
         memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_OAM_SCAN_INTERRUPT;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
@@ -301,7 +333,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
-        ppu.cycles_on_line = LINE_CYCLES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
         memory.registers_mut().lyc = 101;
         memory.registers_mut().lcdstat =
             MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_MATCH_ON_EQUAL;
@@ -317,7 +349,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 101;
-        ppu.cycles_on_line = LINE_CYCLES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
         memory.registers_mut().lyc = 101;
         memory.registers_mut().lcdstat =
             MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_MATCH_ON_EQUAL;
@@ -332,7 +364,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 101;
-        ppu.cycles_on_line = LINE_CYCLES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
         memory.registers_mut().lyc = 101;
         memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT;
         ppu.update_phase(&mut memory);
@@ -347,7 +379,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
-        ppu.cycles_on_line = LINE_CYCLES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
         memory.registers_mut().lyc = 101;
         memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT;
         ppu.update_phase(&mut memory);
@@ -361,7 +393,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::Drawing;
         ppu.current_line = 101;
-        ppu.cycles_on_line = LINE_CYCLES - 30;
+        ppu.clocks_on_line = (LINE_CYCLES - 30) * 4;
         ppu.current_pixel = VISIBLE_WIDTH;
         memory.registers_mut().lcdstat = 0b11;
         ppu.update_phase(&mut memory);
@@ -375,7 +407,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::Drawing;
         ppu.current_line = 101;
-        ppu.cycles_on_line = LINE_CYCLES - 30;
+        ppu.clocks_on_line = (LINE_CYCLES - 30) * 4;
         ppu.current_pixel = VISIBLE_WIDTH;
         memory.registers_mut().lcdstat = MODE_DRAWING | LCDSTAT_HBLANK_INTERRUPT;
         ppu.update_phase(&mut memory);
@@ -385,12 +417,45 @@ mod test {
     }
 
     #[test]
+    fn hblank_event() {
+        let mut ppu = PPU::new();
+        let mut memory = create_memory();
+        let expected_pixels = vec![
+            GBPixel::new(Palette::Background, 0),
+            GBPixel::new(Palette::Background, 1),
+            GBPixel::new(Palette::Background, 2),
+        ];
+        let recieved_events = Rc::new(RefCell::new(Vec::new()));
+        let recvd_events_clone = recieved_events.clone();
+        ppu.events.on(Box::new(move |evt| {
+            recvd_events_clone.borrow_mut().push(evt.clone())
+        }));
+        ppu.phase = PPUPhase::Drawing;
+        ppu.current_line = 101;
+        ppu.clocks_on_line = (LINE_CYCLES - 30) * 4;
+        ppu.current_pixel = VISIBLE_WIDTH;
+        ppu.pixel_queue = expected_pixels.iter().cloned().collect();
+        memory.registers_mut().lcdstat = MODE_DRAWING | LCDSTAT_HBLANK_INTERRUPT;
+
+        ppu.update_phase(&mut memory);
+
+        let events = recieved_events.borrow();
+
+        assert_eq!(
+            *events,
+            vec![PPUEvent::HBlank(HBlankEvent {
+                pixels: expected_pixels
+            })]
+        );
+    }
+
+    #[test]
     fn vblank_update_phase() {
         let mut ppu = PPU::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = VISIBLE_LINES - 1;
-        ppu.cycles_on_line = LINE_CYCLES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
         ppu.current_pixel = VISIBLE_WIDTH;
         memory.registers_mut().lcdstat = 0b11;
         ppu.update_phase(&mut memory);
@@ -404,7 +469,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = TOTAL_LINES - 1;
-        ppu.cycles_on_line = LINE_CYCLES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
         ppu.current_pixel = VISIBLE_WIDTH;
         memory.registers_mut().lcdstat = 0b11;
         ppu.update_phase(&mut memory);
@@ -412,7 +477,7 @@ mod test {
         assert_eq!(memory.registers().lcdstat & MODE_MASK, MODE_OAMSCAN);
         assert_eq!(ppu.current_line, 0);
         assert_eq!(ppu.current_pixel, 0);
-        assert_eq!(ppu.cycles_on_line, 0);
+        assert_eq!(ppu.clocks_on_line, 0);
     }
 
     #[test]
@@ -421,7 +486,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = VISIBLE_LINES - 1;
-        ppu.cycles_on_line = LINE_CYCLES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
         memory.registers_mut().lcdstat = MODE_HBLANK
             | LCDSTAT_LINE_MATCH_INTERRUPT
             | LCDSTAT_OAM_SCAN_INTERRUPT
@@ -437,12 +502,38 @@ mod test {
     }
 
     #[test]
+    fn vblank_event() {
+        let mut ppu = PPU::new();
+        let mut memory = create_memory();
+        let recieved_events = Rc::new(RefCell::new(Vec::new()));
+        let recvd_events_clone = recieved_events.clone();
+        ppu.events.on(Box::new(move |evt| {
+            recvd_events_clone.borrow_mut().push(evt.clone())
+        }));
+
+        ppu.phase = PPUPhase::HBlank;
+        ppu.current_line = VISIBLE_LINES - 1;
+        ppu.clocks_on_line = (LINE_CYCLES * 4) - 1;
+        memory.registers_mut().lcdstat = MODE_HBLANK
+            | LCDSTAT_LINE_MATCH_INTERRUPT
+            | LCDSTAT_OAM_SCAN_INTERRUPT
+            | LCDSTAT_VBLANK_INTERRUPT
+            | LCDSTAT_LINE_MATCH_INTERRUPT;
+
+        ppu.update_phase(&mut memory);
+
+        let events = recieved_events.borrow();
+
+        assert_eq!(*events, vec![PPUEvent::VBlank(VBlankEvent)]);
+    }
+
+    #[test]
     fn scan_end_update_phase() {
         let mut ppu = PPU::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::ObjectScan;
         ppu.current_line = 100;
-        ppu.cycles_on_line = OAM_SCAN_CYCLES - 1;
+        ppu.clocks_on_line = (OAM_SCAN_CYCLES * 4) - 1;
         ppu.current_pixel = 0;
         memory.registers_mut().lcdstat = MODE_OAMSCAN;
         ppu.update_phase(&mut memory);
@@ -450,7 +541,7 @@ mod test {
         assert_eq!(memory.registers().lcdstat & MODE_MASK, MODE_DRAWING);
         assert_eq!(ppu.current_line, 100);
         assert_eq!(ppu.current_pixel, 0);
-        assert_eq!(ppu.cycles_on_line, OAM_SCAN_CYCLES);
+        assert_eq!(ppu.clocks_on_line, OAM_SCAN_CYCLES * 4);
     }
 
     #[test]
@@ -459,8 +550,10 @@ mod test {
         let mut memory = create_memory();
 
         memory.registers_mut().lcdc = LCDC_ENABLED;
-        memory.write_u8(MEM_HIGH_TILES + 0x10, 0b1111_0101).unwrap();
-        memory.write_u8(MEM_HIGH_TILES + 0x11, 0b1111_0011).unwrap();
+
+        let [lower, upper] = gameboy_graphics([3, 2, 1, 0, 3, 3, 3, 3]);
+        memory.write_u8(MEM_HIGH_TILES + 0x10, lower).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x11, upper).unwrap();
         memory.write_u8(MEM_LOW_MAP, 1).unwrap();
 
         let expected_pixels = vec![
@@ -525,10 +618,12 @@ mod test {
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_WINDOW_ENABLED | LCDC_HIGH_BG_MAP;
         memory.registers_mut().wx = 4;
         memory.registers_mut().wy = 0;
-        memory.write_u8(MEM_HIGH_TILES + 0x10, 0b1111_0101).unwrap();
-        memory.write_u8(MEM_HIGH_TILES + 0x11, 0b1111_0011).unwrap();
-        memory.write_u8(MEM_HIGH_TILES + 0x20, 0b0101_0000).unwrap();
-        memory.write_u8(MEM_HIGH_TILES + 0x21, 0b1010_0000).unwrap();
+        let [t1_lower, t1_upper] = gameboy_graphics([3, 2, 1, 0, 3, 3, 3, 3]);
+        let [t2_lower, t2_upper] = gameboy_graphics([0, 0, 0, 0, 1, 2, 1, 2]);
+        memory.write_u8(MEM_HIGH_TILES + 0x10, t1_lower).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x11, t1_upper).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x20, t2_lower).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x21, t2_upper).unwrap();
         memory.write_u8(MEM_HIGH_MAP, 1).unwrap();
         memory.write_u8(MEM_LOW_MAP, 2).unwrap();
 
@@ -562,10 +657,12 @@ mod test {
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_WINDOW_ENABLED | LCDC_HIGH_WINDOW_MAP;
         memory.registers_mut().wx = 4;
         memory.registers_mut().wy = 0;
-        memory.write_u8(MEM_HIGH_TILES + 0x10, 0b1111_0101).unwrap();
-        memory.write_u8(MEM_HIGH_TILES + 0x11, 0b1111_0011).unwrap();
-        memory.write_u8(MEM_HIGH_TILES + 0x20, 0b0101_0000).unwrap();
-        memory.write_u8(MEM_HIGH_TILES + 0x21, 0b1010_0000).unwrap();
+        let [t1_lower, t1_upper] = gameboy_graphics([3, 2, 1, 0, 3, 3, 3, 3]);
+        let [t2_lower, t2_upper] = gameboy_graphics([0, 0, 0, 0, 1, 2, 1, 2]);
+        memory.write_u8(MEM_HIGH_TILES + 0x10, t1_lower).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x11, t1_upper).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x20, t2_lower).unwrap();
+        memory.write_u8(MEM_HIGH_TILES + 0x21, t2_upper).unwrap();
         memory.write_u8(MEM_LOW_MAP, 1).unwrap();
         memory.write_u8(MEM_HIGH_MAP, 2).unwrap();
 

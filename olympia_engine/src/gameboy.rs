@@ -19,7 +19,7 @@ mod ppu;
 
 pub use cpu::CYCLE_FREQ;
 pub use memory::{MemoryError, MemoryResult};
-pub use ppu::GBPixel;
+pub use ppu::{GBPixel, Palette};
 
 use crate::events;
 use crate::gameboy::cpu::Cpu;
@@ -112,6 +112,7 @@ impl GameBoy {
 
         events::propagate_events(&gb.cpu.events, gb.events.clone());
         events::propagate_events(&gb.mem.events, gb.events.clone());
+        events::propagate_events(&gb.ppu.events, gb.events.clone());
 
         gb
     }
@@ -524,6 +525,7 @@ pub(crate) mod testutils;
 mod test {
     use super::*;
     use crate::gameboy::memory;
+    use alloc::vec::Vec;
 
     fn make_cartridge() -> rom::Cartridge {
         rom::Cartridge::from_data(vec![0u8; 0x8000]).unwrap()

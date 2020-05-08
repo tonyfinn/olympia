@@ -1,10 +1,10 @@
-use crate::builder_struct;
-use crate::emulator::commands::QueryRegistersResponse;
+use crate::emulator::commands::{QueryRegistersResponse, Repeat};
 use crate::emulator::remote::RemoteEmulator;
+use crate::{builder_struct, provide_context};
 
 use glib::clone;
 use gtk::prelude::*;
-use olympia_engine::registers::WordRegister;
+use olympia_engine::{events::RegisterWriteEvent, registers::WordRegister};
 use std::rc::Rc;
 
 builder_struct!(
@@ -43,6 +43,8 @@ pub(crate) struct RegisterLabels {
     widget: RegisterLabelsWidget,
 }
 
+provide_context!(RegisterLabels);
+
 impl RegisterLabels {
     pub(crate) fn from_widget(
         context: glib::MainContext,
@@ -68,38 +70,23 @@ impl RegisterLabels {
         RegisterLabels::from_widget(context, emu, widget)
     }
 
+    fn handle_step(self: &Rc<Self>) {
+        self.context.spawn_local(self.clone().update());
+    }
+
     fn connect_adapter_events(self: &Rc<Self>) {
-        let (tx, rx) = glib::MainContext::channel(glib::source::PRIORITY_DEFAULT);
-        self.emu.on_step(tx);
-        rx.attach(
-            Some(&self.context),
-            clone!(@weak self as labels, @strong self.context as context => @default-return glib::Continue(false), move |_| {
-                context.spawn_local(labels.clone().update());
-                glib::Continue(true)
+        self.emu.on_step(
+            &self.context,
+            clone!(@weak self as labels => @default-return Repeat(false), move |_| {
+                labels.handle_step();
+                Repeat(true)
             }),
         );
-
-        let (tx, rx) = glib::MainContext::channel(glib::source::PRIORITY_DEFAULT);
-        self.emu.on_register_write(tx);
-        rx.attach(
-            Some(&self.context),
-            clone!(@weak self as labels => @default-return glib::Continue(false), move |rw| {
+        
+        self.emu
+            .add_listener(self.clone(), move |labels, rw: RegisterWriteEvent| {
                 labels.handle_register_write(rw.reg, rw.value);
-                glib::Continue(true)
-            }),
-        );
-    }
-
-    fn handle_register_write(&self, reg: WordRegister, value: u16) {
-        self.label_for_register(reg)
-            .set_text(&format!("{:04X}", value));
-    }
-
-    fn register_inputs(&self) -> Vec<(&gtk::Entry, WordRegister)> {
-        WordRegister::all()
-            .iter()
-            .map(|reg| (self.label_for_register(*reg), *reg))
-            .collect()
+            });
     }
 
     fn label_for_register(&self, reg: WordRegister) -> &gtk::Entry {
@@ -111,6 +98,18 @@ impl RegisterLabels {
             WordRegister::SP => &self.widget.sp_input,
             WordRegister::PC => &self.widget.pc_input,
         }
+    }
+
+    fn register_inputs(&self) -> Vec<(&gtk::Entry, WordRegister)> {
+        WordRegister::all()
+            .iter()
+            .map(|reg| (self.label_for_register(*reg), *reg))
+            .collect()
+    }
+
+    fn handle_register_write(&self, reg: WordRegister, value: u16) {
+        self.label_for_register(reg)
+            .set_text(&format!("{:04X}", value));
     }
 
     fn set_editable(&self, editable: bool) {
@@ -205,8 +204,8 @@ mod tests {
         assert_eq!(pc_text, Some(format!("{:04X}", actual_registers.pc)));
         assert_eq!(sp_text, Some(format!("{:04X}", actual_registers.sp)));
         context.release();
-    }
-
+    }    
+    
     #[test]
     fn gtk_handle_write() {
         test_utils::setup_gtk().unwrap();

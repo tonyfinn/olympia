@@ -138,10 +138,10 @@ pub(crate) enum EmulatorResponse {
 pub struct CommandId(pub(crate) u64);
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct Continue(pub bool);
+pub struct Repeat(pub bool);
 
-impl From<Continue> for glib::Continue {
-    fn from(c: Continue) -> glib::Continue {
+impl From<Repeat> for glib::Continue {
+    fn from(c: Repeat) -> glib::Continue {
         glib::Continue(c.0)
     }
 }
