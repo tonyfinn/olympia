@@ -1,11 +1,7 @@
 use crate::{
     builder_struct,
-    provide_context,
-    emulator::{
-        commands::{ExecMode, Repeat},
-        remote::RemoteEmulator,
-    },
-    utils,
+    emulator::{commands::ExecMode, events::ModeChangeEvent, remote::RemoteEmulator},
+    provide_context, utils,
 };
 use glib::clone;
 use gtk::prelude::*;
@@ -66,13 +62,10 @@ impl PlaybackControls {
     }
 
     fn connect_adapter_events(self: &Rc<Self>) {
-        self.emu.on_mode_change(
-            &self.context,
-            clone!(@weak self as controls => @default-return Repeat(false), move |mode| {
-                controls.apply_mode(mode);
-                Repeat(true)
-            }),
-        );
+        self.emu
+            .add_listener(self.clone(), |controls, mode: ModeChangeEvent| {
+                controls.apply_mode(mode.new_mode);
+            });
     }
 
     fn step_clicked(self: &Rc<Self>) {

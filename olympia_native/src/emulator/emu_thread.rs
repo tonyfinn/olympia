@@ -4,12 +4,13 @@ use crate::emulator::{
         CommandId, EmulatorCommand, EmulatorResponse, EmulatorThreadOutput, ExecMode, LoadRomError,
         QueryMemoryResponse, QueryRegistersResponse, UiBreakpoint,
     },
+    events::{EngineEvent, EventEmitter, ModeChangeEvent},
 };
 
 use glib::clone;
 
 use olympia_engine::{
-    events::{propagate_events, Event as EngineEvent, EventEmitter},
+    events::propagate_events,
     gameboy::{GameBoy, GameBoyModel, StepError, CYCLE_FREQ},
     registers::WordRegister,
     rom::Cartridge,
@@ -236,10 +237,12 @@ impl EmulatorThread {
                     }
                     Ok(mode) => {
                         if mode != self.exec_mode {
-                            self.tx
-                                .send(commands::EmulatorThreadOutput::ModeChange(mode.clone()))
-                                .expect("Emulator thread response channel closed");
+                            let change_event =
+                                ModeChangeEvent::new(self.exec_mode.clone(), mode.clone());
                             self.exec_mode = mode;
+                            self.tx
+                                .send(commands::EmulatorThreadOutput::ModeChange(change_event))
+                                .expect("Emulator thread response channel closed");
                         }
                     }
                 }

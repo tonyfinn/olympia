@@ -4,7 +4,6 @@ use crate::registers;
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
-use core::any::TypeId;
 use core::borrow::Borrow;
 use core::cell::RefCell;
 
@@ -56,19 +55,6 @@ pub enum Event {
     VBlank(VBlankEvent),
     /// An instruction cycle completed
     StepComplete(StepCompleteEvent),
-}
-
-impl Event {
-    pub fn event_type_id(&self) -> TypeId {
-        use Event::*;
-        match self {
-            MemoryWrite(_) => TypeId::of::<MemoryWriteEvent>(),
-            RegisterWrite(_) => TypeId::of::<RegisterWriteEvent>(),
-            HBlank(_) => TypeId::of::<HBlankEvent>(),
-            VBlank(_) => TypeId::of::<VBlankEvent>(),
-            StepComplete(_) => TypeId::of::<StepCompleteEvent>(),
-        }
-    }
 }
 
 impl From<PPUEvent> for Event {

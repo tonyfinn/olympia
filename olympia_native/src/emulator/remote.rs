@@ -6,19 +6,17 @@ use crate::{
             LoadRomError, QueryMemoryResponse, QueryRegistersResponse, Repeat, UiBreakpoint,
         },
         emu_thread::EmulatorThread,
+        events::{
+            AdapterEvent, AdapterEventListeners, EventHandlerId, ManualStepEvent, ModeChangeEvent,
+            RomLoadedEvent,
+        },
     },
     utils::HasGlibContext,
-};
-use derive_more::{Display, Error};
-use olympia_engine::events::{
-    Event as EngineEvent,
-    EventHandlerId,
 };
 
 use glib::clone;
 
 use std::{
-    any::TypeId,
     cell::RefCell,
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -84,126 +82,6 @@ where
                 Poll::Pending
             }
         }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Display, Error)]
-pub enum EventSendError {
-    #[display(fmt = "Invalid type of event for channel")]
-    TypeError,
-    #[display(fmt = "Channel closed")]
-    ClosedChannelError,
-}
-
-impl<T> From<mpsc::SendError<T>> for EventSendError {
-    fn from(_: mpsc::SendError<T>) -> EventSendError {
-        EventSendError::ClosedChannelError
-    }
-}
-
-pub trait Sender<T> {
-    fn send(&self, evt: T) -> Result<(), EventSendError>;
-}
-
-impl<T, R> Sender<T> for glib::Sender<R>
-where
-    R: TryFrom<T>,
-{
-    fn send(&self, event: T) -> Result<(), EventSendError> {
-        match event.try_into() {
-            Ok(evt) => self
-                .send(evt)
-                .map_err(|_| EventSendError::ClosedChannelError),
-            Err(_) => Err(EventSendError::TypeError),
-        }
-    }
-}
-
-impl<T> Sender<T> for Box<dyn Sender<T>> {
-    fn send(&self, event: T) -> Result<(), EventSendError> {
-        Sender::<T>::send(self.as_ref(), event)
-    }
-}
-
-struct AdapterEventListeners {
-    mode_change: HashMap<EventHandlerId, glib::Sender<ExecMode>>,
-    step: HashMap<EventHandlerId, glib::Sender<()>>,
-    engine_listeners: HashMap<TypeId, HashMap<EventHandlerId, Box<dyn Sender<EngineEvent>>>>,
-    next_listener_id: u64,
-}
-
-impl AdapterEventListeners {
-    fn new() -> AdapterEventListeners {
-        AdapterEventListeners {
-            mode_change: HashMap::new(),
-            step: HashMap::new(),
-            engine_listeners: HashMap::new(),
-            next_listener_id: 0,
-        }
-    }
-
-    fn register_event<T, F>(&mut self, context: &glib::MainContext, f: F) -> EventHandlerId
-    where
-        T: TryFrom<EngineEvent> + 'static,
-        F: Fn(T) -> Repeat + 'static,
-    {
-        let event_handler_id = EventHandlerId(self.next_listener_id);
-        let (tx, rx) = glib::MainContext::channel::<T>(glib::PRIORITY_DEFAULT);
-        let wrapped = Box::new(tx);
-        let type_id = TypeId::of::<T>();
-        let map = self
-            .engine_listeners
-            .entry(type_id)
-            .or_insert_with(|| HashMap::new());
-        map.insert(event_handler_id, wrapped);
-        self.next_listener_id += 1;
-
-        rx.attach(Some(context), move |evt| f(evt).into());
-
-        event_handler_id
-    }
-
-    fn add_mode_change(&mut self, tx: glib::Sender<ExecMode>) -> EventHandlerId {
-        let event_handler_id = EventHandlerId(self.next_listener_id);
-        self.mode_change.insert(event_handler_id, tx);
-        self.next_listener_id += 1;
-        event_handler_id
-    }
-
-    fn add_step(&mut self, tx: glib::Sender<()>) -> EventHandlerId {
-        let event_handler_id = EventHandlerId(self.next_listener_id);
-        self.step.insert(event_handler_id, tx);
-        self.next_listener_id += 1;
-        event_handler_id
-    }
-
-    fn notify_listeners<T: Clone, S: Sender<T>>(listeners: &mut HashMap<EventHandlerId, S>, evt: T) {
-        let mut listener_ids_to_remove = Vec::new();
-        for (id, listener) in listeners.iter_mut() {
-            let send_result = listener.send(evt.clone());
-            if send_result.is_err() {
-                listener_ids_to_remove.push(id.clone());
-                eprintln!("Removing listener {:?} due to closed channel", id);
-            }
-        }
-        for id in listener_ids_to_remove {
-            listeners.remove(&id);
-        }
-    }
-
-    fn notify_engine_event(&mut self, event: EngineEvent) {
-        let event_type_id = event.event_type_id();
-        if let Some(listeners) = self.engine_listeners.get_mut(&event_type_id) {
-            AdapterEventListeners::notify_listeners(listeners, event);
-        }
-    }
-
-    fn notify_mode_change(&mut self, mode: ExecMode) {
-        AdapterEventListeners::notify_listeners(&mut self.mode_change, mode.clone());
-    }
-
-    fn notify_step(&mut self) {
-        AdapterEventListeners::notify_listeners(&mut self.step, ());
     }
 }
 
@@ -273,11 +151,11 @@ impl InternalEmulatorAdapter {
                             waker.wake();
                         }
                     }
-                    EmulatorThreadOutput::ModeChange(mode) => {
-                        event_listeners.borrow_mut().notify_mode_change(mode);
+                    EmulatorThreadOutput::ModeChange(change_event) => {
+                        event_listeners.borrow_mut().emit(change_event);
                     },
                     EmulatorThreadOutput::Event(event) => {
-                        event_listeners.borrow_mut().notify_engine_event(event);
+                        event_listeners.borrow_mut().emit(event);
                     },
                     _ => {}
                 }
@@ -319,20 +197,20 @@ impl RemoteEmulator {
 
     pub(crate) fn on<E, F>(&self, context: &glib::MainContext, f: F) -> EventHandlerId
     where
-        E: TryFrom<EngineEvent> + 'static,
+        E: TryFrom<AdapterEvent> + 'static,
         F: Fn(E) -> Repeat + 'static,
     {
         self.adapter
             .event_listeners
             .borrow_mut()
-            .register_event(context, f)
+            .on(context, f)
     }
 
     pub(crate) fn add_listener<E, F, W>(&self, widget: Rc<W>, handler: F) -> EventHandlerId
     where
         W: HasGlibContext + 'static,
         F: Fn(Rc<W>, E) -> () + 'static,
-        E: TryFrom<EngineEvent> + 'static,
+        E: TryFrom<AdapterEvent> + 'static,
     {
         self.on(
             widget.get_context(),
@@ -343,33 +221,12 @@ impl RemoteEmulator {
         )
     }
 
-    pub(crate) fn on_step<F>(&self, context: &glib::MainContext, f: F) -> EventHandlerId
-    where
-        F: Fn(()) -> Repeat + 'static,
-    {
-        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        rx.attach(Some(&context), move |evt| f(evt).into());
-        self.adapter.event_listeners.borrow_mut().add_step(tx)
-    }
-
-    pub(crate) fn on_mode_change<F>(&self, context: &glib::MainContext, f: F) -> EventHandlerId
-    where
-        F: Fn(ExecMode) -> Repeat + 'static,
-    {
-        let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-        rx.attach(Some(&context), move |evt| f(evt).into());
+    fn apply_mode(&self, new_mode: ExecMode) {
+        let old_mode = self.mode.replace(new_mode.clone());
         self.adapter
             .event_listeners
             .borrow_mut()
-            .add_mode_change(tx)
-    }
-
-    fn apply_mode(&self, mode: ExecMode) {
-        self.mode.replace(mode.clone());
-        self.adapter
-            .event_listeners
-            .borrow_mut()
-            .notify_mode_change(mode);
+            .emit(ModeChangeEvent { old_mode, new_mode });
     }
 
     pub(crate) async fn load_rom(&self, path: PathBuf) -> Result<(), LoadRomError> {
@@ -382,7 +239,10 @@ impl RemoteEmulator {
             self.apply_mode(ExecMode::Paused);
         }
 
-        self.adapter.event_listeners.borrow_mut().notify_step();
+        self.adapter
+            .event_listeners
+            .borrow_mut()
+            .emit(RomLoadedEvent);
 
         result
     }
@@ -421,7 +281,10 @@ impl RemoteEmulator {
 
     pub(crate) async fn step(&self) -> commands::Result<()> {
         let result = self.adapter.send_command(EmulatorCommand::Step).await;
-        self.adapter.event_listeners.borrow_mut().notify_step();
+        self.adapter
+            .event_listeners
+            .borrow_mut()
+            .emit(ManualStepEvent);
         result
     }
 
@@ -457,8 +320,14 @@ mod tests {
     fn test_load_rom() {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let resp = context.block_on(emu.load_rom(test_utils::fizzbuzz_path()));
+        let (f, events) = track_event();
+        emu.on::<RomLoadedEvent, _>(&context, f);
+        let task = async {
+            emu.load_rom(test_utils::fizzbuzz_path()).await
+        };
+        let resp = test_utils::wait_for_task(&context, task);
         assert_eq!(resp, Ok(()));
+        assert_eq!(events.borrow().clone(), vec![RomLoadedEvent]);
     }
 
     #[test]
@@ -486,12 +355,15 @@ mod tests {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
-        emu.on_mode_change(&context, f);
+        emu.on::<ModeChangeEvent, _>(&context, f);
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
         };
         test_utils::wait_for_task(&context, task);
-        assert_eq!(events.borrow().clone(), vec![ExecMode::Paused]);
+        assert_eq!(
+            events.borrow().clone(),
+            vec![ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused)]
+        );
     }
 
     #[test]
@@ -499,13 +371,16 @@ mod tests {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
-        emu.on_step(&context, f);
+        emu.on::<ManualStepEvent, _>(&context, f);
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
             emu.step().await
         };
         let step_result = test_utils::wait_for_task(&context, task);
-        assert_eq!(events.borrow().clone(), vec![(), ()]);
+        assert_eq!(
+            events.borrow().clone(),
+            vec![ManualStepEvent]
+        );
         assert_eq!(step_result, Ok(()))
     }
 
@@ -582,7 +457,7 @@ mod tests {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
-        emu.on_mode_change(&context, f);
+        emu.on::<ModeChangeEvent, _>(&context, f);
         let bp: UiBreakpoint = Breakpoint::new(WordRegister::PC.into(), 0x150).into();
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
@@ -603,9 +478,9 @@ mod tests {
         assert_eq!(
             events.borrow().clone(),
             vec![
-                ExecMode::Paused,
-                ExecMode::Standard,
-                ExecMode::HitBreakpoint(bp)
+                ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused),
+                ModeChangeEvent::new(ExecMode::Paused, ExecMode::Standard),
+                ModeChangeEvent::new(ExecMode::Standard, ExecMode::HitBreakpoint(bp)),
             ]
         );
     }
@@ -615,7 +490,7 @@ mod tests {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
-        emu.on_mode_change(&context, f);
+        emu.on::<ModeChangeEvent, _>(&context, f);
         let bp: UiBreakpoint = Breakpoint::new(WordRegister::PC.into(), 0x150).into();
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
@@ -631,9 +506,9 @@ mod tests {
         assert_eq!(
             events.borrow().clone(),
             vec![
-                ExecMode::Paused,
-                ExecMode::Uncapped,
-                ExecMode::HitBreakpoint(bp)
+                ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused),
+                ModeChangeEvent::new(ExecMode::Paused, ExecMode::Uncapped),
+                ModeChangeEvent::new(ExecMode::Uncapped, ExecMode::HitBreakpoint(bp)),
             ]
         );
         // TODO: Test in release mode only, debug builds too slow

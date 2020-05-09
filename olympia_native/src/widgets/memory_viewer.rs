@@ -1,12 +1,13 @@
 use crate::emulator::{
-    commands::{QueryMemoryResponse, Repeat},
+    commands::QueryMemoryResponse,
+    events::{ManualStepEvent, MemoryWriteEvent, RomLoadedEvent},
     remote::RemoteEmulator,
 };
 use crate::{builder_struct, provide_context};
 
 use glib::clone;
 use gtk::prelude::*;
-use olympia_engine::{address::LiteralAddress, events::MemoryWriteEvent, registers::WordRegister};
+use olympia_engine::{address::LiteralAddress, registers::WordRegister};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -238,18 +239,19 @@ impl MemoryViewer {
         }
     }
 
-    fn handle_step(self: &Rc<Self>) {
+    fn refresh_all_locations(self: &Rc<Self>) {
         self.context.spawn_local(self.clone().refresh());
     }
 
     fn connect_adapter_events(self: &Rc<Self>) {
-        self.emu.on_step(
-            &self.context,
-            clone!(@weak self as viewer => @default-return Repeat(false), move |_| {
-                viewer.handle_step();
-                Repeat(true)
-            }),
-        );
+        self.emu
+            .add_listener(self.clone(), move |viewer, _evt: ManualStepEvent| {
+                viewer.refresh_all_locations()
+            });
+        self.emu
+            .add_listener(self.clone(), move |viewer, _evt: RomLoadedEvent| {
+                viewer.refresh_all_locations()
+            });
 
         self.emu
             .add_listener(self.clone(), move |viewer, mw: MemoryWriteEvent| {
@@ -313,7 +315,9 @@ mod test {
         for i in 0..16 {
             let row = component.row(i).expect(&format!("No row found at {}", i));
             for j in 0..16 {
-                let col = row.cell(j).expect(&format!("No cell found at row {} column {}", i, j));
+                let col = row
+                    .cell(j)
+                    .expect(&format!("No cell found at row {} column {}", i, j));
                 assert_eq!(col.get_text().unwrap(), "--");
             }
         }
@@ -334,13 +338,18 @@ mod test {
         for i in 0..16 {
             let row = component.row(i).expect(&format!("No row found at {}", i));
             for j in 0..16 {
-                let col = row.cell(j).expect(&format!("No cell found at row {} column {}", i, j));
+                let col = row
+                    .cell(j)
+                    .expect(&format!("No cell found at row {} column {}", i, j));
                 let actual_value = memory_data.data.get((i * 0x10) + j).unwrap().unwrap();
-                assert_eq!(col.get_text().unwrap().as_str(), format!("{:02X}", actual_value));
+                assert_eq!(
+                    col.get_text().unwrap().as_str(),
+                    format!("{:02X}", actual_value)
+                );
             }
         }
-    }    
-    
+    }
+
     #[test]
     fn gtk_handle_write() {
         let (context, emu, component) = setup_widget(2);
@@ -390,7 +399,9 @@ mod test {
         for i in 0..16 {
             let row = component.row(i).expect(&format!("No row found at {}", i));
             for j in 0..16 {
-                let col = row.cell(j).expect(&format!("No cell found at row {} column {}", i, j));
+                let col = row
+                    .cell(j)
+                    .expect(&format!("No cell found at row {} column {}", i, j));
                 assert_eq!(col.get_text().unwrap().as_str(), "00");
             }
         }

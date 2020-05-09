@@ -1,10 +1,12 @@
-use crate::emulator::commands::{QueryRegistersResponse, Repeat};
-use crate::emulator::remote::RemoteEmulator;
+use crate::emulator::{
+    commands::QueryRegistersResponse,
+    events::{ManualStepEvent, RegisterWriteEvent, RomLoadedEvent},
+    remote::RemoteEmulator,
+};
 use crate::{builder_struct, provide_context};
 
-use glib::clone;
 use gtk::prelude::*;
-use olympia_engine::{events::RegisterWriteEvent, registers::WordRegister};
+use olympia_engine::registers::WordRegister;
 use std::rc::Rc;
 
 builder_struct!(
@@ -70,19 +72,19 @@ impl RegisterLabels {
         RegisterLabels::from_widget(context, emu, widget)
     }
 
-    fn handle_step(self: &Rc<Self>) {
+    fn refresh_all_labels(self: &Rc<Self>) {
         self.context.spawn_local(self.clone().update());
     }
 
     fn connect_adapter_events(self: &Rc<Self>) {
-        self.emu.on_step(
-            &self.context,
-            clone!(@weak self as labels => @default-return Repeat(false), move |_| {
-                labels.handle_step();
-                Repeat(true)
-            }),
-        );
-        
+        self.emu
+            .add_listener(self.clone(), move |labels, _evt: ManualStepEvent| {
+                labels.refresh_all_labels()
+            });
+        self.emu
+            .add_listener(self.clone(), move |labels, _evt: RomLoadedEvent| {
+                labels.refresh_all_labels()
+            });
         self.emu
             .add_listener(self.clone(), move |labels, rw: RegisterWriteEvent| {
                 labels.handle_register_write(rw.reg, rw.value);
@@ -204,8 +206,8 @@ mod tests {
         assert_eq!(pc_text, Some(format!("{:04X}", actual_registers.pc)));
         assert_eq!(sp_text, Some(format!("{:04X}", actual_registers.sp)));
         context.release();
-    }    
-    
+    }
+
     #[test]
     fn gtk_handle_write() {
         test_utils::setup_gtk().unwrap();

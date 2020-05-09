@@ -1,3 +1,4 @@
+use crate::emulator::events::ModeChangeEvent;
 use derive_more::{From, TryInto};
 use olympia_engine::{
     debug::Breakpoint, events::Event as EngineEvent, gameboy::StepError, registers::WordRegister,
@@ -151,7 +152,7 @@ pub(crate) enum EmulatorThreadOutput {
     Event(EngineEvent),
     Error(Error),
     Response(CommandId, EmulatorResponse),
-    ModeChange(ExecMode),
+    ModeChange(ModeChangeEvent),
 }
 
 #[cfg(test)]
