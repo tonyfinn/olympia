@@ -5,31 +5,26 @@ use crate::{
             CommandId, EmulatorCommand, EmulatorResponse, EmulatorThreadOutput, ExecMode, ExecTime,
             LoadRomError, QueryMemoryResponse, QueryRegistersResponse, Repeat, UiBreakpoint,
         },
-        emu_thread::EmulatorThread,
         events::{
-            AdapterEvent, AdapterEventListeners, EventHandlerId, ManualStepEvent, ModeChangeEvent,
+            AdapterEvent, AdapterEventWrapper, EventHandlerId, ManualStepEvent, ModeChangeEvent,
             RomLoadedEvent,
         },
     },
-    utils::HasGlibContext,
 };
 
-use glib::clone;
-
-use std::{
+use core::{
     cell::RefCell,
-    collections::HashMap,
     convert::{TryFrom, TryInto},
     future::Future,
     marker::PhantomData,
-    path::PathBuf,
     pin::Pin,
-    rc::Rc,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        mpsc,
-    },
     task::{Context, Poll, Waker},
+};
+
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    rc::Rc,
 };
 
 pub struct PendingResponses {
@@ -90,82 +85,58 @@ pub(crate) trait RemoteEmulatorChannel {
     fn handle_output(&mut self, f: Box<dyn Fn(EmulatorThreadOutput) -> Repeat>);
 }
 
-pub(crate) struct GlibEmulatorChannel {
-    tx: mpsc::Sender<(CommandId, EmulatorCommand)>,
-    rx: Option<glib::Receiver<EmulatorThreadOutput>>,
-    ctx: glib::MainContext,
-    next_id: AtomicU64,
-}
-
-impl GlibEmulatorChannel {
-    pub(crate) fn new() -> GlibEmulatorChannel {
-        GlibEmulatorChannel::with_context(glib::MainContext::default())
-    }
-
-    pub(crate) fn with_context(ctx: glib::MainContext) -> GlibEmulatorChannel {
-        let (_thread_handle, tx, rx) = EmulatorThread::start();
-        GlibEmulatorChannel {
-            tx,
-            ctx,
-            rx: Some(rx),
-            next_id: AtomicU64::new(0),
-        }
-    }
-}
-
-impl RemoteEmulatorChannel for GlibEmulatorChannel {
-    fn send(&self, cmd: EmulatorCommand) -> CommandId {
-        let next_id = self.next_id.fetch_add(1, Ordering::SeqCst);
-        let cmd_id = CommandId(next_id);
-        self.tx
-            .send((cmd_id, cmd))
-            .expect("Could not send command to emulator");
-        cmd_id
-    }
-
-    fn handle_output(&mut self, f: Box<dyn Fn(EmulatorThreadOutput) -> Repeat>) {
-        self.rx
-            .take()
-            .expect("Attempted to register two output sources")
-            .attach(Some(&self.ctx), move |output| f(output).into());
-    }
-}
-
 pub struct InternalEmulatorAdapter {
     channel: Box<dyn RemoteEmulatorChannel>,
     pending_responses: Rc<RefCell<PendingResponses>>,
-    event_listeners: Rc<RefCell<AdapterEventListeners>>,
+    event_listeners: Rc<RefCell<AdapterEventWrapper>>,
 }
 
 impl InternalEmulatorAdapter {
-    fn new(mut channel: Box<dyn RemoteEmulatorChannel>) -> InternalEmulatorAdapter {
+    pub(crate) fn new(channel: Box<dyn RemoteEmulatorChannel>, listeners: AdapterEventWrapper) -> InternalEmulatorAdapter {
         let pending_responses = Rc::new(RefCell::new(PendingResponses::default()));
-        let event_listeners = Rc::new(RefCell::new(AdapterEventListeners::new()));
-        channel.handle_output(Box::new(
-            clone!(@weak pending_responses as responses, @weak event_listeners => @default-return Repeat(false), move |output| {
-                let mut pending_responses = responses.borrow_mut();
-                match output {
-                    EmulatorThreadOutput::Response(id, resp) => {
-                        pending_responses.responses.insert(id, resp);
-                        if let Some(waker) = pending_responses.wakers.remove(&id) {
-                            waker.wake();
-                        }
-                    }
-                    EmulatorThreadOutput::ModeChange(change_event) => {
-                        event_listeners.borrow_mut().emit(change_event);
-                    },
-                    EmulatorThreadOutput::Event(event) => {
-                        event_listeners.borrow_mut().emit(event);
-                    },
-                    _ => {}
-                }
-                Repeat(true)
-            }),
-        ));
-        InternalEmulatorAdapter {
+        let event_listeners = Rc::new(RefCell::new(listeners));
+        let mut adapter = InternalEmulatorAdapter {
             channel,
             pending_responses,
             event_listeners,
+        };
+        adapter.connect_output_channel();
+        adapter
+    }
+
+    fn connect_output_channel(&mut self) {
+        let pending_responses = Rc::downgrade(&self.pending_responses);
+        let event_listeners = Rc::downgrade(&self.event_listeners);
+        self.channel.handle_output(Box::new(move |output| {
+            let pending_responses = pending_responses.upgrade();
+            let event_listeners = event_listeners.upgrade();
+
+            match (pending_responses, event_listeners) {
+                (Some(p), Some(e)) => {
+                    InternalEmulatorAdapter::handle_output(&p, &e, output);
+                    Repeat(true)
+                },
+                _ => Repeat(false)
+            }
+        }));
+    }
+
+    fn handle_output(pending_responses: &RefCell<PendingResponses>, event_listeners: &RefCell<AdapterEventWrapper>, output: EmulatorThreadOutput) {
+        match output {
+            EmulatorThreadOutput::Response(id, resp) => {
+                let mut pending_responses = pending_responses.borrow_mut();
+                pending_responses.responses.insert(id, resp);
+                if let Some(waker) = pending_responses.wakers.remove(&id) {
+                    waker.wake();
+                }
+            }
+            EmulatorThreadOutput::ModeChange(change_event) => {
+                event_listeners.borrow_mut().emit(change_event);
+            },
+            EmulatorThreadOutput::Event(event) => {
+                event_listeners.borrow_mut().emit(event);
+            },
+            _ => {}
         }
     }
 
@@ -187,15 +158,15 @@ pub(crate) struct RemoteEmulator {
 }
 
 impl RemoteEmulator {
-    pub(crate) fn new(remote_channel: Box<dyn RemoteEmulatorChannel>) -> RemoteEmulator {
+    pub(crate) fn new(adapter: InternalEmulatorAdapter) -> RemoteEmulator {
         RemoteEmulator {
-            adapter: InternalEmulatorAdapter::new(remote_channel),
+            adapter: adapter,
             mode: RefCell::new(ExecMode::Unloaded),
             cached_registers: RefCell::new(QueryRegistersResponse::default()),
         }
     }
 
-    pub(crate) fn on<E, F>(&self, context: &glib::MainContext, f: F) -> EventHandlerId
+    pub(crate) fn on<E, F>(&self, f: F) -> EventHandlerId
     where
         E: TryFrom<AdapterEvent> + 'static,
         F: Fn(E) -> Repeat + 'static,
@@ -203,22 +174,27 @@ impl RemoteEmulator {
         self.adapter
             .event_listeners
             .borrow_mut()
-            .on(context, f)
+            .on(f)
     }
 
-    pub(crate) fn add_listener<E, F, W>(&self, widget: Rc<W>, handler: F) -> EventHandlerId
+    pub(crate) fn on_widget<E, F, W>(&self, widget: Rc<W>, handler: F) -> EventHandlerId
     where
-        W: HasGlibContext + 'static,
+        W: 'static,
         F: Fn(Rc<W>, E) -> () + 'static,
         E: TryFrom<AdapterEvent> + 'static,
     {
-        self.on(
-            widget.get_context(),
-            clone!(@weak widget => @default-return Repeat(false), move |evt| {
-                handler(widget, evt);
-                Repeat(true)
-            }),
-        )
+        let weak = Rc::downgrade(&widget);
+        self.on(move |evt| {
+            match weak.upgrade() {
+                Some(w) => {
+                    handler(w, evt);
+                    Repeat(true)
+                },
+                None => {
+                    Repeat(false)
+                }
+            } 
+        })
     }
 
     fn apply_mode(&self, new_mode: ExecMode) {
@@ -321,7 +297,7 @@ mod tests {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
-        emu.on::<RomLoadedEvent, _>(&context, f);
+        emu.on::<RomLoadedEvent, _>(f);
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await
         };
@@ -355,7 +331,7 @@ mod tests {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
-        emu.on::<ModeChangeEvent, _>(&context, f);
+        emu.on::<ModeChangeEvent, _>(f);
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
         };
@@ -371,7 +347,7 @@ mod tests {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
-        emu.on::<ManualStepEvent, _>(&context, f);
+        emu.on::<ManualStepEvent, _>(f);
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
             emu.step().await
@@ -457,7 +433,7 @@ mod tests {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
-        emu.on::<ModeChangeEvent, _>(&context, f);
+        emu.on::<ModeChangeEvent, _>(f);
         let bp: UiBreakpoint = Breakpoint::new(WordRegister::PC.into(), 0x150).into();
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
@@ -490,7 +466,7 @@ mod tests {
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
-        emu.on::<ModeChangeEvent, _>(&context, f);
+        emu.on::<ModeChangeEvent, _>(f);
         let bp: UiBreakpoint = Breakpoint::new(WordRegister::PC.into(), 0x150).into();
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();

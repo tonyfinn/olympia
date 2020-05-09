@@ -34,28 +34,15 @@ where
     }
 }
 
-pub trait HasGlibContext {
-    fn get_context(&self) -> &glib::MainContext;
-}
-
-#[macro_export]
-macro_rules! provide_context {
-    ($widget:ident) => {
-        impl crate::utils::HasGlibContext for $widget {
-            fn get_context(&self) -> &glib::MainContext {
-                &self.context
-            }
-        }
-    };
-}
-
 #[cfg(test)]
 pub(crate) mod test_utils {
-    use crate::emulator::remote::{GlibEmulatorChannel, RemoteEmulator};
+    use crate::emulator::glib::glib_remote_emulator;
+    use crate::emulator::remote::RemoteEmulator;
     use glib::error::BoolError;
     use std::{
         future::Future,
         path::{Path, PathBuf},
+        rc::Rc,
         time::{Duration, Instant},
     };
 
@@ -96,16 +83,15 @@ pub(crate) mod test_utils {
     /// Gets a sample remote emulator setup with no ROM loaded
     pub(crate) fn get_unloaded_remote_emu(
         context: glib::MainContext,
-    ) -> crate::emulator::remote::RemoteEmulator {
-        let channel = Box::new(GlibEmulatorChannel::with_context(context.clone()));
-        let emu = RemoteEmulator::new(channel);
+    ) -> Rc<crate::emulator::remote::RemoteEmulator> {
+        let emu = glib_remote_emulator(context);
         emu
     }
 
     // Gets a sample remote emulator setup loaded with a fizzbuzz ROM
     pub(crate) fn get_loaded_remote_emu(
         context: glib::MainContext,
-    ) -> crate::emulator::remote::RemoteEmulator {
+    ) -> Rc<crate::emulator::remote::RemoteEmulator> {
         let emu = get_unloaded_remote_emu(context.clone());
 
         let task = async {

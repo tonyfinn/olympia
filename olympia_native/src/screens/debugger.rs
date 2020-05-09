@@ -2,11 +2,11 @@ use gio::prelude::*;
 use glib::clone;
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow};
-use std::boxed::Box;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use crate::emulator::remote::{GlibEmulatorChannel, RemoteEmulator};
+use crate::emulator::remote::RemoteEmulator;
+use crate::emulator::glib::glib_remote_emulator;
 use crate::utils;
 use crate::widgets::{
     BreakpointViewer, EmulatorDisplay, MemoryViewer, PlaybackControls, RegisterLabels,
@@ -26,8 +26,7 @@ pub(crate) struct Debugger {
 impl Debugger {
     pub(crate) fn new(app: &Application) -> Rc<Debugger> {
         let ctx = glib::MainContext::default();
-        let glib_emu = Box::new(GlibEmulatorChannel::new());
-        let emu = Rc::new(RemoteEmulator::new(glib_emu));
+        let emu = glib_remote_emulator(ctx.clone());
 
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
         let playback_controls = PlaybackControls::from_builder(&builder, ctx.clone(), emu.clone());

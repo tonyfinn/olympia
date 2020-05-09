@@ -1,6 +1,6 @@
 use crate::emulator::{commands::UiBreakpoint, remote::RemoteEmulator};
 use crate::utils;
-use crate::{builder_struct, provide_context};
+use crate::builder_struct;
 
 use glib::clone;
 use gtk::prelude::*;
@@ -25,8 +25,6 @@ pub(crate) struct BreakpointViewer {
     emu: Rc<RemoteEmulator>,
     widget: BreakpointViewerWidget,
 }
-
-provide_context!(BreakpointViewer);
 
 impl BreakpointViewer {
     pub(crate) fn from_widget(

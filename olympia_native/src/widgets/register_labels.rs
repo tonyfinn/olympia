@@ -3,7 +3,7 @@ use crate::emulator::{
     events::{ManualStepEvent, RegisterWriteEvent, RomLoadedEvent},
     remote::RemoteEmulator,
 };
-use crate::{builder_struct, provide_context};
+use crate::builder_struct;
 
 use gtk::prelude::*;
 use olympia_engine::registers::WordRegister;
@@ -45,8 +45,6 @@ pub(crate) struct RegisterLabels {
     widget: RegisterLabelsWidget,
 }
 
-provide_context!(RegisterLabels);
-
 impl RegisterLabels {
     pub(crate) fn from_widget(
         context: glib::MainContext,
@@ -78,15 +76,15 @@ impl RegisterLabels {
 
     fn connect_adapter_events(self: &Rc<Self>) {
         self.emu
-            .add_listener(self.clone(), move |labels, _evt: ManualStepEvent| {
+            .on_widget(self.clone(), move |labels, _evt: ManualStepEvent| {
                 labels.refresh_all_labels()
             });
         self.emu
-            .add_listener(self.clone(), move |labels, _evt: RomLoadedEvent| {
+            .on_widget(self.clone(), move |labels, _evt: RomLoadedEvent| {
                 labels.refresh_all_labels()
             });
         self.emu
-            .add_listener(self.clone(), move |labels, rw: RegisterWriteEvent| {
+            .on_widget(self.clone(), move |labels, rw: RegisterWriteEvent| {
                 labels.handle_register_write(rw.reg, rw.value);
             });
     }
@@ -146,7 +144,7 @@ mod tests {
     fn gtk_render_text() {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
-        let emu = Rc::new(test_utils::get_loaded_remote_emu(context.clone()));
+        let emu = test_utils::get_loaded_remote_emu(context.clone());
         let widget = RegisterLabelsWidget::default();
         let component = RegisterLabels::from_widget(context.clone(), emu, widget);
         test_utils::wait_for_task(&context, component.clone().update());
@@ -180,7 +178,7 @@ mod tests {
     fn gtk_integration() {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
-        let emu = Rc::new(test_utils::get_loaded_remote_emu(context.clone()));
+        let emu = test_utils::get_loaded_remote_emu(context.clone());
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
         let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
 
@@ -212,7 +210,7 @@ mod tests {
     fn gtk_handle_write() {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
-        let emu = Rc::new(test_utils::get_loaded_remote_emu(context.clone()));
+        let emu = test_utils::get_loaded_remote_emu(context.clone());
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
         let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
 

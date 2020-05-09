@@ -3,7 +3,7 @@ use crate::emulator::{
     events::{ManualStepEvent, MemoryWriteEvent, RomLoadedEvent},
     remote::RemoteEmulator,
 };
-use crate::{builder_struct, provide_context};
+use crate::builder_struct;
 
 use glib::clone;
 use gtk::prelude::*;
@@ -91,8 +91,6 @@ pub struct MemoryViewer {
     offset: RefCell<u16>,
     widget: MemoryViewerWidget,
 }
-
-provide_context!(MemoryViewer);
 
 impl MemoryViewer {
     pub(crate) fn from_widget(
@@ -245,16 +243,16 @@ impl MemoryViewer {
 
     fn connect_adapter_events(self: &Rc<Self>) {
         self.emu
-            .add_listener(self.clone(), move |viewer, _evt: ManualStepEvent| {
+            .on_widget(self.clone(), move |viewer, _evt: ManualStepEvent| {
                 viewer.refresh_all_locations()
             });
         self.emu
-            .add_listener(self.clone(), move |viewer, _evt: RomLoadedEvent| {
+            .on_widget(self.clone(), move |viewer, _evt: RomLoadedEvent| {
                 viewer.refresh_all_locations()
             });
 
         self.emu
-            .add_listener(self.clone(), move |viewer, mw: MemoryWriteEvent| {
+            .on_widget(self.clone(), move |viewer, mw: MemoryWriteEvent| {
                 viewer.handle_write(mw.address, mw.new_value);
             });
     }
@@ -301,7 +299,7 @@ mod test {
     ) -> (glib::MainContext, Rc<RemoteEmulator>, Rc<MemoryViewer>) {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
-        let emu = Rc::new(test_utils::get_unloaded_remote_emu(context.clone()));
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
         let component =
             MemoryViewer::from_builder(&builder, context.clone(), emu.clone(), num_visible_rows);

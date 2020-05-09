@@ -1,6 +1,6 @@
-use crate::emulator::commands::Repeat;
 use crate::emulator::remote::RemoteEmulator;
-use crate::{builder_struct, provide_context};
+use crate::builder_struct;
+
 use glib::clone;
 use gtk::prelude::*;
 use gtk::WidgetExt;
@@ -111,8 +111,6 @@ pub struct EmulatorDisplay {
     buffer: Rc<RefCell<Buffer>>,
 }
 
-provide_context!(EmulatorDisplay);
-
 impl EmulatorDisplay {
     pub(crate) fn from_widget(
         context: glib::MainContext,
@@ -156,21 +154,12 @@ impl EmulatorDisplay {
     }
 
     pub(crate) fn connect_ppu_events(self: &Rc<Self>) {
-        self.emu.on::<VBlankEvent, _>(
-            &self.context,
-            clone!(@weak self as display => @default-return Repeat(false), move |_| {
-                display.vblank();
-                Repeat(true)
-            }),
-        );
-
-        self.emu.on::<HBlankEvent, _>(
-            &self.context,
-            clone!(@weak self as display => @default-return Repeat(false), move |evt| {
-                display.hblank(evt);
-                Repeat(true)
-            }),
-        );
+        self.emu.on_widget(self.clone(), |display, _: VBlankEvent| {
+            display.vblank();
+        });
+        self.emu.on_widget(self.clone(), |display, evt: HBlankEvent| {
+            display.hblank(evt);
+        });
     }
 
     pub(crate) fn from_builder(

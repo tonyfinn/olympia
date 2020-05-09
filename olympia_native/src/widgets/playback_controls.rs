@@ -1,7 +1,7 @@
 use crate::{
     builder_struct,
     emulator::{commands::ExecMode, events::ModeChangeEvent, remote::RemoteEmulator},
-    provide_context, utils,
+    utils,
 };
 use glib::clone;
 use gtk::prelude::*;
@@ -23,8 +23,6 @@ pub(crate) struct PlaybackControls {
     emu: Rc<RemoteEmulator>,
     widget: PlaybackControlsWidget,
 }
-
-provide_context!(PlaybackControls);
 
 impl PlaybackControls {
     pub(crate) fn from_widget(
@@ -63,7 +61,7 @@ impl PlaybackControls {
 
     fn connect_adapter_events(self: &Rc<Self>) {
         self.emu
-            .add_listener(self.clone(), |controls, mode: ModeChangeEvent| {
+            .on_widget(self.clone(), |controls, mode: ModeChangeEvent| {
                 controls.apply_mode(mode.new_mode);
             });
     }
@@ -126,7 +124,7 @@ mod tests {
     fn gtk_test_from_builder_config() {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
-        let emu = Rc::new(test_utils::get_unloaded_remote_emu(context.clone()));
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
@@ -141,7 +139,7 @@ mod tests {
     fn gtk_test_activate_buttons_on_rom_load() {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
-        let emu = Rc::new(test_utils::get_unloaded_remote_emu(context.clone()));
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
@@ -161,7 +159,7 @@ mod tests {
     fn gtk_test_play_toggle_button() {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
-        let emu = Rc::new(test_utils::get_unloaded_remote_emu(context.clone()));
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
@@ -195,7 +193,7 @@ mod tests {
     fn gtk_test_fast_toggle_button() {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
-        let emu = Rc::new(test_utils::get_unloaded_remote_emu(context.clone()));
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
@@ -228,7 +226,7 @@ mod tests {
     fn gtk_test_step_toggle_button() {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
-        let emu = Rc::new(test_utils::get_unloaded_remote_emu(context.clone()));
+        let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
