@@ -6,8 +6,8 @@ use olympia_engine::{
     registers::WordRegister,
     remote,
     remote::{
-        CommandId, EmulatorCommand, EmulatorResponse, EmulatorThreadOutput, ExecMode, ExecTime,
-        LoadRomError, QueryMemoryResponse, QueryRegistersResponse, UiBreakpoint,
+        CommandId, EmulatorCommand, EmulatorResponse, ExecMode, ExecTime, LoadRomError,
+        QueryMemoryResponse, QueryRegistersResponse, RemoteEmulatorOutput, UiBreakpoint,
     },
     rom::Cartridge,
 };
@@ -91,7 +91,7 @@ impl EmulatorState {
 pub(super) struct EmulatorThread {
     state: EmulatorState,
     rx: mpsc::Receiver<(CommandId, EmulatorCommand)>,
-    tx: Rc<glib::Sender<EmulatorThreadOutput>>,
+    tx: Rc<glib::Sender<RemoteEmulatorOutput>>,
     events: Rc<EventEmitter<EngineEvent>>,
     breakpoints: Vec<UiBreakpoint>,
     exec_mode: ExecMode,
@@ -100,7 +100,7 @@ pub(super) struct EmulatorThread {
 impl EmulatorThread {
     fn new(
         command_rx: mpsc::Receiver<(CommandId, EmulatorCommand)>,
-        event_tx: glib::Sender<EmulatorThreadOutput>,
+        event_tx: glib::Sender<RemoteEmulatorOutput>,
     ) -> EmulatorThread {
         let state = EmulatorState::new();
         EmulatorThread {
@@ -116,7 +116,7 @@ impl EmulatorThread {
     pub fn start() -> (
         thread::JoinHandle<()>,
         mpsc::Sender<(CommandId, EmulatorCommand)>,
-        glib::Receiver<EmulatorThreadOutput>,
+        glib::Receiver<RemoteEmulatorOutput>,
     ) {
         let (command_tx, command_rx) = mpsc::channel();
         let (event_tx, event_rx) = glib::MainContext::channel(glib::source::PRIORITY_DEFAULT);
@@ -126,7 +126,7 @@ impl EmulatorThread {
             emu_thread
                 .events
                 .on(Box::new(clone!(@weak emu_thread.tx as tx => move |evt| {
-                    if let Err(e) = tx.send(EmulatorThreadOutput::Event(evt.clone())) {
+                    if let Err(e) = tx.send(RemoteEmulatorOutput::Event(evt.clone())) {
                         eprintln!("Cannot report emulator output event: {:?}", e);
                     }
                 })));
@@ -177,7 +177,7 @@ impl EmulatorThread {
                 }
             };
             self.tx
-                .send(EmulatorThreadOutput::Response(id, resp))
+                .send(RemoteEmulatorOutput::Response(id, resp))
                 .map_err(|_| SenderClosed {})?;
         }
         Ok(())
@@ -235,7 +235,7 @@ impl EmulatorThread {
                                 ModeChangeEvent::new(self.exec_mode.clone(), mode.clone());
                             self.exec_mode = mode;
                             self.tx
-                                .send(remote::EmulatorThreadOutput::ModeChange(change_event))
+                                .send(remote::RemoteEmulatorOutput::ModeChange(change_event))
                                 .expect("Emulator thread response channel closed");
                         }
                     }

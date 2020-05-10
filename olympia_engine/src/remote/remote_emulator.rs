@@ -3,10 +3,10 @@ use crate::{
     remote::{
         commands,
         commands::{
-            CommandId, EmulatorCommand, EmulatorResponse, EmulatorThreadOutput, ExecMode, ExecTime,
-            LoadRomError, QueryMemoryResponse, QueryRegistersResponse, UiBreakpoint,
+            CommandId, EmulatorCommand, EmulatorResponse, ExecMode, ExecTime, LoadRomError,
+            QueryMemoryResponse, QueryRegistersResponse, RemoteEmulatorOutput, UiBreakpoint,
         },
-        events::{AdapterEvent, AdapterEventWrapper},
+        events::{AdapterEventWrapper, Event as RemoteEvent, RemoteEventListeners},
     },
 };
 
@@ -21,7 +21,7 @@ use core::{
 };
 use hashbrown::HashMap;
 
-pub struct PendingResponses {
+pub(crate) struct PendingResponses {
     responses: HashMap<CommandId, EmulatorResponse>,
     wakers: HashMap<CommandId, Waker>,
 }
@@ -35,6 +35,10 @@ impl Default for PendingResponses {
     }
 }
 
+/// A command executing in a remote emulator
+///
+/// This can be `await`-ed for the output of the command
+/// if you have an async executor.
 pub struct EmulatorCommandExecution<T> {
     id: CommandId,
     command: EmulatorCommand,
@@ -74,12 +78,15 @@ where
     }
 }
 
+/// Transfers events/commands to remote emulator
 pub trait RemoteEmulatorChannel {
+    /// Send a command to the remote emulator
     fn send(&self, cmd: EmulatorCommand) -> CommandId;
-    fn handle_output(&mut self, f: Box<dyn Fn(EmulatorThreadOutput) -> Repeat>);
+    /// Handle output from the remote emulator
+    fn handle_output(&mut self, f: Box<dyn Fn(RemoteEmulatorOutput) -> Repeat>);
 }
 
-pub struct InternalEmulatorAdapter {
+struct InternalEmulatorAdapter {
     channel: Box<dyn RemoteEmulatorChannel>,
     pending_responses: Rc<RefCell<PendingResponses>>,
     event_listeners: Rc<RefCell<AdapterEventWrapper>>,
@@ -121,20 +128,20 @@ impl InternalEmulatorAdapter {
     fn handle_output(
         pending_responses: &RefCell<PendingResponses>,
         event_listeners: &RefCell<AdapterEventWrapper>,
-        output: EmulatorThreadOutput,
+        output: RemoteEmulatorOutput,
     ) {
         match output {
-            EmulatorThreadOutput::Response(id, resp) => {
+            RemoteEmulatorOutput::Response(id, resp) => {
                 let mut pending_responses = pending_responses.borrow_mut();
                 pending_responses.responses.insert(id, resp);
                 if let Some(waker) = pending_responses.wakers.remove(&id) {
                     waker.wake();
                 }
             }
-            EmulatorThreadOutput::ModeChange(change_event) => {
+            RemoteEmulatorOutput::ModeChange(change_event) => {
                 event_listeners.borrow_mut().emit(change_event);
             }
-            EmulatorThreadOutput::Event(event) => {
+            RemoteEmulatorOutput::Event(event) => {
                 event_listeners.borrow_mut().emit(event);
             }
             _ => {}
@@ -152,6 +159,7 @@ impl InternalEmulatorAdapter {
     }
 }
 
+/// An emulator that is executing elsewhere
 pub struct RemoteEmulator {
     adapter: InternalEmulatorAdapter,
     mode: RefCell<ExecMode>,
@@ -159,7 +167,12 @@ pub struct RemoteEmulator {
 }
 
 impl RemoteEmulator {
-    pub fn new(adapter: InternalEmulatorAdapter) -> RemoteEmulator {
+    pub fn new(
+        events: Box<dyn RemoteEventListeners>,
+        channel: Box<dyn RemoteEmulatorChannel>,
+    ) -> RemoteEmulator {
+        let wrapper = AdapterEventWrapper::new(events);
+        let adapter = InternalEmulatorAdapter::new(channel, wrapper);
         RemoteEmulator {
             adapter: adapter,
             mode: RefCell::new(ExecMode::Unloaded),
@@ -167,19 +180,26 @@ impl RemoteEmulator {
         }
     }
 
+    /// Listen to events from the remote emulator
     pub fn on<E, F>(&self, f: F) -> EventHandlerId
     where
-        E: TryFrom<AdapterEvent> + 'static,
+        E: TryFrom<RemoteEvent> + 'static,
         F: Fn(E) -> Repeat + 'static,
     {
         self.adapter.event_listeners.borrow_mut().on(f)
     }
 
+    /// Listen to events and pass the widget held in a weakref to the callback.
+    ///
+    /// The Rc provided is downgraded to a weakref. When the event handler is called,
+    /// the weakref is attempted to be upgraded to a full reference. If the widget
+    /// no longer exists, the event handler is removed, otherwise the callback
+    /// is called with the widget reference and event
     pub fn on_widget<E, F, W>(&self, widget: Rc<W>, handler: F) -> EventHandlerId
     where
         W: 'static,
         F: Fn(Rc<W>, E) -> () + 'static,
-        E: TryFrom<AdapterEvent> + 'static,
+        E: TryFrom<RemoteEvent> + 'static,
     {
         let weak = Rc::downgrade(&widget);
         self.on(move |evt| match weak.upgrade() {
@@ -199,6 +219,7 @@ impl RemoteEmulator {
             .emit(ModeChangeEvent { old_mode, new_mode });
     }
 
+    /// Load a given ROM into the remote emulator
     pub async fn load_rom(&self, data: Vec<u8>) -> Result<(), LoadRomError> {
         let result: Result<(), LoadRomError> = self
             .adapter
@@ -217,6 +238,7 @@ impl RemoteEmulator {
         result
     }
 
+    /// Query the data in a given memory range
     pub async fn query_memory(
         &self,
         start_addr: u16,
@@ -227,13 +249,14 @@ impl RemoteEmulator {
             .await
     }
 
-    #[allow(dead_code)]
+    /// Query how long the emulator has been running.
     pub async fn exec_time(&self) -> commands::Result<ExecTime> {
         self.adapter
             .send_command(EmulatorCommand::QueryExecTime)
             .await
     }
 
+    /// Query the state of all registers in the system
     pub async fn query_registers(&self) -> commands::Result<QueryRegistersResponse> {
         let result: Result<QueryRegistersResponse, commands::Error> = self
             .adapter
@@ -245,10 +268,12 @@ impl RemoteEmulator {
         result
     }
 
-    pub fn pc(&self) -> u16 {
+    /// Convenience method to find the last recorded PC
+    pub fn cached_pc(&self) -> u16 {
         self.cached_registers.borrow().pc
     }
 
+    /// Run a single CPU instruction in the remote emulator
     pub async fn step(&self) -> commands::Result<()> {
         let result = self.adapter.send_command(EmulatorCommand::Step).await;
         self.adapter
@@ -258,6 +283,7 @@ impl RemoteEmulator {
         result
     }
 
+    /// Set the running mode to the given exec mode
     pub async fn set_mode(&self, mode: ExecMode) -> Result<ExecMode, ()> {
         let result: Result<ExecMode, ()> = self
             .adapter
@@ -271,6 +297,7 @@ impl RemoteEmulator {
         result
     }
 
+    /// Add a breakpoint to the remote system
     pub async fn add_breakpoint(&self, breakpoint: UiBreakpoint) -> Result<(), ()> {
         self.adapter
             .send_command(EmulatorCommand::AddBreakpoint(breakpoint))

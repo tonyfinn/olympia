@@ -1,5 +1,5 @@
-//! This crate represents instruction components
-//! that can be applied to any instruction.
+//! Instruction components that can be applied to any instruction.
+//!
 //! It does not contain instructions themselves,
 //! these are included in `olympia_engine`
 

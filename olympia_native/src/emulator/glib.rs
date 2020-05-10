@@ -3,9 +3,8 @@ use crate::emulator::emu_thread::EmulatorThread;
 use olympia_engine::{
     events::{EventHandlerId, Repeat},
     remote::{
-        AdapterEvent, AdapterEventListeners, AdapterEventWrapper, CommandId, EmulatorCommand,
-        EmulatorThreadOutput, EventSendError, InternalEmulatorAdapter, RemoteEmulator,
-        RemoteEmulatorChannel, Sender,
+        CommandId, EmulatorCommand, Event as RemoteEvent, EventSendError, RemoteEmulator,
+        RemoteEmulatorChannel, RemoteEmulatorOutput, RemoteEventListeners, Sender,
     },
 };
 
@@ -22,7 +21,7 @@ use std::{
 
 pub(crate) struct GlibEmulatorChannel {
     tx: mpsc::Sender<(CommandId, EmulatorCommand)>,
-    rx: Option<glib::Receiver<EmulatorThreadOutput>>,
+    rx: Option<glib::Receiver<RemoteEmulatorOutput>>,
     ctx: glib::MainContext,
     next_id: AtomicU64,
 }
@@ -66,7 +65,7 @@ impl RemoteEmulatorChannel for GlibEmulatorChannel {
         cmd_id
     }
 
-    fn handle_output(&mut self, f: Box<dyn Fn(EmulatorThreadOutput) -> Repeat>) {
+    fn handle_output(&mut self, f: Box<dyn Fn(RemoteEmulatorOutput) -> Repeat>) {
         self.rx
             .take()
             .expect("Attempted to register two output sources")
@@ -75,7 +74,7 @@ impl RemoteEmulatorChannel for GlibEmulatorChannel {
 }
 
 pub(crate) struct GlibAdapterEventListeners {
-    listeners: HashMap<TypeId, HashMap<EventHandlerId, Box<dyn Sender<AdapterEvent>>>>,
+    listeners: HashMap<TypeId, HashMap<EventHandlerId, Box<dyn Sender<RemoteEvent>>>>,
     context: glib::MainContext,
     next_listener_id: u64,
 }
@@ -90,14 +89,14 @@ impl GlibAdapterEventListeners {
     }
 }
 
-impl AdapterEventListeners for GlibAdapterEventListeners {
+impl RemoteEventListeners for GlibAdapterEventListeners {
     fn on(
         &mut self,
         event_type_id: TypeId,
-        f: Box<dyn Fn(AdapterEvent) -> Repeat + 'static>,
+        f: Box<dyn Fn(RemoteEvent) -> Repeat + 'static>,
     ) -> EventHandlerId {
         let event_handler_id = EventHandlerId(self.next_listener_id);
-        let (tx, rx) = glib::MainContext::channel::<AdapterEvent>(glib::PRIORITY_DEFAULT);
+        let (tx, rx) = glib::MainContext::channel::<RemoteEvent>(glib::PRIORITY_DEFAULT);
         let wrapped = Box::new(WrappedGlibSender(tx));
         let map = self
             .listeners
@@ -111,7 +110,7 @@ impl AdapterEventListeners for GlibAdapterEventListeners {
         event_handler_id
     }
 
-    fn emit(&mut self, evt: AdapterEvent) {
+    fn emit(&mut self, evt: RemoteEvent) {
         let event_type_id = evt.event_type_id();
         if let Some(listeners) = self.listeners.get_mut(&event_type_id) {
             let mut listener_ids_to_remove = Vec::new();
@@ -132,11 +131,10 @@ impl AdapterEventListeners for GlibAdapterEventListeners {
 pub(crate) fn glib_remote_emulator(context: glib::MainContext) -> Rc<RemoteEmulator> {
     let channel = GlibEmulatorChannel::new(context.clone());
     let glib_listeners = GlibAdapterEventListeners::new(context.clone());
-    let adapter = InternalEmulatorAdapter::new(
+    Rc::new(RemoteEmulator::new(
+        Box::new(glib_listeners),
         Box::new(channel),
-        AdapterEventWrapper::new(Box::new(glib_listeners)),
-    );
-    Rc::new(RemoteEmulator::new(adapter))
+    ))
 }
 
 #[cfg(test)]

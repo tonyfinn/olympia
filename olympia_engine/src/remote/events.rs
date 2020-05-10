@@ -11,7 +11,8 @@ use derive_more::Error;
 use derive_more::{Display, From, TryInto};
 
 #[derive(Debug, Clone, PartialEq, Eq, From, TryInto)]
-pub enum AdapterEvent {
+/// Events from a remote emulator
+pub enum Event {
     ModeChange(ModeChangeEvent),
     VBlank(VBlankEvent),
     HBlank(HBlankEvent),
@@ -22,9 +23,10 @@ pub enum AdapterEvent {
     RomLoaded(RomLoadedEvent),
 }
 
-impl AdapterEvent {
+impl Event {
+    /// The type of the underlying event
     pub fn event_type_id(&self) -> TypeId {
-        use AdapterEvent::*;
+        use Event::*;
         match self {
             ModeChange(_) => TypeId::of::<ModeChangeEvent>(),
             VBlank(_) => TypeId::of::<VBlankEvent>(),
@@ -38,29 +40,39 @@ impl AdapterEvent {
     }
 }
 
-impl From<EngineEvent> for AdapterEvent {
-    fn from(evt: EngineEvent) -> AdapterEvent {
-        use AdapterEvent as ae;
+impl From<EngineEvent> for Event {
+    fn from(evt: EngineEvent) -> Event {
         use EngineEvent as ee;
+        use Event as re;
         match evt {
-            ee::VBlank(e) => ae::VBlank(e),
-            ee::HBlank(e) => ae::HBlank(e),
-            ee::RegisterWrite(e) => ae::RegisterWrite(e),
-            ee::MemoryWrite(e) => ae::MemoryWrite(e),
-            ee::StepComplete(e) => ae::StepComplete(e),
+            ee::VBlank(e) => re::VBlank(e),
+            ee::HBlank(e) => re::HBlank(e),
+            ee::RegisterWrite(e) => re::RegisterWrite(e),
+            ee::MemoryWrite(e) => re::MemoryWrite(e),
+            ee::StepComplete(e) => re::StepComplete(e),
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Display)]
 #[cfg_attr(feature = "std", derive(Error))]
+/// Failures to send an event
 pub enum EventSendError {
     #[display(fmt = "Invalid type of event for channel")]
+    /// The sender is expecting events of a different type.
+    ///
+    /// This is usually indicative of a mistake in a frontend
+    /// as senders should be grouped by type
     TypeError,
     #[display(fmt = "Channel closed")]
+    /// The recieving of the channel has gone away.
+    ///
+    /// This may indicate the remote emulator has been shutdown
+    /// or encountered a fatal error
     ClosedChannelError,
 }
 
+/// An item that can have events sent to it
 pub trait Sender<T> {
     fn send(&self, evt: T) -> Result<(), EventSendError>;
 }
@@ -71,9 +83,9 @@ impl<T> Sender<T> for Box<dyn Sender<T>> {
     }
 }
 
-fn wrapped_handler<E, F>(f: F) -> Box<dyn Fn(AdapterEvent) -> Repeat + 'static>
+fn wrapped_handler<E, F>(f: F) -> Box<dyn Fn(Event) -> Repeat + 'static>
 where
-    E: TryFrom<AdapterEvent>,
+    E: TryFrom<Event>,
     F: Fn(E) -> Repeat + 'static,
 {
     Box::new(move |evt| match evt.try_into() {
@@ -85,35 +97,41 @@ where
     })
 }
 
-pub trait AdapterEventListeners {
+/// A mechanism for listening to remote events
+pub trait RemoteEventListeners {
+    /// Listen to events of type `event_type_id`
     fn on(
         &mut self,
         event_type_id: TypeId,
-        f: Box<dyn Fn(AdapterEvent) -> Repeat + 'static>,
+        f: Box<dyn Fn(Event) -> Repeat + 'static>,
     ) -> EventHandlerId;
-    fn emit(&mut self, evt: AdapterEvent);
+    /// Notify listeners of a given event
+    fn emit(&mut self, evt: Event);
 }
 
+/// Type-safe wrapper around dynamic event listeners
 pub struct AdapterEventWrapper {
-    inner: Box<dyn AdapterEventListeners>,
+    inner: Box<dyn RemoteEventListeners>,
 }
 
 impl AdapterEventWrapper {
-    pub fn new(inner: Box<dyn AdapterEventListeners>) -> AdapterEventWrapper {
+    pub fn new(inner: Box<dyn RemoteEventListeners>) -> AdapterEventWrapper {
         AdapterEventWrapper { inner }
     }
 
+    /// Register an event handler
     pub fn on<T, F>(&mut self, f: F) -> EventHandlerId
     where
-        T: TryFrom<AdapterEvent> + 'static,
+        T: TryFrom<Event> + 'static,
         F: Fn(T) -> Repeat + 'static,
     {
         self.inner.on(TypeId::of::<T>(), wrapped_handler(f))
     }
 
+    /// Notify listeners of a given event
     pub fn emit<T>(&mut self, event: T)
     where
-        T: Into<AdapterEvent> + 'static,
+        T: Into<Event> + 'static,
     {
         self.inner.emit(event.into());
     }

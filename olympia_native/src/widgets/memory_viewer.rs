@@ -261,7 +261,7 @@ impl MemoryViewer {
         let (start_addr, end_addr) = self.address_range();
         let query_result = self.emu.query_memory(start_addr, end_addr).await;
         match query_result {
-            Ok(mem_response) => self.render(self.emu.pc(), mem_response),
+            Ok(mem_response) => self.render(self.emu.cached_pc(), mem_response),
             Err(_) => {}
         }
     }

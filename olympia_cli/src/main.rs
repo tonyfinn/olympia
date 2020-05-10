@@ -51,16 +51,16 @@ struct OlympiaArgs {
 fn print_rom_info(cartridge: rom::Cartridge, out: &mut dyn io::Write) -> OlympiaResult<()> {
     write!(out, "Cartridge Type: ")?;
     match cartridge.controller {
-        rom::CartridgeEnum::StaticRom(_srom) => writeln!(out, "Static ROM")?,
-        rom::CartridgeEnum::Type1(mbc1) => {
+        rom::ControllerEnum::StaticRom(_srom) => writeln!(out, "Static ROM")?,
+        rom::ControllerEnum::Type1(mbc1) => {
             writeln!(out, "MBC1")?;
             writeln!(
                 out,
                 "RAM Size: {}KiB",
-                rom::CartridgeType::ram_size(&mbc1) / 1024
+                rom::CartridgeController::ram_size(&mbc1) / 1024
             )?
         }
-        rom::CartridgeEnum::Type2(_mbc2) => {
+        rom::ControllerEnum::Type2(_mbc2) => {
             writeln!(out, "MBC2")?;
             writeln!(out, "RAM Size: 512 x 4 bits")?
         }

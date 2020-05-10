@@ -1,6 +1,6 @@
 [package]
 name = "olympia_derive"
-version = "0.1.0"
+version = "0.3.0"
 authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
 description = """
 Olympia is a gameboy emulator and toolkit, intended to run
@@ -26,7 +26,7 @@ derive_more = "0.99.5"
 proc-macro2 = "1.0"
 quote = "1.0.2"
 syn = {version = "1.0.11", features = ["extra-traits", "full"]}
-olympia_core = { version = "0.1.0", path = "../olympia_core" }
+olympia_core = { version = "0.3.0", path = "../olympia_core" }
 
 [dev-dependencies]
 runtime-macros-derive = "0.4.0"

@@ -371,23 +371,23 @@ version = "0.2.1"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_more 0.99.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "olympia_engine 0.2.0",
+ "olympia_engine 0.3.0",
  "structopt 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "olympia_core"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "derive_more 0.99.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "olympia_derive"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "derive_more 0.99.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "olympia_core 0.1.0",
+ "olympia_core 0.3.0",
  "proc-macro2 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "runtime-macros-derive 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -396,17 +396,17 @@ dependencies = [
 
 [[package]]
 name = "olympia_engine"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "derive_more 0.99.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashbrown 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "olympia_core 0.1.0",
- "olympia_derive 0.1.0",
+ "olympia_core 0.3.0",
+ "olympia_derive 0.3.0",
 ]
 
 [[package]]
 name = "olympia_native"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cairo-rs 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_more 0.99.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -414,7 +414,7 @@ dependencies = [
  "gio 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glib 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "gtk 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "olympia_engine 0.2.0",
+ "olympia_engine 0.3.0",
  "pango 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

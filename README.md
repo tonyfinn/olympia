@@ -12,10 +12,13 @@ Completed features:
 * DMA transfers
 * CLI Debugger
 * PPU window/bg tile calculation
+* Native GUI rendering with GTK
 
 Missing features:
 
-* GUI rendering
+* Web UI
+* PPU sprite tiles
+* Input
 * Power saving modes
 * Audio
 

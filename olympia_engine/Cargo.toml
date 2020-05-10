@@ -1,6 +1,6 @@
 [package]
 name = "olympia_engine"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2018"
 authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
 description = """
@@ -29,5 +29,5 @@ std = []
 [dependencies]
 derive_more = "0.99.5"
 hashbrown = "0.7.2"
-olympia_core = { version = "0.1.0", path = "../olympia_core" }
-olympia_derive = { version = "0.1.0", path = "../olympia_derive" }
+olympia_core = { version = "0.3.0", path = "../olympia_core" }
+olympia_derive = { version = "0.3.0", path = "../olympia_derive" }

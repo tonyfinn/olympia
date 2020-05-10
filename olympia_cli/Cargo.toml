@@ -26,7 +26,7 @@ gitlab = { repository = "tonyfinn/olympia", branch = "master" }
 clap = "2.33.0"
 derive_more = "0.99.5"
 structopt = "0.3.3"
-olympia_engine = { version = "0.2.0", path = "../olympia_engine", features = ["disassembler", "std"] }
+olympia_engine = { version = "0.3.0", path = "../olympia_engine", features = ["disassembler", "std"] }
 
 [[test]]
 name = "integration"

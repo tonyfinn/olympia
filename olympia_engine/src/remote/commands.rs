@@ -26,17 +26,24 @@ impl From<Breakpoint> for UiBreakpoint {
     }
 }
 
+/// The running/not running state of the remote emulator
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ExecMode {
+    /// The emulator is not running as it has not yet loaded
     Unloaded,
+    /// The emulator is not running as it paused
     Paused,
+    /// The emulator is not running as has hit a breakpoint
     HitBreakpoint(UiBreakpoint),
+    /// The emulator is running at actual gameboy speed
     Standard,
+    /// The emulator is running as fast as possible
     Uncapped,
 }
 
 #[derive(PartialEq, Eq, From, Display, Debug)]
 #[cfg_attr(feature = "std", derive(Error))]
+/// A failure to load a ROM
 pub enum LoadRomError {
     #[display(fmt = "Could not parse ROM: {}", "_0")]
     InvalidRom(CartridgeError),
@@ -47,6 +54,7 @@ pub enum LoadRomError {
 
 #[derive(Debug, Display, From, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(Error))]
+/// A problem encountered by a remote emulator
 pub enum Error {
     #[display(fmt = "Error during emulation: {}", "_0")]
     Exec(StepError),
@@ -56,8 +64,10 @@ pub enum Error {
     NoRomLoaded,
 }
 
+/// Result of a remote emulator operation
 pub type Result<T> = core::result::Result<T, Error>;
 
+/// The values of all 16-bit registers
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 pub struct QueryRegistersResponse {
     pub af: u16,
@@ -82,12 +92,18 @@ impl QueryRegistersResponse {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+/// The memory data at a requested address
 pub struct QueryMemoryResponse {
+    /// The first address in memory represented by the data
     pub start_addr: u16,
+    /// The data in memory at that space.
+    ///
+    /// None indicates memory that should not be available
     pub data: Vec<Option<u8>>,
 }
 
 #[derive(Debug, Clone)]
+/// A single command for the remote emulator execute
 pub enum EmulatorCommand {
     /// Load a rom from a given file path
     LoadRom(Vec<u8>),
@@ -107,6 +123,7 @@ pub enum EmulatorCommand {
 }
 
 #[derive(Debug, PartialEq, PartialOrd, From)]
+/// The time (in seconds) the emulator has been running
 pub struct ExecTime(f64);
 
 impl From<ExecTime> for core::time::Duration {
@@ -116,6 +133,7 @@ impl From<ExecTime> for core::time::Duration {
 }
 
 #[derive(Debug, From, TryInto, PartialEq)]
+/// A response to an emulator command
 pub enum EmulatorResponse {
     LoadRom(core::result::Result<(), LoadRomError>),
     QueryRegisters(Result<QueryRegistersResponse>),
@@ -127,10 +145,12 @@ pub enum EmulatorResponse {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
+/// An identifier for a running command
 pub struct CommandId(pub u64);
 
 #[derive(From, TryInto)]
-pub enum EmulatorThreadOutput {
+/// Events, Errors and Responses from a remote emulator
+pub enum RemoteEmulatorOutput {
     Event(EngineEvent),
     Error(Error),
     Response(CommandId, EmulatorResponse),

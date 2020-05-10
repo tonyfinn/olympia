@@ -1,3 +1,10 @@
+//! Event handling system for local emulators
+//!
+//! Note that event handling for remote emulators is slightly
+//! different, see [`crate::remote`] for details on those
+//!
+//! [`crate::remote`]: ../remote/index.html
+
 use crate::address;
 use crate::gameboy::GBPixel;
 use crate::registers;
@@ -12,8 +19,11 @@ use derive_more::{Constructor, From, TryInto};
 use crate::remote::ExecMode;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Represents a change in running mode of an emulator
 pub struct ModeChangeEvent {
+    /// Previous execution mode
     pub old_mode: ExecMode,
+    /// Execution mode after the mode change
     pub new_mode: ExecMode,
 }
 
@@ -24,12 +34,15 @@ impl ModeChangeEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// A ROM has been loaded into a remote emulator
 pub struct RomLoadedEvent;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// A step has happened by a manual user request
 pub struct ManualStepEvent;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Constructor)]
+/// Memory has been written to
 pub struct MemoryWriteEvent {
     /// Location written to
     pub address: address::LiteralAddress,
@@ -39,30 +52,40 @@ pub struct MemoryWriteEvent {
     pub new_value: u8,
 }
 
+/// A register has been written to
+///
+/// Note this event is only in terms of 16-bit registers,
+/// when an 8-bit write occurs, the event will cover
+/// the 16-bit register the 8-bit register is part of
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Constructor)]
 pub struct RegisterWriteEvent {
     pub reg: registers::WordRegister,
     pub value: u16,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct VBlankEvent;
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct StepCompleteEvent;
-
 #[derive(Debug, PartialEq, Eq, Clone, Constructor)]
+/// PPU has entered the HBlank phase
 pub struct HBlankEvent {
     pub pixels: Vec<GBPixel>,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// PPU has entered the VBlank phase
+pub struct VBlankEvent;
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// A single instruction has completed
+pub struct StepCompleteEvent;
+
 #[derive(Debug, PartialEq, Eq, Clone, From)]
+/// Events from the PPU
 pub enum PPUEvent {
     VBlank(VBlankEvent),
     HBlank(HBlankEvent),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// Indicates whether an event handler should repeat
 pub struct Repeat(pub bool);
 
 #[derive(Debug, PartialEq, Eq, Clone, From, TryInto)]
@@ -89,11 +112,14 @@ impl From<PPUEvent> for Event {
     }
 }
 
+/// A method to handle a local event
 pub type EventHandler<T> = Box<dyn Fn(&T) -> () + 'static>;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+/// An identifer for a event handler
 pub struct EventHandlerId(pub u64);
 
+/// A producer of events that can be listened to
 pub struct EventEmitter<T> {
     event_handlers: RefCell<HashMap<EventHandlerId, EventHandler<T>>>,
     next_event_handler_id: RefCell<u64>,
@@ -113,6 +139,7 @@ impl<'a, T> EventEmitter<T> {
         }
     }
 
+    /// Listen to events of a given type
     pub fn on(&self, f: EventHandler<T>) -> EventHandlerId {
         let event_handler_id = self.next_handler_id();
         if self.is_emitting.borrow().clone() {
@@ -123,6 +150,7 @@ impl<'a, T> EventEmitter<T> {
         event_handler_id
     }
 
+    /// Stop listening to a given event
     pub fn off(&self, id: EventHandlerId) {
         if self.is_emitting.borrow().clone() {
             self.queued_removals.borrow_mut().push(id);
@@ -145,6 +173,7 @@ impl<'a, T> EventEmitter<T> {
             .push((event_handler_id, f));
     }
 
+    /// Notify all listeners of a given event
     pub fn emit(&self, evt: T) {
         self.is_emitting.replace(true);
         for handler in self.event_handlers.borrow().values() {
@@ -163,6 +192,7 @@ impl<'a, T> EventEmitter<T> {
     }
 }
 
+/// Propagate events from one event emitter to another
 pub fn propagate_events<I, O, E>(inner_events: &EventEmitter<I>, outer_events: E) -> EventHandlerId
 where
     I: Into<O> + Clone,

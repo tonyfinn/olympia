@@ -1,3 +1,5 @@
+//! ROM and Cartridge handling code
+
 use crate::gameboy::memory;
 use alloc::vec::Vec;
 use core::convert::TryFrom;
@@ -32,9 +34,13 @@ pub enum CartridgeError {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
+/// Indicates if a ROM uses GameBoy Color features
 pub enum TargetConsole {
+    /// The ROM does not use Color features
     GameBoyOnly,
+    /// The ROM uses Color features where supported
     ColorEnhanced,
+    /// The ROM requires Color features
     ColorOnly,
 }
 
@@ -43,13 +49,15 @@ impl std::error::Error for CartridgeError {}
 
 pub type CartridgeResult<T> = Result<T, CartridgeError>;
 
+/// A gameboy cartridge, including ROM data and memory controller
 pub struct Cartridge {
     pub data: Vec<u8>,
-    pub controller: CartridgeEnum,
+    pub controller: ControllerEnum,
     pub target: TargetConsole,
 }
 
 impl Cartridge {
+    /// Read a byte from address space controlled by the cart
     pub fn read(&self, loc: u16) -> CartridgeResult<u8> {
         if memory::STATIC_ROM.contains(loc) {
             self.controller.read_static_rom(loc, &self.data)
@@ -62,10 +70,12 @@ impl Cartridge {
         }
     }
 
+    /// Write a byte to address space controlled by the cart
     pub fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()> {
         self.controller.write(loc, value)
     }
 
+    /// Build a cartridge from ROM data
     pub fn from_data(data: Vec<u8>) -> CartridgeResult<Cartridge> {
         if data.len() < 0x200 {
             return Err(CartridgeError::CartridgeTooSmall(data.len()));
@@ -99,75 +109,87 @@ impl Cartridge {
     }
 }
 
-pub enum CartridgeEnum {
+/// Type of cartidge controller
+pub enum ControllerEnum {
+    /// No controller, just static data
     StaticRom(StaticRom),
+    /// Uses the MBC 1 controller chip
     Type1(MBC1),
+    /// Uses a MBC 2 controller chip
     Type2(MBC2),
     //Type3(MBC3)
 }
 
-pub trait CartridgeType {
+/// Represents a cartridge controller
+pub trait CartridgeController {
+    /// Read a value from the controller's static ROM
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8>;
+    /// Read a value from the controller's switchable ROM banks
     fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8>;
+    /// Read a value from the controller's switchable RAM banks
     fn read_switchable_ram(&self, loc: u16) -> CartridgeResult<u8>;
+    /// Write a value to the controller's memory space
     fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()>;
+    /// Indicates if a controller contains onboard RAM
     fn has_ram(&self) -> bool;
+    /// Indicates the size of onboard RAM, or 0 if absent
     fn ram_size(&self) -> usize;
 }
 
-impl CartridgeType for CartridgeEnum {
+impl CartridgeController for ControllerEnum {
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         match self {
-            CartridgeEnum::StaticRom(srom) => srom.read_static_rom(loc, rom),
-            CartridgeEnum::Type1(mbc1) => mbc1.read_static_rom(loc, rom),
-            CartridgeEnum::Type2(mbc2) => mbc2.read_static_rom(loc, rom),
+            ControllerEnum::StaticRom(srom) => srom.read_static_rom(loc, rom),
+            ControllerEnum::Type1(mbc1) => mbc1.read_static_rom(loc, rom),
+            ControllerEnum::Type2(mbc2) => mbc2.read_static_rom(loc, rom),
         }
     }
 
     fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         match self {
-            CartridgeEnum::StaticRom(srom) => srom.read_switchable_rom(loc, rom),
-            CartridgeEnum::Type1(mbc1) => mbc1.read_switchable_rom(loc, rom),
-            CartridgeEnum::Type2(mbc2) => mbc2.read_switchable_rom(loc, rom),
+            ControllerEnum::StaticRom(srom) => srom.read_switchable_rom(loc, rom),
+            ControllerEnum::Type1(mbc1) => mbc1.read_switchable_rom(loc, rom),
+            ControllerEnum::Type2(mbc2) => mbc2.read_switchable_rom(loc, rom),
         }
     }
 
     fn read_switchable_ram(&self, loc: u16) -> CartridgeResult<u8> {
         match self {
-            CartridgeEnum::StaticRom(srom) => srom.read_switchable_ram(loc),
-            CartridgeEnum::Type1(mbc1) => mbc1.read_switchable_ram(loc),
-            CartridgeEnum::Type2(mbc2) => mbc2.read_switchable_ram(loc),
+            ControllerEnum::StaticRom(srom) => srom.read_switchable_ram(loc),
+            ControllerEnum::Type1(mbc1) => mbc1.read_switchable_ram(loc),
+            ControllerEnum::Type2(mbc2) => mbc2.read_switchable_ram(loc),
         }
     }
 
     fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()> {
         match self {
-            CartridgeEnum::StaticRom(srom) => srom.write(loc, value),
-            CartridgeEnum::Type1(mbc1) => mbc1.write(loc, value),
-            CartridgeEnum::Type2(mbc2) => mbc2.write(loc, value),
+            ControllerEnum::StaticRom(srom) => srom.write(loc, value),
+            ControllerEnum::Type1(mbc1) => mbc1.write(loc, value),
+            ControllerEnum::Type2(mbc2) => mbc2.write(loc, value),
         }
     }
 
     fn has_ram(&self) -> bool {
         match self {
-            CartridgeEnum::StaticRom(srom) => srom.has_ram(),
-            CartridgeEnum::Type1(mbc1) => mbc1.has_ram(),
-            CartridgeEnum::Type2(mbc2) => mbc2.has_ram(),
+            ControllerEnum::StaticRom(srom) => srom.has_ram(),
+            ControllerEnum::Type1(mbc1) => mbc1.has_ram(),
+            ControllerEnum::Type2(mbc2) => mbc2.has_ram(),
         }
     }
 
     fn ram_size(&self) -> usize {
         match self {
-            CartridgeEnum::StaticRom(srom) => srom.ram_size(),
-            CartridgeEnum::Type1(mbc1) => mbc1.ram_size(),
-            CartridgeEnum::Type2(mbc2) => mbc2.ram_size(),
+            ControllerEnum::StaticRom(srom) => srom.ram_size(),
+            ControllerEnum::Type1(mbc1) => mbc1.ram_size(),
+            ControllerEnum::Type2(mbc2) => mbc2.ram_size(),
         }
     }
 }
 
+/// A catridge that contains only a static ROM w/o controller
 pub struct StaticRom;
 
-impl CartridgeType for StaticRom {
+impl CartridgeController for StaticRom {
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         rom.get(usize::from(loc))
             .copied()
@@ -195,9 +217,9 @@ impl CartridgeType for StaticRom {
     }
 }
 
-impl From<StaticRom> for CartridgeEnum {
+impl From<StaticRom> for ControllerEnum {
     fn from(srom: StaticRom) -> Self {
-        CartridgeEnum::StaticRom(srom)
+        ControllerEnum::StaticRom(srom)
     }
 }
 
@@ -207,6 +229,7 @@ enum MBC1PageMode {
     LargeRam,
 }
 
+/// MBC1 cartridge controller
 pub struct MBC1 {
     page_mode: MBC1PageMode,
     selected_rom: u8,
@@ -269,7 +292,7 @@ impl MBC1 {
     }
 }
 
-impl CartridgeType for MBC1 {
+impl CartridgeController for MBC1 {
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         let bank = u32::from(self.selected_static_rom_bank());
         let rom_addr = (bank * u32::from(memory::STATIC_ROM.len)) + u32::from(loc);
@@ -339,12 +362,13 @@ impl CartridgeType for MBC1 {
     }
 }
 
-impl From<MBC1> for CartridgeEnum {
+impl From<MBC1> for ControllerEnum {
     fn from(mbc: MBC1) -> Self {
-        CartridgeEnum::Type1(mbc)
+        ControllerEnum::Type1(mbc)
     }
 }
 
+/// MBC2 catridge controller
 pub struct MBC2 {
     selected_rom: u8,
     ram_enabled: bool,
@@ -372,7 +396,7 @@ impl MBC2 {
     }
 }
 
-impl CartridgeType for MBC2 {
+impl CartridgeController for MBC2 {
     fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
         Ok(rom[usize::from(loc)])
     }
@@ -422,9 +446,9 @@ impl CartridgeType for MBC2 {
     }
 }
 
-impl From<MBC2> for CartridgeEnum {
+impl From<MBC2> for ControllerEnum {
     fn from(mbc: MBC2) -> Self {
-        CartridgeEnum::Type2(mbc)
+        ControllerEnum::Type2(mbc)
     }
 }
 

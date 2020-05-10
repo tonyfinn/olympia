@@ -1,4 +1,4 @@
-//! This crate represents the emulation core for a Gameboy.
+//! Emulation core for a Gameboy.
 //!
 //! This crate implements all instructions and their effects on the gameboy,
 //! and provides methods to query the internal state of the gameboy for the frontend.
