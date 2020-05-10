@@ -1,7 +1,7 @@
 use glib::clone;
 
 use olympia_engine::{
-    events::{propagate_events, Event as EngineEvent, EventEmitter, ModeChangeEvent},
+    events::{propagate_events, EventEmitter, ModeChangeEvent},
     gameboy::{GameBoy, GameBoyModel, StepError, CYCLE_FREQ},
     registers::WordRegister,
     remote,
@@ -92,7 +92,7 @@ pub(super) struct EmulatorThread {
     state: EmulatorState,
     rx: mpsc::Receiver<(CommandId, EmulatorCommand)>,
     tx: Rc<glib::Sender<RemoteEmulatorOutput>>,
-    events: Rc<EventEmitter<EngineEvent>>,
+    events: Rc<EventEmitter<remote::Event>>,
     breakpoints: Vec<UiBreakpoint>,
     exec_mode: ExecMode,
 }
@@ -139,7 +139,7 @@ impl EmulatorThread {
     fn load_rom(
         state: &mut EmulatorState,
         data: Vec<u8>,
-        events: Rc<EventEmitter<EngineEvent>>,
+        events: Rc<EventEmitter<remote::Event>>,
     ) -> Result<(), LoadRomError> {
         state.load_rom(data)?;
         if let Some(ref gb) = state.gameboy {
@@ -235,7 +235,7 @@ impl EmulatorThread {
                                 ModeChangeEvent::new(self.exec_mode.clone(), mode.clone());
                             self.exec_mode = mode;
                             self.tx
-                                .send(remote::RemoteEmulatorOutput::ModeChange(change_event))
+                                .send(remote::RemoteEmulatorOutput::Event(change_event.into()))
                                 .expect("Emulator thread response channel closed");
                         }
                     }

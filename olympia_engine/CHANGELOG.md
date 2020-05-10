@@ -2,6 +2,12 @@
 
 ## 0.4.0 [Unreleased]
 
+### Breaking changes
+
+* Use `ExecTime::duration()` to get a `Duration` object from `ExecTime`.
+* `RemoteEmulatorOutput` has replaced the `Event(engine::Event)` and `ModeChange(ModeChangeEvent)`
+  variants with a single `Event(remote::Event)` variant.
+
 ## 0.3.0
 
 ### Added features

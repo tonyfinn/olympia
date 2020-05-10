@@ -10,9 +10,9 @@ use alloc::{
 
 use crate::{
     debug::Breakpoint,
-    events::{Event as EngineEvent, ModeChangeEvent},
     gameboy::StepError,
     registers::WordRegister,
+    remote::Event,
     rom::CartridgeError,
 };
 
@@ -129,12 +129,13 @@ pub enum EmulatorCommand {
 }
 
 #[derive(Debug, PartialEq, PartialOrd, From)]
-/// The time (in seconds) the emulator has been running
+/// The time the emulator has been running
 pub struct ExecTime(f64);
 
-impl From<ExecTime> for core::time::Duration {
-    fn from(et: ExecTime) -> core::time::Duration {
-        core::time::Duration::from_secs_f64(et.0)
+impl ExecTime {
+    /// Get a duration object for the execution time
+    pub fn duration(&self) -> core::time::Duration {
+        core::time::Duration::from_secs_f64(self.0)
     }
 }
 
@@ -157,10 +158,9 @@ pub struct CommandId(pub u64);
 #[derive(From, TryInto)]
 /// Events, Errors and Responses from a remote emulator
 pub enum RemoteEmulatorOutput {
-    Event(EngineEvent),
+    Event(Event),
     Error(Error),
     Response(CommandId, EmulatorResponse),
-    ModeChange(ModeChangeEvent),
 }
 
 #[cfg(test)]

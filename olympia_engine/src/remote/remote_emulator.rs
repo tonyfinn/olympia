@@ -142,9 +142,6 @@ impl InternalEmulatorAdapter {
                     waker.wake();
                 }
             }
-            RemoteEmulatorOutput::ModeChange(change_event) => {
-                event_listeners.borrow_mut().emit(change_event);
-            }
             RemoteEmulatorOutput::Event(event) => {
                 event_listeners.borrow_mut().emit(event);
             }

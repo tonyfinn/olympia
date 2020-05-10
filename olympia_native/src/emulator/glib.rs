@@ -303,7 +303,7 @@ mod tests {
         // 1 cycle for NOP, 4 for JUMP
         let actual_gb_time =
             Duration::from_secs_f64(5.0 / f64::from(olympia_engine::gameboy::CYCLE_FREQ));
-        assert!(dbg!(Duration::from(emulation_time)) >= dbg!(actual_gb_time));
+        assert!(emulation_time.duration() >= actual_gb_time);
         assert_eq!(
             events.borrow().clone(),
             vec![
