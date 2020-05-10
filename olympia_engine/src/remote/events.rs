@@ -6,6 +6,7 @@ use core::{
     any::TypeId,
     convert::{TryFrom, TryInto},
 };
+use alloc::boxed::Box;
 #[cfg(feature = "std")]
 use derive_more::Error;
 use derive_more::{Display, From, TryInto};
@@ -91,7 +92,6 @@ where
     Box::new(move |evt| match evt.try_into() {
         Ok(evt) => f(evt),
         Err(_) => {
-            eprintln!("Invalid event handler found");
             Repeat(false)
         }
     })

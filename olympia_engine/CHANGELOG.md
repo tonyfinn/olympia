@@ -6,6 +6,8 @@
 
 * Add support for PPU background tiles
 * Add support for remote usage
+    * This requires a beta toolchain currently, as it relies on async/await which is not coming to
+      `no_std` until v1.44.0
 * Provide `std::error::Error` implementations for all errors when  the `std` feature is enabled
 * Add new event handling system to monitor local events
 

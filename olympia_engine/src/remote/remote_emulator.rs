@@ -10,7 +10,11 @@ use crate::{
     },
 };
 
-use alloc::rc::Rc;
+use alloc::{
+    boxed::Box,
+    rc::Rc,
+    vec::Vec,
+};
 use core::{
     cell::RefCell,
     convert::{TryFrom, TryInto},

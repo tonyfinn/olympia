@@ -3,6 +3,11 @@ use derive_more::{Display, From, TryInto};
 #[cfg(feature = "std")]
 use derive_more::Error;
 
+use alloc::{
+    string::String,
+    vec::Vec,
+};
+
 use crate::{
     debug::Breakpoint,
     events::{Event as EngineEvent, ModeChangeEvent},
@@ -49,7 +54,8 @@ pub enum LoadRomError {
     InvalidRom(CartridgeError),
     #[display(fmt = "Could not load ROM: {}", "_0")]
     #[from(ignore)]
-    Io(#[error(not(source))] String),
+    #[cfg_attr(feature = "std", error(ignore))]
+    Io(String),
 }
 
 #[derive(Debug, Display, From, PartialEq, Eq)]
