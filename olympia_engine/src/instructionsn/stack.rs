@@ -55,7 +55,7 @@ impl ExecutableInstruction for AddStackPointer {
             addr,
             half_carry,
             carry,
-        } = self.value.resolve(sp.into());
+        } = self.value.resolve_internal(sp.into());
         gb.write_register_u16(self.dest, addr.into());
         gb.set_flag_to(registers::Flag::HalfCarry, half_carry);
         gb.set_flag_to(registers::Flag::Carry, carry);
@@ -85,7 +85,7 @@ impl ExecutableInstruction for LoadStackOffset {
             addr,
             half_carry,
             carry,
-        } = self.value.resolve(sp.into());
+        } = self.value.resolve_internal(sp.into());
         gb.write_register_u16(self.dest, addr.into());
         gb.set_flag_to(registers::Flag::HalfCarry, half_carry);
         gb.set_flag_to(registers::Flag::Carry, carry);

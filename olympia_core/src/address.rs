@@ -32,6 +32,7 @@ impl From<HighAddress> for LiteralAddress {
 pub struct HighAddress(pub u8);
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
+#[doc(hidden)]
 pub struct OffsetResolveResult {
     pub addr: LiteralAddress,
     pub half_carry: bool,
@@ -55,12 +56,23 @@ impl From<AddressOffset> for u8 {
 }
 
 impl AddressOffset {
+
+    /// Add offset to a given base to find a new address
+    ///
+    /// base is the address to offset from, which in the
+    /// gameboy instruction set is based on the PC or SP
+    /// register, depending on the instruction
+    pub fn resolve(self, base: LiteralAddress) -> LiteralAddress {
+        self.resolve_internal(base).addr
+    }
+
     /// Returns new address, half carry and carry flags
     ///
     /// base is the address to offset from, which in the
     /// gameboy instruction set is based on the PC or SP
     /// register, depending on the instruction
-    pub fn resolve(self, base: LiteralAddress) -> OffsetResolveResult {
+    #[doc(hidden)]
+    pub fn resolve_internal(self, base: LiteralAddress) -> OffsetResolveResult {
         use core::convert::TryFrom;
         let raw_base = base.0;
         let offset = self.0;
@@ -96,7 +108,7 @@ mod test {
         let positive_offset = AddressOffset(0x2C);
 
         assert_eq!(
-            positive_offset.resolve(0x1000.into()),
+            positive_offset.resolve_internal(0x1000.into()),
             OffsetResolveResult {
                 addr: 0x102C.into(),
                 carry: false,
@@ -105,7 +117,12 @@ mod test {
         );
 
         assert_eq!(
-            positive_offset.resolve(0x1004.into()),
+            positive_offset.resolve(0x1000.into()),
+            LiteralAddress(0x102C),
+        );
+
+        assert_eq!(
+            positive_offset.resolve_internal(0x1004.into()),
             OffsetResolveResult {
                 addr: 0x1030.into(),
                 carry: false,
@@ -114,7 +131,7 @@ mod test {
         );
 
         assert_eq!(
-            positive_offset.resolve(0xFFF0.into()),
+            positive_offset.resolve_internal(0xFFF0.into()),
             OffsetResolveResult {
                 addr: 0x001C.into(),
                 carry: true,
@@ -123,7 +140,7 @@ mod test {
         );
 
         assert_eq!(
-            positive_offset.resolve(0xFFFF.into()),
+            positive_offset.resolve_internal(0xFFFF.into()),
             OffsetResolveResult {
                 addr: 0x002B.into(),
                 carry: true,
@@ -137,7 +154,7 @@ mod test {
         let positive_offset = AddressOffset(-0x19);
 
         assert_eq!(
-            positive_offset.resolve(0x102C.into()),
+            positive_offset.resolve_internal(0x102C.into()),
             OffsetResolveResult {
                 addr: 0x1013.into(),
                 carry: false,
@@ -146,7 +163,7 @@ mod test {
         );
 
         assert_eq!(
-            positive_offset.resolve(0x1004.into()),
+            positive_offset.resolve_internal(0x1004.into()),
             OffsetResolveResult {
                 addr: 0x0FEB.into(),
                 carry: false,
@@ -155,7 +172,7 @@ mod test {
         );
 
         assert_eq!(
-            positive_offset.resolve(0x000A.into()),
+            positive_offset.resolve_internal(0x000A.into()),
             OffsetResolveResult {
                 addr: 0xFFF1.into(),
                 carry: true,
@@ -164,7 +181,7 @@ mod test {
         );
 
         assert_eq!(
-            positive_offset.resolve(0x0000.into()),
+            positive_offset.resolve_internal(0x0000.into()),
             OffsetResolveResult {
                 addr: 0xFFE7.into(),
                 carry: true,
