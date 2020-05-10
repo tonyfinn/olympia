@@ -7,6 +7,9 @@ Olympia is a gameboy emulator and toolkit, intended to run
 as a native or web assembly application targeting a cycle 
 count accurate emulation. olympia_native is the WIP native UI
 """
+homepage = "https://gitlab.com/tonyfinn/olympia"
+repository = "https://gitlab.com/tonyfinn/olympia"
+documentation = "https://docs.rs/olympia_cli"
 edition = "2018"
 license = "GPL-3.0-or-later"
 
