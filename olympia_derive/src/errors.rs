@@ -1,6 +1,6 @@
+use derive_more::{Display, Error, From};
 use proc_macro2::Span;
 use syn::spanned::Spanned;
-use thiserror::Error;
 
 pub(crate) fn merge_syn_errors(errors: &[syn::Error]) -> Option<syn::Error> {
     let first = errors.get(0)?.clone();
@@ -78,7 +78,7 @@ pub(crate) trait DeriveError: std::error::Error + Sized + Clone {
         }
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Error)]
 pub(crate) struct GroupedError<T> {
     errors: Vec<T>,
 }
@@ -101,31 +101,39 @@ where
     }
 }
 
-#[derive(Clone, Error, Debug)]
+#[derive(Clone, Debug, From, Display, Error)]
 pub(crate) enum ParamError {
-    #[error("Unrecognised field deriving instruction param '{0:?}'")]
-    UnknownField(syn::Path),
-    #[error("{0:?} is not a supported type for embedded params")]
-    UnsupportedEmbeddedType(Box<syn::Type>),
-    #[error("{0:?} is not a supported type for appended params")]
-    UnsupportedAppendedType(Box<syn::Type>),
-    #[error("{0:?} is not a supported type for constant params")]
-    UnsupportedConstantType(Box<syn::Type>),
-    #[error("Must provide one and only one constant value, found: {0:?}")]
-    MultipleConstantValues(syn::MetaList),
-    #[error("Must provide a identifier for constant values, found: {0:?}")]
-    ConstantNotPath(syn::MetaList),
-    #[error("Invalid parameter mask")]
-    InvalidParamMask(proc_macro2::Span),
-    #[error("Constant Parameters should not have a mask")]
-    MaskAndConstant(proc_macro2::Span),
-    #[error("Position not specified (use src, dest, addsrc or single)")]
-    MissingPosition(proc_macro2::Span),
-    #[error("Unexpected literal {0:?}")]
-    UnexpectedLiteral(syn::Lit),
-    #[error("Error parsing param: '{0}'")]
-    SynError(#[from] syn::Error),
-    #[error("Errors encountered: {0}")]
+    #[display(fmt = "Unrecognised field deriving instruction param '{:?}'", "_0")]
+    UnknownField(#[error(not(source))] syn::Path),
+    #[display(fmt = "{:?} is not a supported type for embedded params", "_0")]
+    UnsupportedEmbeddedType(#[error(not(source))] Box<syn::Type>),
+    #[display(fmt = "{:?} is not a supported type for appended params", "_0")]
+    UnsupportedAppendedType(#[error(not(source))] Box<syn::Type>),
+    #[display(fmt = "{:?} is not a supported type for constant params", "_0")]
+    UnsupportedConstantType(#[error(not(source))] Box<syn::Type>),
+    #[display(
+        fmt = "Must provide one and only one constant value, found: {:?}",
+        "_0"
+    )]
+    MultipleConstantValues(#[error(not(source))] syn::MetaList),
+    #[display(
+        fmt = "Must provide a identifier for constant values, found: {:?}",
+        "_0"
+    )]
+    ConstantNotPath(#[error(not(source))] syn::MetaList),
+    #[display(fmt = "Invalid parameter mask")]
+    InvalidParamMask(#[error(not(source))] proc_macro2::Span),
+    #[display(fmt = "Constant Parameters should not have a mask")]
+    MaskAndConstant(#[error(not(source))] proc_macro2::Span),
+    #[display(fmt = "Position not specified (use src, dest, addsrc or single)")]
+    MissingPosition(#[error(not(source))] proc_macro2::Span),
+    #[display(fmt = "Unexpected literal {:?}", "_0")]
+    UnexpectedLiteral(#[error(not(source))] syn::Lit),
+    #[display(fmt = "Error parsing param: '{}'", "_0")]
+    #[from]
+    SynError(syn::Error),
+    #[display(fmt = "Errors encountered: {}", "_0")]
+    #[from]
     Multiple(GroupedError<ParamError>),
 }
 
@@ -164,29 +172,33 @@ impl DeriveError for ParamError {
     }
 }
 
-#[derive(Clone, Error, Debug)]
+#[derive(Clone, Display, Error, From, Debug)]
 pub(crate) enum InstructionError {
-    #[error("Unrecognised olympia field at instruction level '{0:?}'")]
-    UnknownField(syn::Path),
-    #[error("Must provide an opcode mask at instruction level")]
+    #[display(fmt = "Unrecognised olympia field at instruction level '{:?}'", "_0")]
+    UnknownField(#[error(not(source))] syn::Path),
+    #[display(fmt = "Must provide an opcode mask at instruction level")]
     MissingOpcodeMask,
-    #[error("Opcodes must be numeric and 8 digits of hex")]
-    InvalidOpcodeMask(syn::Lit),
-    #[error("Must provide a label at instruction level")]
+    #[display(fmt = "Opcodes must be numeric and 8 digits of hex")]
+    InvalidOpcodeMask(#[error(not(source))] syn::Lit),
+    #[display(fmt = "Must provide a label at instruction level")]
     MissingLabel,
-    #[error("Must provide at least a label and opcode for an instruction")]
+    #[display(fmt = "Must provide at least a label and opcode for an instruction")]
     MissingPrereq,
-    #[error("Unexpected literal {0:?}")]
-    UnexpectedLiteral(syn::Lit),
-    #[error("Can only exclude literal values, found {0:?}")]
-    InvalidExclude(syn::Meta),
-    #[error("Error parsing instruction: '{0}'")]
-    SynError(#[from] syn::Error),
-    #[error("Errors encountered: {0}")]
+    #[display(fmt = "Unexpected literal {:?}", "_0")]
+    UnexpectedLiteral(#[error(not(source))] syn::Lit),
+    #[display(fmt = "Can only exclude literal values, found {:?}", "_0")]
+    InvalidExclude(#[error(not(source))] syn::Meta),
+    #[display(fmt = "Error parsing instruction: '{}'", "_0")]
+    #[from]
+    SynError(#[error(not(source))] syn::Error),
+    #[display(fmt = "Errors encountered: {}", "_0")]
+    #[from]
     Multiple(GroupedError<InstructionError>),
-    #[error("Instructions can have either no params, src and dest params, a single param, or src, dest and addsrc params")]
+    #[display(
+        fmt = "Instructions can have either no params, src and dest params, a single param, or src, dest and addsrc params"
+    )]
     InvalidFieldCombination,
-    #[error("Can only derive instructions on a struct")]
+    #[display(fmt = "Can only derive instructions on a struct")]
     NotAStruct,
 }
 
@@ -221,12 +233,12 @@ impl DeriveError for InstructionError {
     }
 }
 
-#[derive(Clone, Error, Debug)]
+#[derive(Clone, Display, Error, From, Debug)]
 pub(crate) enum DeriveErrorEnum {
-    #[error("{0}")]
-    Instruction(#[from] InstructionError),
-    #[error("{0}")]
-    Param(#[from] ParamError),
+    #[display(fmt = "{0}", "_0")]
+    Instruction(InstructionError),
+    #[display(fmt = "{0}", "_0")]
+    Param(ParamError),
 }
 
 impl DeriveError for DeriveErrorEnum {
