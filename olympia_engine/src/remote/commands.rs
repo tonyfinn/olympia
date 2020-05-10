@@ -3,16 +3,10 @@ use derive_more::{Display, From, TryInto};
 #[cfg(feature = "std")]
 use derive_more::Error;
 
-use alloc::{
-    string::String,
-    vec::Vec,
-};
+use alloc::{string::String, vec::Vec};
 
 use crate::{
-    debug::Breakpoint,
-    gameboy::StepError,
-    registers::WordRegister,
-    remote::Event,
+    debug::Breakpoint, gameboy::StepError, registers::WordRegister, remote::Event,
     rom::CartridgeLoadError,
 };
 

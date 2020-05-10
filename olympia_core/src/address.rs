@@ -56,7 +56,6 @@ impl From<AddressOffset> for u8 {
 }
 
 impl AddressOffset {
-
     /// Add offset to a given base to find a new address
     ///
     /// base is the address to offset from, which in the

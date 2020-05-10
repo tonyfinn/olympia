@@ -124,7 +124,9 @@ impl Cartridge {
                 data,
                 target,
             }),
-            _ => Err(CartridgeLoadError::UnsupportedCartridgeType(cartridge_type_id)),
+            _ => Err(CartridgeLoadError::UnsupportedCartridgeType(
+                cartridge_type_id,
+            )),
         }
     }
 }
@@ -511,7 +513,10 @@ mod tests {
         assert_eq!(cartridge.target, TargetConsole::GameBoyOnly);
         assert_eq!(cartridge.read(0x1234).unwrap(), 0x12);
         assert_eq!(cartridge.read(0x5500).unwrap(), 0x23);
-        assert_eq!(cartridge.read(0xA111), Err(CartridgeIOError::NoCartridgeRam));
+        assert_eq!(
+            cartridge.read(0xA111),
+            Err(CartridgeIOError::NoCartridgeRam)
+        );
         assert_eq!(
             cartridge.read(0x9222),
             Err(CartridgeIOError::NonCartAddress(0x9222))
@@ -536,7 +541,10 @@ mod tests {
             cartridge.read(0x9222),
             Err(CartridgeIOError::NonCartAddress(0x9222))
         );
-        assert_eq!(cartridge.read(0xA111), Err(CartridgeIOError::NoCartridgeRam));
+        assert_eq!(
+            cartridge.read(0xA111),
+            Err(CartridgeIOError::NoCartridgeRam)
+        );
         assert_eq!(cartridge.controller.has_ram(), false);
         assert_eq!(cartridge.controller.ram_size(), 0);
     }
