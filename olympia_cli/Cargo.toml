@@ -1,6 +1,6 @@
 [package]
 name = "olympia_cli"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2018"
 authors = [ "Tony Finn <olympia@tonyfinn.com>" ]
 description = """
@@ -26,7 +26,7 @@ gitlab = { repository = "tonyfinn/olympia", branch = "master" }
 clap = "2.33.0"
 derive_more = "0.99.5"
 structopt = "0.3.3"
-olympia_engine = { version = "0.3.0", path = "../olympia_engine", features = ["disassembler", "std"] }
+olympia_engine = { version = "0.4.0", path = "../olympia_engine", features = ["disassembler", "std"] }
 
 [[test]]
 name = "integration"
