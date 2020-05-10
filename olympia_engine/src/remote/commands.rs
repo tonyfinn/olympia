@@ -13,7 +13,7 @@ use crate::{
     gameboy::StepError,
     registers::WordRegister,
     remote::Event,
-    rom::CartridgeError,
+    rom::CartridgeLoadError,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -51,7 +51,7 @@ pub enum ExecMode {
 /// A failure to load a ROM
 pub enum LoadRomError {
     #[display(fmt = "Could not parse ROM: {}", "_0")]
-    InvalidRom(CartridgeError),
+    InvalidRom(CartridgeLoadError),
     #[display(fmt = "Could not load ROM: {}", "_0")]
     #[from(ignore)]
     #[cfg_attr(feature = "std", error(ignore))]
@@ -188,10 +188,10 @@ mod tests {
 
     #[test]
     fn load_rom_error_equality() {
-        let invalid_rom_a1 = LoadRomError::InvalidRom(CartridgeError::UnsupportedRamSize(0x80));
-        let invalid_rom_a2 = LoadRomError::InvalidRom(CartridgeError::UnsupportedRamSize(0x80));
+        let invalid_rom_a1 = LoadRomError::InvalidRom(CartridgeLoadError::UnsupportedRamSize(0x80));
+        let invalid_rom_a2 = LoadRomError::InvalidRom(CartridgeLoadError::UnsupportedRamSize(0x80));
         let invalid_rom_b =
-            LoadRomError::InvalidRom(CartridgeError::UnsupportedCartridgeType(0x12));
+            LoadRomError::InvalidRom(CartridgeLoadError::UnsupportedCartridgeType(0x12));
 
         let io_error_a1 = LoadRomError::Io("Interrupted: Foo".into());
         let io_error_a2 = LoadRomError::Io("Interrupted: Foo".into());

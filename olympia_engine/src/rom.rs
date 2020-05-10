@@ -11,27 +11,47 @@ const CARTRIDGE_TYPE_LOCATION: usize = 0x147;
 const RAM_SIZE_LOCATION: usize = 0x149;
 
 #[derive(PartialEq, Eq, Debug, Display)]
-pub enum CartridgeError {
-    #[display(fmt = "Address 0x{:X} exceeds ROM", "_0")]
-    NoDataInRom(u16),
-    #[display(fmt = "Cannot read non-cart address 0x{:X} from cartridge", "_0")]
-    NonCartAddress(u16),
-    #[display(fmt = "RAM not supported by current cartridge")]
-    NoCartridgeRam,
-    #[display(fmt = "RAM disabled on current cartridge")]
-    CartridgeRamDisabled,
-    #[display(fmt = "Address 0x{:X} outside of available cart ram", "_0")]
-    ExceedsCartridgeRam(u16),
+/// Error turning ROMs into cartridges
+pub enum CartridgeLoadError {
+    /// The ROM's cartridge type (at 0x147) is not known or supported
     #[display(fmt = "Unsupported cartridge type: 0x{:X}", "_0")]
     UnsupportedCartridgeType(u8),
+    /// The ROM's RAM size (at 0x149) is not known or supported
     #[display(fmt = "Unsupported cartridge RAM size: 0x{:X}", "_0")]
     UnsupportedRamSize(u8),
     #[display(
         fmt = "Data for cartridge too small. Was 0x{:X} bytes, must be at least 0x200",
         "_0"
     )]
+    /// The ROM data is smaller than the cartridge header, and likely corrupt
     CartridgeTooSmall(usize),
 }
+
+#[cfg(feature = "std")]
+impl std::error::Error for CartridgeLoadError {}
+
+#[derive(PartialEq, Eq, Debug, Display)]
+/// Cartridge Read/Write errors
+pub enum CartridgeIOError {
+    /// Attempted IO to an address in cart RAM address space not filled on this cart
+    #[display(fmt = "Address 0x{:X} outside of available cart ram", "_0")]
+    ExceedsCartridgeRam(u16),
+    /// Attempted IO to an address in cart ROM address space not filled on this cart
+    #[display(fmt = "Address 0x{:X} exceeds ROM", "_0")]
+    NoDataInRom(u16),
+    /// Attempted IO to an address not in cart address space
+    #[display(fmt = "Cannot read non-cart address 0x{:X} from cartridge", "_0")]
+    NonCartAddress(u16),
+    /// Attempted IO to cart RAM address space when this cart has no RAM
+    #[display(fmt = "RAM not supported by current cartridge")]
+    NoCartridgeRam,
+    /// Attempted IO to cart RAM address space when cart RAM is disabled at runtime
+    #[display(fmt = "RAM disabled on current cartridge")]
+    CartridgeRamDisabled,
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for CartridgeIOError {}
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 /// Indicates if a ROM uses GameBoy Color features
@@ -44,10 +64,10 @@ pub enum TargetConsole {
     ColorOnly,
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for CartridgeError {}
-
-pub type CartridgeResult<T> = Result<T, CartridgeError>;
+/// Result of cartridge load operations
+pub type CartridgeLoadResult<T> = Result<T, CartridgeLoadError>;
+/// Result of cartridge read/write operations
+pub type CartridgeIOResult<T> = Result<T, CartridgeIOError>;
 
 /// A gameboy cartridge, including ROM data and memory controller
 pub struct Cartridge {
@@ -58,7 +78,7 @@ pub struct Cartridge {
 
 impl Cartridge {
     /// Read a byte from address space controlled by the cart
-    pub fn read(&self, loc: u16) -> CartridgeResult<u8> {
+    pub fn read(&self, loc: u16) -> CartridgeIOResult<u8> {
         if memory::STATIC_ROM.contains(loc) {
             self.controller.read_static_rom(loc, &self.data)
         } else if memory::SWITCHABLE_ROM.contains(loc) {
@@ -66,19 +86,19 @@ impl Cartridge {
         } else if memory::CARTRIDGE_RAM.contains(loc) {
             self.controller.read_switchable_ram(loc)
         } else {
-            Err(CartridgeError::NonCartAddress(loc))
+            Err(CartridgeIOError::NonCartAddress(loc))
         }
     }
 
     /// Write a byte to address space controlled by the cart
-    pub fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()> {
+    pub fn write(&mut self, loc: u16, value: u8) -> CartridgeIOResult<()> {
         self.controller.write(loc, value)
     }
 
     /// Build a cartridge from ROM data
-    pub fn from_data(data: Vec<u8>) -> CartridgeResult<Cartridge> {
+    pub fn from_data(data: Vec<u8>) -> CartridgeLoadResult<Cartridge> {
         if data.len() < 0x200 {
-            return Err(CartridgeError::CartridgeTooSmall(data.len()));
+            return Err(CartridgeLoadError::CartridgeTooSmall(data.len()));
         }
         let cartridge_type_id = data[CARTRIDGE_TYPE_LOCATION];
         let ram_size = lookup_ram_size(data[RAM_SIZE_LOCATION])?;
@@ -104,7 +124,7 @@ impl Cartridge {
                 data,
                 target,
             }),
-            _ => Err(CartridgeError::UnsupportedCartridgeType(cartridge_type_id)),
+            _ => Err(CartridgeLoadError::UnsupportedCartridgeType(cartridge_type_id)),
         }
     }
 }
@@ -123,13 +143,13 @@ pub enum ControllerEnum {
 /// Represents a cartridge controller
 pub trait CartridgeController {
     /// Read a value from the controller's static ROM
-    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8>;
+    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8>;
     /// Read a value from the controller's switchable ROM banks
-    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8>;
+    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8>;
     /// Read a value from the controller's switchable RAM banks
-    fn read_switchable_ram(&self, loc: u16) -> CartridgeResult<u8>;
+    fn read_switchable_ram(&self, loc: u16) -> CartridgeIOResult<u8>;
     /// Write a value to the controller's memory space
-    fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()>;
+    fn write(&mut self, loc: u16, value: u8) -> CartridgeIOResult<()>;
     /// Indicates if a controller contains onboard RAM
     fn has_ram(&self) -> bool;
     /// Indicates the size of onboard RAM, or 0 if absent
@@ -137,7 +157,7 @@ pub trait CartridgeController {
 }
 
 impl CartridgeController for ControllerEnum {
-    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
         match self {
             ControllerEnum::StaticRom(srom) => srom.read_static_rom(loc, rom),
             ControllerEnum::Type1(mbc1) => mbc1.read_static_rom(loc, rom),
@@ -145,7 +165,7 @@ impl CartridgeController for ControllerEnum {
         }
     }
 
-    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
         match self {
             ControllerEnum::StaticRom(srom) => srom.read_switchable_rom(loc, rom),
             ControllerEnum::Type1(mbc1) => mbc1.read_switchable_rom(loc, rom),
@@ -153,7 +173,7 @@ impl CartridgeController for ControllerEnum {
         }
     }
 
-    fn read_switchable_ram(&self, loc: u16) -> CartridgeResult<u8> {
+    fn read_switchable_ram(&self, loc: u16) -> CartridgeIOResult<u8> {
         match self {
             ControllerEnum::StaticRom(srom) => srom.read_switchable_ram(loc),
             ControllerEnum::Type1(mbc1) => mbc1.read_switchable_ram(loc),
@@ -161,7 +181,7 @@ impl CartridgeController for ControllerEnum {
         }
     }
 
-    fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()> {
+    fn write(&mut self, loc: u16, value: u8) -> CartridgeIOResult<()> {
         match self {
             ControllerEnum::StaticRom(srom) => srom.write(loc, value),
             ControllerEnum::Type1(mbc1) => mbc1.write(loc, value),
@@ -186,25 +206,25 @@ impl CartridgeController for ControllerEnum {
     }
 }
 
-/// A catridge that contains only a static ROM w/o controller
+/// A cartridge that contains only a static ROM w/o controller
 pub struct StaticRom;
 
 impl CartridgeController for StaticRom {
-    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
         rom.get(usize::from(loc))
             .copied()
-            .ok_or(CartridgeError::NoDataInRom(loc))
+            .ok_or(CartridgeIOError::NoDataInRom(loc))
     }
 
-    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
         self.read_static_rom(loc, rom)
     }
 
-    fn read_switchable_ram(&self, _loc: u16) -> CartridgeResult<u8> {
-        Err(CartridgeError::NoCartridgeRam)
+    fn read_switchable_ram(&self, _loc: u16) -> CartridgeIOResult<u8> {
+        Err(CartridgeIOError::NoCartridgeRam)
     }
 
-    fn write(&mut self, _loc: u16, _value: u8) -> CartridgeResult<()> {
+    fn write(&mut self, _loc: u16, _value: u8) -> CartridgeIOResult<()> {
         Ok(())
     }
 
@@ -293,36 +313,36 @@ impl MBC1 {
 }
 
 impl CartridgeController for MBC1 {
-    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
         let bank = u32::from(self.selected_static_rom_bank());
         let rom_addr = (bank * u32::from(memory::STATIC_ROM.len)) + u32::from(loc);
         rom.get(usize::try_from(rom_addr).expect("ROM too large for host platform"))
             .copied()
-            .ok_or(CartridgeError::NoDataInRom(loc))
+            .ok_or(CartridgeIOError::NoDataInRom(loc))
     }
 
-    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
         let bank_addr = loc - memory::SWITCHABLE_ROM.start;
         let bank = u32::from(self.selected_rom_bank());
         let rom_addr = (bank * u32::from(memory::SWITCHABLE_ROM.start)) + u32::from(bank_addr);
         rom.get(usize::try_from(rom_addr).expect("ROM too large for host platform"))
             .copied()
-            .ok_or(CartridgeError::NoDataInRom(loc))
+            .ok_or(CartridgeIOError::NoDataInRom(loc))
     }
 
-    fn read_switchable_ram(&self, loc: u16) -> CartridgeResult<u8> {
+    fn read_switchable_ram(&self, loc: u16) -> CartridgeIOResult<u8> {
         if self.has_ram && self.ram_enabled {
             let bank = u16::from(self.selected_ram_bank());
             let ram_addr = (bank * memory::CARTRIDGE_RAM.len) + (loc - memory::CARTRIDGE_RAM.start);
             Ok(self.ram[usize::from(ram_addr)])
         } else if self.has_ram {
-            Err(CartridgeError::CartridgeRamDisabled)
+            Err(CartridgeIOError::CartridgeRamDisabled)
         } else {
-            Err(CartridgeError::NoCartridgeRam)
+            Err(CartridgeIOError::NoCartridgeRam)
         }
     }
 
-    fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()> {
+    fn write(&mut self, loc: u16, value: u8) -> CartridgeIOResult<()> {
         if MBC1::ram_enable_area().contains(&loc) {
             self.ram_enabled = value == 0b1010;
             Ok(())
@@ -368,7 +388,7 @@ impl From<MBC1> for ControllerEnum {
     }
 }
 
-/// MBC2 catridge controller
+/// MBC2 cartridge controller
 pub struct MBC2 {
     selected_rom: u8,
     ram_enabled: bool,
@@ -397,29 +417,29 @@ impl MBC2 {
 }
 
 impl CartridgeController for MBC2 {
-    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
         Ok(rom[usize::from(loc)])
     }
 
-    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeResult<u8> {
+    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
         let bank_addr = loc - memory::SWITCHABLE_ROM.start;
         let bank = u16::from(self.selected_rom_bank());
         let rom_addr = (bank * memory::SWITCHABLE_ROM.len) + bank_addr;
         rom.get(usize::from(rom_addr))
             .copied()
-            .ok_or(CartridgeError::NoDataInRom(loc))
+            .ok_or(CartridgeIOError::NoDataInRom(loc))
     }
 
-    fn read_switchable_ram(&self, loc: u16) -> CartridgeResult<u8> {
+    fn read_switchable_ram(&self, loc: u16) -> CartridgeIOResult<u8> {
         if !self.ram_enabled {
-            Err(CartridgeError::CartridgeRamDisabled)
+            Err(CartridgeIOError::CartridgeRamDisabled)
         } else {
             let wrapped_ram_addr = (loc - memory::CARTRIDGE_RAM.start) % 0x200;
             Ok(self.ram[usize::from(wrapped_ram_addr)])
         }
     }
 
-    fn write(&mut self, loc: u16, value: u8) -> CartridgeResult<()> {
+    fn write(&mut self, loc: u16, value: u8) -> CartridgeIOResult<()> {
         if memory::STATIC_ROM.contains(loc) {
             if loc & 0x100 == 0x100 {
                 self.selected_rom = value & 0xF;
@@ -452,7 +472,7 @@ impl From<MBC2> for ControllerEnum {
     }
 }
 
-fn lookup_ram_size(ram_size_id: u8) -> CartridgeResult<usize> {
+fn lookup_ram_size(ram_size_id: u8) -> CartridgeLoadResult<usize> {
     match ram_size_id {
         0 => Ok(0),
         1 => Ok(2 * 1024),
@@ -460,7 +480,7 @@ fn lookup_ram_size(ram_size_id: u8) -> CartridgeResult<usize> {
         3 => Ok(32 * 1024),
         4 => Ok(128 * 1024),
         5 => Ok(64 * 1024),
-        _ => Err(CartridgeError::UnsupportedRamSize(ram_size_id)),
+        _ => Err(CartridgeLoadError::UnsupportedRamSize(ram_size_id)),
     }
 }
 
@@ -491,10 +511,10 @@ mod tests {
         assert_eq!(cartridge.target, TargetConsole::GameBoyOnly);
         assert_eq!(cartridge.read(0x1234).unwrap(), 0x12);
         assert_eq!(cartridge.read(0x5500).unwrap(), 0x23);
-        assert_eq!(cartridge.read(0xA111), Err(CartridgeError::NoCartridgeRam));
+        assert_eq!(cartridge.read(0xA111), Err(CartridgeIOError::NoCartridgeRam));
         assert_eq!(
             cartridge.read(0x9222),
-            Err(CartridgeError::NonCartAddress(0x9222))
+            Err(CartridgeIOError::NonCartAddress(0x9222))
         );
         assert_eq!(cartridge.write(0x1234, 0x22), Ok(()));
         assert_eq!(cartridge.read(0x1234).unwrap(), 0x12);
@@ -514,15 +534,15 @@ mod tests {
         assert_eq!(cartridge.read(0x5500).unwrap(), 0x23);
         assert_eq!(
             cartridge.read(0x9222),
-            Err(CartridgeError::NonCartAddress(0x9222))
+            Err(CartridgeIOError::NonCartAddress(0x9222))
         );
-        assert_eq!(cartridge.read(0xA111), Err(CartridgeError::NoCartridgeRam));
+        assert_eq!(cartridge.read(0xA111), Err(CartridgeIOError::NoCartridgeRam));
         assert_eq!(cartridge.controller.has_ram(), false);
         assert_eq!(cartridge.controller.ram_size(), 0);
     }
 
     #[test]
-    fn test_mbc1_large_rom_basic_ram() -> CartridgeResult<()> {
+    fn test_mbc1_large_rom_basic_ram() -> CartridgeIOResult<()> {
         let mut rom_data = vec![0x12; 96 * 1024];
         rom_data[CARTRIDGE_TYPE_LOCATION] = 2;
         rom_data[RAM_SIZE_LOCATION] = 2;
@@ -535,7 +555,7 @@ mod tests {
         cartridge.write(0xA111, 0x20)?;
         assert_eq!(
             cartridge.read(0xA111),
-            Err(CartridgeError::CartridgeRamDisabled)
+            Err(CartridgeIOError::CartridgeRamDisabled)
         );
         assert_eq!(cartridge.controller.has_ram(), true);
         assert_eq!(cartridge.controller.ram_size(), 8192);
@@ -543,7 +563,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mbc1_largerom_rom_bank_switch() -> CartridgeResult<()> {
+    fn test_mbc1_largerom_rom_bank_switch() -> CartridgeIOResult<()> {
         let mut rom_data = vec![0x12; 1024 * 1024];
         rom_data[0x4001] = 0x33;
         rom_data[0x8001] = 0x99;
@@ -581,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mbc1_largeram_rom_bank_switch() -> CartridgeResult<()> {
+    fn test_mbc1_largeram_rom_bank_switch() -> CartridgeIOResult<()> {
         let mut rom_data = vec![0x12; 512 * 1024];
         rom_data[0x4001] = 0x33;
         rom_data[0x8001] = 0x99;
@@ -620,7 +640,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mbc1_largeram_ram_bank_switch() -> CartridgeResult<()> {
+    fn test_mbc1_largeram_ram_bank_switch() -> CartridgeIOResult<()> {
         let mut rom_data = vec![0x12; 512 * 1024];
         rom_data[CARTRIDGE_TYPE_LOCATION] = 3;
         rom_data[RAM_SIZE_LOCATION] = 3;
@@ -669,7 +689,7 @@ mod tests {
 
         assert_eq!(
             cartridge_result.err().unwrap(),
-            CartridgeError::UnsupportedRamSize(6)
+            CartridgeLoadError::UnsupportedRamSize(6)
         );
     }
 
@@ -685,11 +705,11 @@ mod tests {
         assert_eq!(cartridge.read(0x5500).unwrap(), 0x23);
         assert_eq!(
             cartridge.read(0x9222),
-            Err(CartridgeError::NonCartAddress(0x9222))
+            Err(CartridgeIOError::NonCartAddress(0x9222))
         );
         assert_eq!(
             cartridge.read(0xA111),
-            Err(CartridgeError::CartridgeRamDisabled)
+            Err(CartridgeIOError::CartridgeRamDisabled)
         );
         assert_eq!(cartridge.write(0x4001, 0x55), Ok(()));
         assert_eq!(cartridge.controller.has_ram(), true);
@@ -697,7 +717,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mbc2_basic_ram() -> CartridgeResult<()> {
+    fn test_mbc2_basic_ram() -> CartridgeIOResult<()> {
         let mut rom_data = vec![0x12; 96 * 1024];
         rom_data[CARTRIDGE_TYPE_LOCATION] = 6;
         rom_data[RAM_SIZE_LOCATION] = 0;
@@ -714,7 +734,7 @@ mod tests {
         cartridge.write(0x00, 0b1000)?;
         assert_eq!(
             cartridge.read(0xA111),
-            Err(CartridgeError::CartridgeRamDisabled)
+            Err(CartridgeIOError::CartridgeRamDisabled)
         );
         assert_eq!(cartridge.controller.has_ram(), true);
         assert_eq!(cartridge.controller.ram_size(), 512);
@@ -722,7 +742,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mbc2_rom_bank_switching() -> CartridgeResult<()> {
+    fn test_mbc2_rom_bank_switching() -> CartridgeIOResult<()> {
         let mut rom_data = vec![0x12; 512 * 1024];
         rom_data[0x4001] = 0x33;
         rom_data[0x8001] = 0x99;

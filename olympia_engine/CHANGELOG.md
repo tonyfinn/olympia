@@ -7,6 +7,7 @@
 * Use `ExecTime::duration()` to get a `Duration` object from `ExecTime`.
 * `RemoteEmulatorOutput` has replaced the `Event(engine::Event)` and `ModeChange(ModeChangeEvent)`
   variants with a single `Event(remote::Event)` variant.
+* `CartridgeError`/`CartridgeResult` are split into `Load`/`IO` variants to seperate load time and runtime errors
 
 ## 0.3.0
 

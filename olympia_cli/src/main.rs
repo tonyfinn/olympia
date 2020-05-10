@@ -15,7 +15,7 @@ enum OlympiaError {
     #[display(fmt = "IO error: {}", "_0")]
     Io(std::io::Error),
     #[display(fmt = "Cartridge error: {}", "_0")]
-    Cartridge(rom::CartridgeError),
+    Cartridge(rom::CartridgeLoadError),
 }
 
 type OlympiaResult<T> = Result<T, OlympiaError>;
@@ -244,49 +244,14 @@ pub mod test {
         assert_eq!(
             format!(
                 "{}",
-                OlympiaError::Cartridge(rom::CartridgeError::NoDataInRom(0x1234))
-            ),
-            "Cartridge error: Address 0x1234 exceeds ROM"
-        );
-        assert_eq!(
-            format!(
-                "{}",
-                OlympiaError::Cartridge(rom::CartridgeError::NonCartAddress(0x2345))
-            ),
-            "Cartridge error: Cannot read non-cart address 0x2345 from cartridge"
-        );
-        assert_eq!(
-            format!(
-                "{}",
-                OlympiaError::Cartridge(rom::CartridgeError::NoCartridgeRam)
-            ),
-            "Cartridge error: RAM not supported by current cartridge"
-        );
-        assert_eq!(
-            format!(
-                "{}",
-                OlympiaError::Cartridge(rom::CartridgeError::CartridgeRamDisabled)
-            ),
-            "Cartridge error: RAM disabled on current cartridge"
-        );
-        assert_eq!(
-            format!(
-                "{}",
-                OlympiaError::Cartridge(rom::CartridgeError::ExceedsCartridgeRam(0x3456))
-            ),
-            "Cartridge error: Address 0x3456 outside of available cart ram"
-        );
-        assert_eq!(
-            format!(
-                "{}",
-                OlympiaError::Cartridge(rom::CartridgeError::UnsupportedCartridgeType(0x56))
+                OlympiaError::Cartridge(rom::CartridgeLoadError::UnsupportedCartridgeType(0x56))
             ),
             "Cartridge error: Unsupported cartridge type: 0x56"
         );
         assert_eq!(
             format!(
                 "{}",
-                OlympiaError::Cartridge(rom::CartridgeError::UnsupportedRamSize(0x6))
+                OlympiaError::Cartridge(rom::CartridgeLoadError::UnsupportedRamSize(0x6))
             ),
             "Cartridge error: Unsupported cartridge RAM size: 0x6"
         );
