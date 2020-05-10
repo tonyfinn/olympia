@@ -1,10 +1,12 @@
-use crate::emulator::{commands::UiBreakpoint, remote::RemoteEmulator};
-use crate::utils;
 use crate::builder_struct;
+use crate::utils;
 
 use glib::clone;
 use gtk::prelude::*;
-use olympia_engine::debug::{Breakpoint, RWTarget};
+use olympia_engine::{
+    debug::{Breakpoint, RWTarget},
+    remote::{RemoteEmulator, UiBreakpoint},
+};
 use std::rc::Rc;
 
 builder_struct!(

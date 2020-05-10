@@ -1,10 +1,10 @@
-use crate::{
-    builder_struct,
-    emulator::{commands::ExecMode, events::ModeChangeEvent, remote::RemoteEmulator},
-    utils,
-};
+use crate::{builder_struct, utils};
 use glib::clone;
 use gtk::prelude::*;
+use olympia_engine::{
+    events::ModeChangeEvent,
+    remote::{ExecMode, RemoteEmulator},
+};
 use std::rc::Rc;
 
 builder_struct!(
@@ -144,7 +144,7 @@ mod tests {
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
         let task = async {
-            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
         };
         test_utils::wait_for_task(&context, task);
 
@@ -164,7 +164,7 @@ mod tests {
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
         let task = async {
-            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
         };
         test_utils::wait_for_task(&context, task);
 
@@ -198,7 +198,7 @@ mod tests {
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
         let task = async {
-            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
         };
         test_utils::wait_for_task(&context, task);
 
@@ -231,7 +231,7 @@ mod tests {
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
         let task = async {
-            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
         };
         test_utils::wait_for_task(&context, task);
 

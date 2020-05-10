@@ -1,13 +1,13 @@
-use crate::emulator::{
-    commands::QueryMemoryResponse,
-    events::{ManualStepEvent, MemoryWriteEvent, RomLoadedEvent},
-    remote::RemoteEmulator,
-};
 use crate::builder_struct;
 
 use glib::clone;
 use gtk::prelude::*;
-use olympia_engine::{address::LiteralAddress, registers::WordRegister};
+use olympia_engine::{
+    address::LiteralAddress,
+    events::{ManualStepEvent, MemoryWriteEvent, RomLoadedEvent},
+    registers::WordRegister,
+    remote::{QueryMemoryResponse, RemoteEmulator},
+};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -326,7 +326,7 @@ mod test {
         let (context, emu, component) = setup_widget(16);
 
         let task = async {
-            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
             emu.query_memory(0x00, 0xFF).await
         };
         let memory_data = test_utils::wait_for_task(&context, task).unwrap();
@@ -353,7 +353,7 @@ mod test {
         let (context, emu, component) = setup_widget(2);
 
         let task = async {
-            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
         };
 
         test_utils::wait_for_task(&context, task);
@@ -385,7 +385,7 @@ mod test {
         let (context, emu, component) = setup_widget(16);
 
         let task = async {
-            emu.load_rom(test_utils::fizzbuzz_path()).await.unwrap();
+            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
         };
 
         test_utils::wait_for_task(&context, task);

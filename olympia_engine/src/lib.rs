@@ -28,4 +28,5 @@ pub mod debug;
 pub mod events;
 pub mod gameboy;
 pub mod instructionsn;
+pub mod remote;
 pub mod rom;

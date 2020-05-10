@@ -2,12 +2,32 @@ use crate::address;
 use crate::gameboy::GBPixel;
 use crate::registers;
 use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::borrow::Borrow;
 use core::cell::RefCell;
+use hashbrown::HashMap;
 
 use derive_more::{Constructor, From, TryInto};
+
+use crate::remote::ExecMode;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModeChangeEvent {
+    pub old_mode: ExecMode,
+    pub new_mode: ExecMode,
+}
+
+impl ModeChangeEvent {
+    pub fn new(old_mode: ExecMode, new_mode: ExecMode) -> ModeChangeEvent {
+        ModeChangeEvent { old_mode, new_mode }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RomLoadedEvent;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManualStepEvent;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Constructor)]
 pub struct MemoryWriteEvent {
@@ -42,6 +62,9 @@ pub enum PPUEvent {
     HBlank(HBlankEvent),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Repeat(pub bool);
+
 #[derive(Debug, PartialEq, Eq, Clone, From, TryInto)]
 /// Gameboy events that frontends might be interested in
 pub enum Event {
@@ -72,7 +95,7 @@ pub type EventHandler<T> = Box<dyn Fn(&T) -> () + 'static>;
 pub struct EventHandlerId(pub u64);
 
 pub struct EventEmitter<T> {
-    event_handlers: RefCell<BTreeMap<EventHandlerId, EventHandler<T>>>,
+    event_handlers: RefCell<HashMap<EventHandlerId, EventHandler<T>>>,
     next_event_handler_id: RefCell<u64>,
     is_emitting: RefCell<bool>,
     queued_handlers: RefCell<Vec<(EventHandlerId, EventHandler<T>)>>,
@@ -82,7 +105,7 @@ pub struct EventEmitter<T> {
 impl<'a, T> EventEmitter<T> {
     pub fn new() -> EventEmitter<T> {
         EventEmitter {
-            event_handlers: RefCell::new(BTreeMap::new()),
+            event_handlers: RefCell::new(HashMap::new()),
             next_event_handler_id: RefCell::new(0),
             is_emitting: RefCell::new(false),
             queued_handlers: RefCell::new(Vec::new()),

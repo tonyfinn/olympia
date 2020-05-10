@@ -1,16 +1,20 @@
-use crate::emulator::events::ModeChangeEvent;
-use derive_more::{From, TryInto};
-use olympia_engine::{
-    debug::Breakpoint, events::Event as EngineEvent, gameboy::StepError, registers::WordRegister,
+use derive_more::{Display, From, TryInto};
+
+#[cfg(feature = "std")]
+use derive_more::Error;
+
+use crate::{
+    debug::Breakpoint,
+    events::{Event as EngineEvent, ModeChangeEvent},
+    gameboy::StepError,
+    registers::WordRegister,
     rom::CartridgeError,
 };
-use std::path::PathBuf;
-use thiserror::Error;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct UiBreakpoint {
-    pub(crate) active: bool,
-    pub(crate) breakpoint: Breakpoint,
+pub struct UiBreakpoint {
+    pub active: bool,
+    pub breakpoint: Breakpoint,
 }
 
 impl From<Breakpoint> for UiBreakpoint {
@@ -23,7 +27,7 @@ impl From<Breakpoint> for UiBreakpoint {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) enum ExecMode {
+pub enum ExecMode {
     Unloaded,
     Paused,
     HitBreakpoint(UiBreakpoint),
@@ -31,54 +35,41 @@ pub(crate) enum ExecMode {
     Uncapped,
 }
 
-#[derive(Error, Debug)]
-pub(crate) enum LoadRomError {
-    #[error("Could not parse ROM: {0}")]
-    InvalidRom(#[from] CartridgeError),
-    #[error("Could not load ROM: {0}")]
-    Unreadable(#[from] std::io::Error),
+#[derive(PartialEq, Eq, From, Display, Debug)]
+#[cfg_attr(feature = "std", derive(Error))]
+pub enum LoadRomError {
+    #[display(fmt = "Could not parse ROM: {}", "_0")]
+    InvalidRom(CartridgeError),
+    #[display(fmt = "Could not load ROM: {}", "_0")]
+    #[from(ignore)]
+    Io(#[error(not(source))] String),
 }
 
-impl PartialEq for LoadRomError {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (LoadRomError::InvalidRom(cart_error), LoadRomError::InvalidRom(other_cart_error)) => {
-                cart_error == other_cart_error
-            }
-            (LoadRomError::Unreadable(err), LoadRomError::Unreadable(other_err)) => {
-                err.kind() == other_err.kind()
-            }
-            _ => false,
-        }
-    }
-}
-
-impl Eq for LoadRomError {}
-
-#[derive(Error, Debug, PartialEq, Eq)]
-pub(crate) enum Error {
-    #[error("Error during emulation: {0}")]
-    Exec(#[from] StepError),
-    #[error("Failed loading ROM: {0}")]
-    Load(#[from] LoadRomError),
-    #[error("Action cannot be performed without a ROM loaded")]
+#[derive(Debug, Display, From, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Error))]
+pub enum Error {
+    #[display(fmt = "Error during emulation: {}", "_0")]
+    Exec(StepError),
+    #[display(fmt = "Failed loading ROM: {}", "_0")]
+    Load(LoadRomError),
+    #[display(fmt = "Action cannot be performed without a ROM loaded")]
     NoRomLoaded,
 }
 
-pub(crate) type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
-pub(crate) struct QueryRegistersResponse {
-    pub(crate) af: u16,
-    pub(crate) bc: u16,
-    pub(crate) de: u16,
-    pub(crate) hl: u16,
-    pub(crate) sp: u16,
-    pub(crate) pc: u16,
+pub struct QueryRegistersResponse {
+    pub af: u16,
+    pub bc: u16,
+    pub de: u16,
+    pub hl: u16,
+    pub sp: u16,
+    pub pc: u16,
 }
 
 impl QueryRegistersResponse {
-    pub(crate) fn read_u16(&self, register: WordRegister) -> u16 {
+    pub fn read_u16(&self, register: WordRegister) -> u16 {
         match register {
             WordRegister::AF => self.af,
             WordRegister::BC => self.bc,
@@ -91,15 +82,15 @@ impl QueryRegistersResponse {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub(crate) struct QueryMemoryResponse {
+pub struct QueryMemoryResponse {
     pub start_addr: u16,
     pub data: Vec<Option<u8>>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum EmulatorCommand {
+pub enum EmulatorCommand {
     /// Load a rom from a given file path
-    LoadRom(PathBuf),
+    LoadRom(Vec<u8>),
     /// Query all registers
     QueryRegisters,
     /// Query memory from the start address (inclusive)
@@ -116,39 +107,30 @@ pub(crate) enum EmulatorCommand {
 }
 
 #[derive(Debug, PartialEq, PartialOrd, From)]
-pub(crate) struct ExecTime(f64);
+pub struct ExecTime(f64);
 
-impl From<ExecTime> for std::time::Duration {
-    fn from(et: ExecTime) -> std::time::Duration {
-        std::time::Duration::from_secs_f64(et.0)
+impl From<ExecTime> for core::time::Duration {
+    fn from(et: ExecTime) -> core::time::Duration {
+        core::time::Duration::from_secs_f64(et.0)
     }
 }
 
 #[derive(Debug, From, TryInto, PartialEq)]
-pub(crate) enum EmulatorResponse {
-    LoadRom(std::result::Result<(), LoadRomError>),
+pub enum EmulatorResponse {
+    LoadRom(core::result::Result<(), LoadRomError>),
     QueryRegisters(Result<QueryRegistersResponse>),
     QueryMemory(Result<QueryMemoryResponse>),
     Step(Result<()>),
     QueryExecTime(Result<ExecTime>),
-    SetMode(std::result::Result<ExecMode, ()>),
-    AddBreakpoint(std::result::Result<(), ()>),
+    SetMode(core::result::Result<ExecMode, ()>),
+    AddBreakpoint(core::result::Result<(), ()>),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
-pub struct CommandId(pub(crate) u64);
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct Repeat(pub bool);
-
-impl From<Repeat> for glib::Continue {
-    fn from(c: Repeat) -> glib::Continue {
-        glib::Continue(c.0)
-    }
-}
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]
+pub struct CommandId(pub u64);
 
 #[derive(From, TryInto)]
-pub(crate) enum EmulatorThreadOutput {
+pub enum EmulatorThreadOutput {
     Event(EngineEvent),
     Error(Error),
     Response(CommandId, EmulatorResponse),
@@ -185,12 +167,9 @@ mod tests {
         let invalid_rom_b =
             LoadRomError::InvalidRom(CartridgeError::UnsupportedCartridgeType(0x12));
 
-        let io_error_a1 =
-            LoadRomError::Unreadable(std::io::Error::new(std::io::ErrorKind::Interrupted, "foo"));
-        let io_error_a2 =
-            LoadRomError::Unreadable(std::io::Error::new(std::io::ErrorKind::Interrupted, "foo"));
-        let io_error_b =
-            LoadRomError::Unreadable(std::io::Error::new(std::io::ErrorKind::NotFound, "foo"));
+        let io_error_a1 = LoadRomError::Io("Interrupted: Foo".into());
+        let io_error_a2 = LoadRomError::Io("Interrupted: Foo".into());
+        let io_error_b = LoadRomError::Io("404 foo not found".into());
 
         assert_eq!(invalid_rom_a1, invalid_rom_a2);
         assert_eq!(io_error_a1, io_error_a2);

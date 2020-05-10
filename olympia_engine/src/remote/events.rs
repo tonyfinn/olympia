@@ -1,34 +1,17 @@
-pub(crate) use crate::emulator::commands::{ExecMode, Repeat};
+use crate::events::{
+    Event as EngineEvent, EventHandlerId, HBlankEvent, ManualStepEvent, MemoryWriteEvent,
+    ModeChangeEvent, RegisterWriteEvent, Repeat, RomLoadedEvent, StepCompleteEvent, VBlankEvent,
+};
 use core::{
     any::TypeId,
     convert::{TryFrom, TryInto},
 };
-use derive_more::{Display, Error, From, TryInto};
-pub use olympia_engine::events::{
-    Event as EngineEvent, EventEmitter, EventHandlerId, HBlankEvent, MemoryWriteEvent,
-    RegisterWriteEvent, StepCompleteEvent, VBlankEvent,
-};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ModeChangeEvent {
-    pub(crate) old_mode: ExecMode,
-    pub(crate) new_mode: ExecMode,
-}
-
-impl ModeChangeEvent {
-    pub(crate) fn new(old_mode: ExecMode, new_mode: ExecMode) -> ModeChangeEvent {
-        ModeChangeEvent { old_mode, new_mode }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RomLoadedEvent;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ManualStepEvent;
+#[cfg(feature = "std")]
+use derive_more::Error;
+use derive_more::{Display, From, TryInto};
 
 #[derive(Debug, Clone, PartialEq, Eq, From, TryInto)]
-pub(crate) enum AdapterEvent {
+pub enum AdapterEvent {
     ModeChange(ModeChangeEvent),
     VBlank(VBlankEvent),
     HBlank(HBlankEvent),
@@ -40,7 +23,7 @@ pub(crate) enum AdapterEvent {
 }
 
 impl AdapterEvent {
-    pub(crate) fn event_type_id(&self) -> TypeId {
+    pub fn event_type_id(&self) -> TypeId {
         use AdapterEvent::*;
         match self {
             ModeChange(_) => TypeId::of::<ModeChangeEvent>(),
@@ -69,15 +52,16 @@ impl From<EngineEvent> for AdapterEvent {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Display, Error)]
-pub(crate) enum EventSendError {
+#[derive(Debug, PartialEq, Eq, Display)]
+#[cfg_attr(feature = "std", derive(Error))]
+pub enum EventSendError {
     #[display(fmt = "Invalid type of event for channel")]
     TypeError,
     #[display(fmt = "Channel closed")]
     ClosedChannelError,
 }
 
-pub(crate) trait Sender<T> {
+pub trait Sender<T> {
     fn send(&self, evt: T) -> Result<(), EventSendError>;
 }
 
@@ -87,26 +71,26 @@ impl<T> Sender<T> for Box<dyn Sender<T>> {
     }
 }
 
-
 fn wrapped_handler<E, F>(f: F) -> Box<dyn Fn(AdapterEvent) -> Repeat + 'static>
-    where E: TryFrom<AdapterEvent>,
-        F: Fn(E) -> Repeat + 'static
+where
+    E: TryFrom<AdapterEvent>,
+    F: Fn(E) -> Repeat + 'static,
 {
-    Box::new(move |evt| {
-        match evt.try_into() {
-            Ok(evt) => { 
-                f(evt) 
-            },
-            Err(_) => {
-                eprintln!("Invalid event handler found");
-                Repeat(false)
-            }
+    Box::new(move |evt| match evt.try_into() {
+        Ok(evt) => f(evt),
+        Err(_) => {
+            eprintln!("Invalid event handler found");
+            Repeat(false)
         }
     })
 }
 
-pub(crate) trait AdapterEventListeners {
-    fn on(&mut self, event_type_id: TypeId, f: Box<dyn Fn(AdapterEvent) -> Repeat + 'static>) -> EventHandlerId;
+pub trait AdapterEventListeners {
+    fn on(
+        &mut self,
+        event_type_id: TypeId,
+        f: Box<dyn Fn(AdapterEvent) -> Repeat + 'static>,
+    ) -> EventHandlerId;
     fn emit(&mut self, evt: AdapterEvent);
 }
 
@@ -115,24 +99,19 @@ pub struct AdapterEventWrapper {
 }
 
 impl AdapterEventWrapper {
-    pub(crate) fn new(inner: Box<dyn AdapterEventListeners>) -> AdapterEventWrapper {
-        AdapterEventWrapper {
-            inner
-        }
+    pub fn new(inner: Box<dyn AdapterEventListeners>) -> AdapterEventWrapper {
+        AdapterEventWrapper { inner }
     }
 
-    pub(crate) fn on<T, F>(
-        &mut self,
-        f: F,
-    ) -> EventHandlerId
+    pub fn on<T, F>(&mut self, f: F) -> EventHandlerId
     where
         T: TryFrom<AdapterEvent> + 'static,
-        F: Fn(T) -> Repeat + 'static 
+        F: Fn(T) -> Repeat + 'static,
     {
         self.inner.on(TypeId::of::<T>(), wrapped_handler(f))
     }
 
-    pub(crate) fn emit<T>(&mut self, event: T)
+    pub fn emit<T>(&mut self, event: T)
     where
         T: Into<AdapterEvent> + 'static,
     {

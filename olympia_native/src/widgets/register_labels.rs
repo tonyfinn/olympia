@@ -1,12 +1,10 @@
-use crate::emulator::{
-    commands::QueryRegistersResponse,
-    events::{ManualStepEvent, RegisterWriteEvent, RomLoadedEvent},
-    remote::RemoteEmulator,
-};
 use crate::builder_struct;
-
 use gtk::prelude::*;
-use olympia_engine::registers::WordRegister;
+use olympia_engine::{
+    events::{ManualStepEvent, RegisterWriteEvent, RomLoadedEvent},
+    registers::WordRegister,
+    remote::{QueryRegistersResponse, RemoteEmulator},
+};
 use std::rc::Rc;
 
 builder_struct!(

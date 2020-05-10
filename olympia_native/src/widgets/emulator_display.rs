@@ -1,4 +1,3 @@
-use crate::emulator::remote::RemoteEmulator;
 use crate::builder_struct;
 
 use glib::clone;
@@ -7,6 +6,7 @@ use gtk::WidgetExt;
 use olympia_engine::{
     events::{HBlankEvent, VBlankEvent},
     gameboy::GBPixel,
+    remote::RemoteEmulator,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -157,9 +157,10 @@ impl EmulatorDisplay {
         self.emu.on_widget(self.clone(), |display, _: VBlankEvent| {
             display.vblank();
         });
-        self.emu.on_widget(self.clone(), |display, evt: HBlankEvent| {
-            display.hblank(evt);
-        });
+        self.emu
+            .on_widget(self.clone(), |display, evt: HBlankEvent| {
+                display.hblank(evt);
+            });
     }
 
     pub(crate) fn from_builder(

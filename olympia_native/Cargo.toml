@@ -19,7 +19,6 @@ gitlab = { repository = "tonyfinn/olympia", branch = "master" }
 cairo-rs = "0.8.1"
 derive_more = "0.99.5"
 olympia_engine = { version = "0.2.0", path = "../olympia_engine", features = ["std"] }
-thiserror = "1.0.9"
 
 [dependencies.gdk]
 version = "0.12.0"

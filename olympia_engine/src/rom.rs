@@ -1,22 +1,34 @@
 use crate::gameboy::memory;
-use alloc::fmt;
 use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::ops::Range;
+use derive_more::Display;
 
 const TARGET_CONSOLE_LOCATION: usize = 0x143;
 const CARTRIDGE_TYPE_LOCATION: usize = 0x147;
 const RAM_SIZE_LOCATION: usize = 0x149;
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Display)]
 pub enum CartridgeError {
+    #[display(fmt = "Address 0x{:X} exceeds ROM", "_0")]
     NoDataInRom(u16),
+    #[display(fmt = "Cannot read non-cart address 0x{:X} from cartridge", "_0")]
     NonCartAddress(u16),
+    #[display(fmt = "RAM not supported by current cartridge")]
     NoCartridgeRam,
+    #[display(fmt = "RAM disabled on current cartridge")]
     CartridgeRamDisabled,
+    #[display(fmt = "Address 0x{:X} outside of available cart ram", "_0")]
     ExceedsCartridgeRam(u16),
+    #[display(fmt = "Unsupported cartridge type: 0x{:X}", "_0")]
     UnsupportedCartridgeType(u8),
+    #[display(fmt = "Unsupported cartridge RAM size: 0x{:X}", "_0")]
     UnsupportedRamSize(u8),
+    #[display(
+        fmt = "Data for cartridge too small. Was 0x{:X} bytes, must be at least 0x200",
+        "_0"
+    )]
+    CartridgeTooSmall(usize),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -24,31 +36,6 @@ pub enum TargetConsole {
     GameBoyOnly,
     ColorEnhanced,
     ColorOnly,
-}
-
-impl fmt::Display for CartridgeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use CartridgeError::*;
-        match self {
-            NoDataInRom(addr) => write!(f, "Address 0x{:X} exceeds ROM", addr),
-            NonCartAddress(addr) => write!(
-                f,
-                "Cannot read non-cart address 0x{:X} from cartridge",
-                addr
-            ),
-            NoCartridgeRam => write!(f, "RAM not supported by current cartridge"),
-            CartridgeRamDisabled => write!(f, "RAM disabled on current cartridge"),
-            ExceedsCartridgeRam(addr) => {
-                write!(f, "Address 0x{:X} outside of available cart ram", addr)
-            }
-            UnsupportedCartridgeType(type_id) => {
-                write!(f, "Unsupported cartridge type: 0x{:X}", type_id)
-            }
-            UnsupportedRamSize(type_id) => {
-                write!(f, "Unsupported cartridge RAM size: 0x{:X}", type_id)
-            }
-        }
-    }
 }
 
 #[cfg(feature = "std")]
@@ -80,6 +67,9 @@ impl Cartridge {
     }
 
     pub fn from_data(data: Vec<u8>) -> CartridgeResult<Cartridge> {
+        if data.len() < 0x200 {
+            return Err(CartridgeError::CartridgeTooSmall(data.len()));
+        }
         let cartridge_type_id = data[CARTRIDGE_TYPE_LOCATION];
         let ram_size = lookup_ram_size(data[RAM_SIZE_LOCATION])?;
         let target = lookup_target(data[TARGET_CONSOLE_LOCATION]);

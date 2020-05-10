@@ -37,8 +37,8 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::emulator::glib::glib_remote_emulator;
-    use crate::emulator::remote::RemoteEmulator;
     use glib::error::BoolError;
+    use olympia_engine::remote::RemoteEmulator;
     use std::{
         future::Future,
         path::{Path, PathBuf},
@@ -80,22 +80,23 @@ pub(crate) mod test_utils {
         path
     }
 
+    pub(crate) fn fizzbuzz_rom() -> Vec<u8> {
+        let path = fizzbuzz_path();
+        std::fs::read(path).unwrap()
+    }
+
     /// Gets a sample remote emulator setup with no ROM loaded
-    pub(crate) fn get_unloaded_remote_emu(
-        context: glib::MainContext,
-    ) -> Rc<crate::emulator::remote::RemoteEmulator> {
+    pub(crate) fn get_unloaded_remote_emu(context: glib::MainContext) -> Rc<RemoteEmulator> {
         let emu = glib_remote_emulator(context);
         emu
     }
 
     // Gets a sample remote emulator setup loaded with a fizzbuzz ROM
-    pub(crate) fn get_loaded_remote_emu(
-        context: glib::MainContext,
-    ) -> Rc<crate::emulator::remote::RemoteEmulator> {
+    pub(crate) fn get_loaded_remote_emu(context: glib::MainContext) -> Rc<RemoteEmulator> {
         let emu = get_unloaded_remote_emu(context.clone());
 
         let task = async {
-            emu.load_rom(fizzbuzz_path()).await.unwrap();
+            emu.load_rom(fizzbuzz_rom()).await.unwrap();
         };
         wait_for_task(&context, task);
         emu

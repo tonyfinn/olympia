@@ -1,22 +1,17 @@
-use crate::emulator::{
-    commands,
-    commands::{
-        CommandId, EmulatorCommand, EmulatorResponse, EmulatorThreadOutput, ExecMode, LoadRomError,
-        QueryMemoryResponse, QueryRegistersResponse, UiBreakpoint,
-    },
-    events::{EngineEvent, EventEmitter, ModeChangeEvent},
-};
-
 use glib::clone;
 
 use olympia_engine::{
-    events::propagate_events,
+    events::{propagate_events, Event as EngineEvent, EventEmitter, ModeChangeEvent},
     gameboy::{GameBoy, GameBoyModel, StepError, CYCLE_FREQ},
     registers::WordRegister,
+    remote,
+    remote::{
+        CommandId, EmulatorCommand, EmulatorResponse, EmulatorThreadOutput, ExecMode, ExecTime,
+        LoadRomError, QueryMemoryResponse, QueryRegistersResponse, UiBreakpoint,
+    },
     rom::Cartridge,
 };
 
-use std::path::Path;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::thread;
@@ -37,32 +32,31 @@ impl EmulatorState {
         }
     }
 
-    pub(crate) fn step(&mut self) -> commands::Result<()> {
+    pub(crate) fn step(&mut self) -> remote::Result<()> {
         if let Some(gb) = self.gameboy.as_mut() {
-            gb.step().map_err(|e| commands::Error::Exec(e))
+            gb.step().map_err(|e| remote::Error::Exec(e))
         } else {
-            Err(commands::Error::NoRomLoaded)
+            Err(remote::Error::NoRomLoaded)
         }
     }
 
-    pub(crate) fn load_rom(&mut self, path: &Path) -> Result<(), LoadRomError> {
-        let rom = std::fs::read(path)?;
+    pub(crate) fn load_rom(&mut self, data: Vec<u8>) -> Result<(), LoadRomError> {
         self.gameboy = Some(GameBoy::new(
-            Cartridge::from_data(rom)?,
+            Cartridge::from_data(data)?,
             GameBoyModel::GameBoy,
         ));
         Ok(())
     }
 
-    fn exec_time(&mut self) -> commands::Result<commands::ExecTime> {
+    fn exec_time(&mut self) -> remote::Result<ExecTime> {
         if let Some(gb) = self.gameboy.as_ref() {
             Ok(gb.time_elapsed().into())
         } else {
-            Err(commands::Error::NoRomLoaded)
+            Err(remote::Error::NoRomLoaded)
         }
     }
 
-    fn query_registers(&mut self) -> commands::Result<QueryRegistersResponse> {
+    fn query_registers(&mut self) -> remote::Result<QueryRegistersResponse> {
         if let Some(gb) = self.gameboy.as_ref() {
             Ok(QueryRegistersResponse {
                 af: gb.read_register_u16(WordRegister::AF),
@@ -73,7 +67,7 @@ impl EmulatorState {
                 pc: gb.read_register_u16(WordRegister::PC),
             })
         } else {
-            Err(commands::Error::NoRomLoaded)
+            Err(remote::Error::NoRomLoaded)
         }
     }
 
@@ -81,7 +75,7 @@ impl EmulatorState {
         &mut self,
         start_addr: u16,
         end_addr: u16,
-    ) -> commands::Result<QueryMemoryResponse> {
+    ) -> remote::Result<QueryMemoryResponse> {
         let mut data: Vec<Option<u8>> = Vec::with_capacity((end_addr - start_addr) as usize + 1);
         if let Some(gb) = self.gameboy.as_ref() {
             for addr in start_addr..=end_addr {
@@ -89,7 +83,7 @@ impl EmulatorState {
             }
             Ok(QueryMemoryResponse { start_addr, data })
         } else {
-            Err(commands::Error::NoRomLoaded)
+            Err(remote::Error::NoRomLoaded)
         }
     }
 }
@@ -144,10 +138,10 @@ impl EmulatorThread {
 
     fn load_rom(
         state: &mut EmulatorState,
-        path: &Path,
+        data: Vec<u8>,
         events: Rc<EventEmitter<EngineEvent>>,
     ) -> Result<(), LoadRomError> {
-        state.load_rom(path)?;
+        state.load_rom(data)?;
         if let Some(ref gb) = state.gameboy {
             propagate_events(&gb.events, events);
         } else {
@@ -160,8 +154,8 @@ impl EmulatorThread {
         let mut iter = self.rx.try_iter();
         while let Some((id, cmd)) = iter.next() {
             let resp: EmulatorResponse = match cmd {
-                EmulatorCommand::LoadRom(path) => EmulatorResponse::LoadRom(
-                    EmulatorThread::load_rom(&mut self.state, &path, self.events.clone()),
+                EmulatorCommand::LoadRom(data) => EmulatorResponse::LoadRom(
+                    EmulatorThread::load_rom(&mut self.state, data, self.events.clone()),
                 ),
                 EmulatorCommand::QueryMemory(start_index, end_index) => {
                     EmulatorResponse::QueryMemory(self.state.query_memory(start_index, end_index))
@@ -232,7 +226,7 @@ impl EmulatorThread {
                 match result {
                     Err(e) => {
                         self.tx
-                            .send(commands::Error::Exec(e).into())
+                            .send(remote::Error::Exec(e).into())
                             .expect("Emulator thread response channel closed");
                     }
                     Ok(mode) => {
@@ -241,7 +235,7 @@ impl EmulatorThread {
                                 ModeChangeEvent::new(self.exec_mode.clone(), mode.clone());
                             self.exec_mode = mode;
                             self.tx
-                                .send(commands::EmulatorThreadOutput::ModeChange(change_event))
+                                .send(remote::EmulatorThreadOutput::ModeChange(change_event))
                                 .expect("Emulator thread response channel closed");
                         }
                     }

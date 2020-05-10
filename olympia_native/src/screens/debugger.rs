@@ -5,12 +5,13 @@ use gtk::{Application, ApplicationWindow};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use crate::emulator::remote::RemoteEmulator;
 use crate::emulator::glib::glib_remote_emulator;
 use crate::utils;
 use crate::widgets::{
     BreakpointViewer, EmulatorDisplay, MemoryViewer, PlaybackControls, RegisterLabels,
 };
+
+use olympia_engine::remote::{LoadRomError, RemoteEmulator};
 
 #[allow(dead_code)]
 pub(crate) struct Debugger {
@@ -69,8 +70,14 @@ impl Debugger {
         debugger
     }
 
-    async fn load_rom(self: Rc<Self>, filename: PathBuf) -> () {
-        utils::run_fallible(self.emu.load_rom(filename), Some(&self.window)).await;
+    async fn load_rom_fs(&self, path: PathBuf) -> Result<(), LoadRomError> {
+        let data =
+            std::fs::read(path).map_err(|err| LoadRomError::Io(format!("{}", err).into()))?;
+        self.emu.load_rom(data).await
+    }
+
+    async fn load_rom(self: Rc<Self>, path: PathBuf) -> () {
+        utils::run_fallible(self.load_rom_fs(path), Some(&self.window)).await;
     }
 
     pub(crate) fn show_all(&self) {
