@@ -95,11 +95,13 @@ impl PPU {
 
     pub(crate) fn run_cycle(&mut self, mem: &mut Memory) {
         if self.is_enabled(mem) {
-            for _ in 0..4 {
+            for i in 0..4 {
                 if self.phase == PPUPhase::Drawing {
                     self.draw(mem);
                 }
-                self.update_phase(mem);
+                if i % 2 == 0 {
+                    self.update_phase(mem);
+                }
             }
         }
     }
@@ -110,38 +112,10 @@ impl PPU {
     }
 
     fn update_phase(&mut self, mem: &mut Memory) {
-        self.clocks_on_line += 1;
+        self.clocks_on_line += 2; // Draw 1 pixel every 2 clocks
         let cycles_on_line = self.clocks_on_line / 4;
         if cycles_on_line == LINE_CYCLES {
-            self.clocks_on_line = 0;
-            self.current_pixel = 0;
-            self.current_line += 1;
-            if self.current_line == TOTAL_LINES {
-                self.current_line = 0;
-            }
-            if self.should_trigger_line_interrupt(
-                mem.registers().lcdstat,
-                mem.registers().lyc,
-                self.current_line,
-            ) {
-                Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
-            }
-            if self.current_line == VISIBLE_LINES {
-                self.events.emit(VBlankEvent.into());
-                self.phase = PPUPhase::VBlank;
-                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_VBLANK;
-                Interrupt::VBlank.set(&mut mem.registers_mut().ie);
-                if (mem.registers().lcdstat & LCDSTAT_VBLANK_INTERRUPT) != 0 {
-                    Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
-                }
-            } else if self.current_line < VISIBLE_LINES {
-                self.phase = PPUPhase::ObjectScan;
-                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_OAMSCAN;
-                if (mem.registers().lcdstat & LCDSTAT_OAM_SCAN_INTERRUPT) != 0 {
-                    Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
-                }
-            }
-            mem.registers_mut().ly = self.current_line;
+            self.end_of_line(mem);
         } else if cycles_on_line == OAM_SCAN_CYCLES && self.current_line < VISIBLE_LINES {
             self.phase = PPUPhase::Drawing;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_DRAWING;
@@ -154,6 +128,38 @@ impl PPU {
                 Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
             }
         }
+    }
+
+    fn end_of_line(&mut self, mem: &mut Memory) {
+        self.clocks_on_line = 0;
+        self.current_pixel = 0;
+        self.current_line += 1;
+        if self.current_line == TOTAL_LINES {
+            self.current_line = 0;
+        }
+        if self.should_trigger_line_interrupt(
+            mem.registers().lcdstat,
+            mem.registers().lyc,
+            self.current_line,
+        ) {
+            Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
+        }
+        if self.current_line == VISIBLE_LINES {
+            self.events.emit(VBlankEvent.into());
+            self.phase = PPUPhase::VBlank;
+            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_VBLANK;
+            Interrupt::VBlank.set(&mut mem.registers_mut().ie);
+            if (mem.registers().lcdstat & LCDSTAT_VBLANK_INTERRUPT) != 0 {
+                Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
+            }
+        } else if self.current_line < VISIBLE_LINES {
+            self.phase = PPUPhase::ObjectScan;
+            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_OAMSCAN;
+            if (mem.registers().lcdstat & LCDSTAT_OAM_SCAN_INTERRUPT) != 0 {
+                Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
+            }
+        }
+        mem.registers_mut().ly = self.current_line;
     }
 
     fn read_pixel_palette_index(&self, mem: &Memory, tile_base: u16, x: u8, y: u8) -> u8 {
@@ -533,7 +539,7 @@ mod test {
         let mut memory = create_memory();
         ppu.phase = PPUPhase::ObjectScan;
         ppu.current_line = 100;
-        ppu.clocks_on_line = (OAM_SCAN_CYCLES * 4) - 1;
+        ppu.clocks_on_line = (OAM_SCAN_CYCLES * 4) - 2;
         ppu.current_pixel = 0;
         memory.registers_mut().lcdstat = MODE_OAMSCAN;
         ppu.update_phase(&mut memory);
