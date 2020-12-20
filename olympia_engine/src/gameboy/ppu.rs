@@ -2,7 +2,7 @@ use alloc::collections::VecDeque;
 
 use crate::{
     events::{EventEmitter, HBlankEvent, PPUEvent, VBlankEvent},
-    gameboy::{cpu::Interrupt, memory::Memory},
+    gameboy::{cpu::Interrupt, memory::{Memory, OAM_RAM}},
 };
 
 const VISIBLE_WIDTH: u8 = 160;
@@ -70,6 +70,35 @@ impl GBPixel {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub struct Sprite {
+    y: u8,
+    x: u8,
+    tile: u8,
+    flags: u8,
+}
+
+impl Sprite {
+    fn from_oam_ram(mem: &Memory, index: u8) -> Sprite {
+        let sprite_offset  = OAM_RAM.start + (4 * u16::from(index));
+        let y = mem.read_u8(sprite_offset).unwrap();
+        let x = mem.read_u8(sprite_offset + 1).unwrap();
+        let tile = mem.read_u8(sprite_offset + 2).unwrap();
+        let flags = mem.read_u8(sprite_offset + 3).unwrap();
+
+        Sprite {
+            y,
+            x,
+            tile,
+            flags
+        }
+    }
+
+    fn visible_on_line(&self, y: u8, height: u8) -> bool {
+        (y >= self.y) && (y < (self.y + height))
+    }
+}
+
 pub(crate) struct PPU {
     framebuffer: [GBPixel; (VISIBLE_LINES as usize) * (VISIBLE_WIDTH as usize)],
     pixel_queue: VecDeque<GBPixel>,
@@ -77,6 +106,7 @@ pub(crate) struct PPU {
     current_line: u8,
     clocks_on_line: u16,
     current_pixel: u8,
+    line_sprites: Vec<Sprite>,
     pub(crate) events: EventEmitter<PPUEvent>,
 }
 
@@ -89,6 +119,7 @@ impl PPU {
             current_line: 0,
             clocks_on_line: 0,
             current_pixel: 0,
+            line_sprites: Vec::with_capacity(10),
             events: EventEmitter::new(),
         }
     }
@@ -112,13 +143,13 @@ impl PPU {
     }
 
     fn update_phase(&mut self, mem: &mut Memory) {
+        if self.clocks_on_line == 0 {
+            self.oam_scan(mem);
+        }
         self.clocks_on_line += 2; // Draw 1 pixel every 2 clocks
         let cycles_on_line = self.clocks_on_line / 4;
         if cycles_on_line == LINE_CYCLES {
             self.end_of_line(mem);
-        } else if cycles_on_line == OAM_SCAN_CYCLES && self.current_line < VISIBLE_LINES {
-            self.phase = PPUPhase::Drawing;
-            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_DRAWING;
         } else if self.current_pixel >= VISIBLE_WIDTH && self.phase == PPUPhase::Drawing {
             let pixels = self.pixel_queue.drain(..).collect();
             self.events.emit(HBlankEvent { pixels }.into());
@@ -127,7 +158,24 @@ impl PPU {
             if (mem.registers().lcdstat & LCDSTAT_HBLANK_INTERRUPT) != 0 {
                 Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
             }
+        } else if cycles_on_line == OAM_SCAN_CYCLES && self.current_line < VISIBLE_LINES {
+            self.phase = PPUPhase::Drawing;
+            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_DRAWING;
         }
+    }
+
+    fn oam_scan(&mut self, mem: &mut Memory) {
+        let mut sprites: Vec<Sprite> = Vec::with_capacity(10);
+        for i in 0..40u8 {
+            let sprite = Sprite::from_oam_ram(mem, i);
+            if sprite.visible_on_line(self.current_line, self.sprite_height(mem)) {
+                sprites.push(sprite);
+            }
+            if sprites.len() == 10 {
+                break;
+            }
+        }
+        self.line_sprites = sprites
     }
 
     fn end_of_line(&mut self, mem: &mut Memory) {
@@ -189,7 +237,37 @@ impl PPU {
         self.current_pixel += 1;
     }
 
+    fn calculate_sprite_pixel(&mut self, mem: &Memory, x: u8, y: u8) -> Option<GBPixel> {
+        for sprite in self.line_sprites.iter() {
+            if x >= sprite.x && x < sprite.x + 8 {
+                let sprite_px = x - sprite.x;
+                let sprite_py = y - sprite.y;
+                let tile_base = MEM_LOW_TILES + (u16::from(sprite.tile) * 0x10);
+                let palette_index = self.read_pixel_palette_index(mem, tile_base, sprite_px, sprite_py);
+
+                if palette_index == 0 {
+                    return None
+                }
+
+                let palette = if (sprite.flags & 0x10) == 0 {
+                    Palette::Sprite0
+                } else {
+                    Palette::Sprite1
+                };
+
+                return Some(GBPixel::new(palette, palette_index));
+            }
+        }
+        None
+    }
+
     fn calculate_pixel(&mut self, mem: &Memory, x: u8, y: u8) -> GBPixel {
+        if self.sprites_enabled(mem) {
+            if let Some(px) = self.calculate_sprite_pixel(mem, x, y) {
+                return px;
+            }
+        }
+
         let tile_x = x / 8;
         let tile_y = y / 8;
 
@@ -206,7 +284,7 @@ impl PPU {
         let tile_id_addr = map_offset + (u16::from(tile_y) * 32) + u16::from(tile_x);
         let tile_at_pixel = mem.read_u8(tile_id_addr).unwrap_or(0);
 
-        let tile_base = self.tile_character_offset(mem) + (u16::from(tile_at_pixel) * 0x10);
+        let tile_base = self.background_tile_offset(mem) + (u16::from(tile_at_pixel) * 0x10);
         let tile_offset_x = x % 8;
         let tile_offset_y = y % 8;
 
@@ -220,12 +298,10 @@ impl PPU {
         GBPixel::new(palette, palette_index)
     }
 
-    #[allow(dead_code)]
     fn sprites_enabled(&self, mem: &Memory) -> bool {
         (mem.registers().lcdc & LCDC_SPRITE_ENABLE) != 0
     }
 
-    #[allow(dead_code)]
     fn sprite_height(&self, mem: &Memory) -> u8 {
         if mem.registers().lcdc & LCDC_LARGE_SPRITE == 0 {
             8
@@ -242,7 +318,7 @@ impl PPU {
         }
     }
 
-    fn tile_character_offset(&self, mem: &Memory) -> u16 {
+    fn background_tile_offset(&self, mem: &Memory) -> u16 {
         if (mem.registers().lcdc & LCDC_LOW_BG_TILES) == 0 {
             MEM_HIGH_TILES
         } else {
