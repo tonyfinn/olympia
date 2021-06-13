@@ -45,6 +45,7 @@ impl EmulatorApp {
 }
 
 fn main() {
+    pretty_env_logger::init();
     let app = EmulatorApp::new();
     app.start();
 }

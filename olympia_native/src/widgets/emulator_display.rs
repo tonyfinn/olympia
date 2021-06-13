@@ -3,6 +3,7 @@ use crate::builder_struct;
 use glib::clone;
 use gtk::prelude::*;
 use gtk::WidgetExt;
+use log::trace;
 use olympia_engine::{
     events::{HBlankEvent, VBlankEvent},
     gameboy::GBPixel,
@@ -22,7 +23,6 @@ struct Buffer {
     back: Vec<GBPixel>,
     back_pixels: Vec<u8>,
     image_surface: Option<cairo::ImageSurface>,
-    next_line: usize,
     scale: usize,
     width: usize,
     height: usize,
@@ -40,7 +40,6 @@ impl Buffer {
             back: vec![GBPixel::default(); width * height],
             back_pixels: vec![0; BPP * px_width * px_height],
             image_surface: None,
-            next_line: 0,
             scale,
             width,
             height,
@@ -49,6 +48,12 @@ impl Buffer {
 
     fn draw_pixel(&mut self, gb_x: usize, gb_y: usize, pixel: &GBPixel) {
         let color = COLORS[usize::from(pixel.index)];
+        if gb_x >= WIDTH {
+            panic!("X co-ord too large {}", gb_x);
+        }
+        if gb_y >= HEIGHT {
+            panic!("Y co-ord too large {}", gb_y);
+        }
         let render_x_start = gb_x * self.scale;
         let render_y_start = gb_y * self.scale;
         for x_subpx in 0..self.scale {
@@ -82,17 +87,15 @@ impl Buffer {
     }
 
     fn hblank(&mut self, evt: HBlankEvent) {
-        let y = self.next_line;
         for (x, pixel) in evt.pixels.iter().enumerate() {
-            self.draw_pixel(x, y, pixel);
+            self.draw_pixel(x, evt.current_line.into(), pixel);
         }
-        self.next_line += 1;
     }
 
     fn vblank(&mut self) {
         std::mem::swap(&mut self.front, &mut self.back);
         std::mem::swap(&mut self.front_pixels, &mut self.back_pixels);
-        self.next_line = 0;
+        trace!("Renderer VBLANK");
         self.image_surface = self.build_image_surface().ok();
     }
 }
@@ -200,9 +203,11 @@ mod tests {
         let mut buffer = Buffer::new(4, 4, 2);
         buffer.hblank(HBlankEvent {
             pixels: vec![bg_pixel(2), bg_pixel(1), bg_pixel(1), bg_pixel(0)],
+            current_line: 0,
         });
         buffer.hblank(HBlankEvent {
             pixels: vec![bg_pixel(3), bg_pixel(0), bg_pixel(3), bg_pixel(0)],
+            current_line: 0,
         });
         buffer.vblank();
 

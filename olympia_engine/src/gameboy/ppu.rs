@@ -2,8 +2,13 @@ use alloc::collections::VecDeque;
 
 use crate::{
     events::{EventEmitter, HBlankEvent, PPUEvent, VBlankEvent},
-    gameboy::{cpu::Interrupt, memory::{Memory, OAM_RAM}},
+    gameboy::{
+        cpu::Interrupt,
+        memory::{Memory, OAM_RAM},
+    },
 };
+
+use log::trace;
 
 const VISIBLE_WIDTH: u8 = 160;
 const VISIBLE_LINES: u8 = 144;
@@ -80,18 +85,13 @@ pub struct Sprite {
 
 impl Sprite {
     fn from_oam_ram(mem: &Memory, index: u8) -> Sprite {
-        let sprite_offset  = OAM_RAM.start + (4 * u16::from(index));
+        let sprite_offset = OAM_RAM.start + (4 * u16::from(index));
         let y = mem.read_u8(sprite_offset).unwrap();
         let x = mem.read_u8(sprite_offset + 1).unwrap();
         let tile = mem.read_u8(sprite_offset + 2).unwrap();
         let flags = mem.read_u8(sprite_offset + 3).unwrap();
 
-        Sprite {
-            y,
-            x,
-            tile,
-            flags
-        }
+        Sprite { y, x, tile, flags }
     }
 
     fn visible_on_line(&self, y: u8, height: u8) -> bool {
@@ -152,13 +152,24 @@ impl PPU {
             self.end_of_line(mem);
         } else if self.current_pixel >= VISIBLE_WIDTH && self.phase == PPUPhase::Drawing {
             let pixels = self.pixel_queue.drain(..).collect();
-            self.events.emit(HBlankEvent { pixels }.into());
+            self.events.emit(
+                HBlankEvent {
+                    pixels,
+                    current_line: self.current_line,
+                }
+                .into(),
+            );
+            trace!("HBlank");
             self.phase = PPUPhase::HBlank;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_HBLANK;
             if (mem.registers().lcdstat & LCDSTAT_HBLANK_INTERRUPT) != 0 {
                 Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
             }
-        } else if cycles_on_line == OAM_SCAN_CYCLES && self.current_line < VISIBLE_LINES {
+        } else if cycles_on_line == OAM_SCAN_CYCLES
+            && self.current_line < VISIBLE_LINES
+            && self.phase != PPUPhase::Drawing
+        {
+            trace!("Begin Drawing");
             self.phase = PPUPhase::Drawing;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_DRAWING;
         }
@@ -183,6 +194,7 @@ impl PPU {
         self.current_pixel = 0;
         self.current_line += 1;
         if self.current_line == TOTAL_LINES {
+            trace!("Frame end");
             self.current_line = 0;
         }
         if self.should_trigger_line_interrupt(
@@ -190,10 +202,12 @@ impl PPU {
             mem.registers().lyc,
             self.current_line,
         ) {
+            trace!("LYC Interrupt");
             Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
         }
         if self.current_line == VISIBLE_LINES {
             self.events.emit(VBlankEvent.into());
+            trace!("VBLANK Start");
             self.phase = PPUPhase::VBlank;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_VBLANK;
             Interrupt::VBlank.set(&mut mem.registers_mut().ie);
@@ -201,6 +215,7 @@ impl PPU {
                 Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
             }
         } else if self.current_line < VISIBLE_LINES {
+            trace!("Object Scan");
             self.phase = PPUPhase::ObjectScan;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_OAMSCAN;
             if (mem.registers().lcdstat & LCDSTAT_OAM_SCAN_INTERRUPT) != 0 {
@@ -243,10 +258,11 @@ impl PPU {
                 let sprite_px = x - sprite.x;
                 let sprite_py = y - sprite.y;
                 let tile_base = MEM_LOW_TILES + (u16::from(sprite.tile) * 0x10);
-                let palette_index = self.read_pixel_palette_index(mem, tile_base, sprite_px, sprite_py);
+                let palette_index =
+                    self.read_pixel_palette_index(mem, tile_base, sprite_px, sprite_py);
 
                 if palette_index == 0 {
-                    return None
+                    return None;
                 }
 
                 let palette = if (sprite.flags & 0x10) == 0 {
@@ -526,7 +542,8 @@ mod test {
         assert_eq!(
             *events,
             vec![PPUEvent::HBlank(HBlankEvent {
-                pixels: expected_pixels
+                pixels: expected_pixels,
+                current_line: 0,
             })]
         );
     }

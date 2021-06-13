@@ -126,6 +126,7 @@ fn run_cli(
 }
 
 fn main() -> OlympiaResult<()> {
+    pretty_env_logger::init();
     let args = OlympiaArgs::from_args();
     let mut err = find_err_out(&args);
     run_cli(args, &mut io::stdin(), &mut io::stdout(), err.as_mut())

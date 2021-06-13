@@ -66,6 +66,7 @@ pub struct RegisterWriteEvent {
 #[derive(Debug, PartialEq, Eq, Clone, Constructor)]
 /// PPU has entered the HBlank phase
 pub struct HBlankEvent {
+    pub current_line: u8,
     pub pixels: Vec<GBPixel>,
 }
 
