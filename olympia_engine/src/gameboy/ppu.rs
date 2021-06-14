@@ -159,7 +159,7 @@ impl PPU {
                 }
                 .into(),
             );
-            trace!("HBlank");
+            trace!(target: "ppu", "HBlank");
             self.phase = PPUPhase::HBlank;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_HBLANK;
             if (mem.registers().lcdstat & LCDSTAT_HBLANK_INTERRUPT) != 0 {
@@ -169,7 +169,7 @@ impl PPU {
             && self.current_line < VISIBLE_LINES
             && self.phase != PPUPhase::Drawing
         {
-            trace!("Begin Drawing");
+            trace!(target: "ppu", "Begin Drawing");
             self.phase = PPUPhase::Drawing;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_DRAWING;
         }
@@ -194,7 +194,7 @@ impl PPU {
         self.current_pixel = 0;
         self.current_line += 1;
         if self.current_line == TOTAL_LINES {
-            trace!("Frame end");
+            trace!(target: "ppu", "Frame end");
             self.current_line = 0;
         }
         if self.should_trigger_line_interrupt(
@@ -202,12 +202,12 @@ impl PPU {
             mem.registers().lyc,
             self.current_line,
         ) {
-            trace!("LYC Interrupt");
+            trace!(target: "ppu", "LYC Interrupt");
             Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
         }
         if self.current_line == VISIBLE_LINES {
             self.events.emit(VBlankEvent.into());
-            trace!("VBLANK Start");
+            trace!(target: "ppu", "VBLANK Start");
             self.phase = PPUPhase::VBlank;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_VBLANK;
             Interrupt::VBlank.set(&mut mem.registers_mut().ie);
@@ -215,7 +215,7 @@ impl PPU {
                 Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
             }
         } else if self.current_line < VISIBLE_LINES {
-            trace!("Object Scan");
+            trace!(target: "ppu", "Object Scan");
             self.phase = PPUPhase::ObjectScan;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_OAMSCAN;
             if (mem.registers().lcdstat & LCDSTAT_OAM_SCAN_INTERRUPT) != 0 {

@@ -5,7 +5,7 @@ use derive_more::{Display, From, FromStr, Into};
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone, From, FromStr, Into, Display)]
 /// Represents a literal memory address
-#[display(fmt = "[{}]", _0)]
+#[display(fmt = "[{:X}h]", _0)]
 pub struct LiteralAddress(pub u16);
 
 impl LiteralAddress {

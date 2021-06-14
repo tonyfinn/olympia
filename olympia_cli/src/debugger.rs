@@ -3,8 +3,8 @@ use std::ops;
 
 use derive_more::{Display, Error, From};
 use olympia_engine::{
-    debug::{parse_number, Breakpoint, RWTarget},
     gameboy,
+    gbdebug::{parse_number, Breakpoint, BreakpointCondition, Comparison, RWTarget},
     registers::{ByteRegister as br, WordRegister as wr},
 };
 use structopt::StructOpt;
@@ -231,7 +231,10 @@ impl<'a> CliDebugger<'a> {
     }
 
     fn add_breakpoint(&mut self, target: RWTarget, value: u16) -> io::Result<()> {
-        self.breakpoints.push(Breakpoint::new(target, value.into()));
+        self.breakpoints.push(Breakpoint::new(
+            target,
+            BreakpointCondition::Test(Comparison::Equal, value.into()),
+        ));
         writeln!(self.out, "Added breakpoint for {} == {:X}", target, value)?;
         Ok(())
     }

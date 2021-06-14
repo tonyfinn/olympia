@@ -230,7 +230,7 @@ impl MemoryViewer {
             let address_of_row = addr_value & 0xFFF0;
             let cell_index = addr_value & 0xF;
             let row_index = (address_of_row - start_addr) / 0x10;
-            println!("Setting row {} cell {} to {}", row_index, cell_index, val);
+            log::trace!("Setting row {} cell {} to {}", row_index, cell_index, val);
             self.row(usize::from(row_index))
                 .and_then(|row| row.cell(usize::from(cell_index)))
                 .map(|cell| cell.set_text(&format!("{:02X}", val)));

@@ -23,6 +23,7 @@ pub use ppu::{GBPixel, Palette};
 
 use crate::events;
 use crate::gameboy::cpu::Cpu;
+use crate::gameboy::cpu::PowerSavingMode;
 use crate::gameboy::dma::DmaUnit;
 use crate::instructions;
 use crate::instructionsn as new_instructions;
@@ -252,6 +253,7 @@ impl GameBoy {
     }
 
     pub(crate) fn set_interrupt_state(&mut self, state: cpu::InterruptState) {
+        log::trace!(target: "cpu", "set interrupt mode: {:?}", state);
         self.cpu.interrupts_enabled = state;
     }
 
@@ -260,6 +262,7 @@ impl GameBoy {
     }
 
     pub fn set_power_saving_mode(&mut self, mode: cpu::PowerSavingMode) {
+        log::trace!(target: "cpu", "set power saving mode: {:?}", mode);
         self.cpu.power_saving = mode
     }
 
@@ -338,7 +341,7 @@ impl GameBoy {
         use cpu::InterruptState::{Disabled, Enabled, Pending};
         match self.cpu.interrupts_enabled {
             Pending => {
-                self.cpu.interrupts_enabled = Enabled;
+                self.set_interrupt_state(cpu::InterruptState::Enabled);
                 Ok(false)
             }
             Disabled => Ok(false),
@@ -348,7 +351,7 @@ impl GameBoy {
                 if let Some(interrupt) = itest {
                     self.cycle();
                     self.cycle();
-                    self.cpu.interrupts_enabled = Disabled;
+                    self.set_interrupt_state(cpu::InterruptState::Disabled);
                     let addr = interrupt.handler_address();
                     self.exec_push(self.read_pc())?;
                     self.set_pc(addr);
@@ -366,6 +369,10 @@ impl GameBoy {
     /// execute. All components of the gameboy will run for this many machine
     /// cycles. To find out how many clocks elapsed, use `GameBoy::clocks_elapsed`.
     pub fn step(&mut self) -> StepResult<()> {
+        log::trace!(target: "gb", "Step");
+        if self.cpu.power_saving == PowerSavingMode::Stop {
+            return Ok(());
+        }
         let pc_value = self.read_pc();
         let opcode = self.read_memory_u8(pc_value)?;
         self.cycle();

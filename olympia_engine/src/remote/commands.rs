@@ -6,7 +6,7 @@ use derive_more::Error;
 use alloc::{string::String, vec::Vec};
 
 use crate::{
-    debug::Breakpoint, gameboy::StepError, registers::WordRegister, remote::Event,
+    gameboy::StepError, gbdebug::Breakpoint, registers::WordRegister, remote::Event,
     rom::CartridgeLoadError,
 };
 

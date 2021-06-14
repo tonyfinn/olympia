@@ -11,15 +11,25 @@ use derive_more::{Display, From};
 
 /// Parse a user provided number
 ///
-/// Values beginning with 0x or ending with h (such as 0x123 or 35h)
-/// are attempted to be parsed as base 16. All others are attempted to be
+/// The following prefixes are recognised:
+/// 0x (hex), 0b (binary), 0o (octal)
+/// The following suffixes are recognised:
+/// h (hex), b (binary)
+///
+/// All others are attempted to be
 /// parsed as base 10
 pub fn parse_number(src: &str) -> Result<u16, core::num::ParseIntError> {
     let lowered = src.to_lowercase();
     if lowered.starts_with("0x") {
         u16::from_str_radix(&src[2..], 16)
+    } else if lowered.starts_with("0b") {
+        u16::from_str_radix(&src[2..], 2)
+    } else if lowered.starts_with("0o") {
+        u16::from_str_radix(&src[2..], 8)
     } else if lowered.ends_with('h') {
         u16::from_str_radix(&src[..src.len() - 1], 16)
+    } else if lowered.ends_with('b') {
+        u16::from_str_radix(&src[..src.len() - 1], 2)
     } else {
         src.parse()
     }
@@ -134,25 +144,83 @@ impl FromStr for RWTarget {
     }
 }
 
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
+pub enum Comparison {
+    #[display(fmt = ">")]
+    GreaterThan,
+    #[display(fmt = ">=")]
+    GreaterThanEqual,
+    #[display(fmt = "<")]
+    LessThan,
+    #[display(fmt = "<=")]
+    LessThanEqual,
+    #[display(fmt = "==")]
+    Equal,
+    #[display(fmt = "!=")]
+    NotEqual,
+}
+
+impl FromStr for Comparison {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            ">" => Ok(Comparison::GreaterThan),
+            ">=" => Ok(Comparison::GreaterThanEqual),
+            "<" => Ok(Comparison::LessThan),
+            "<=" => Ok(Comparison::LessThanEqual),
+            "=" => Ok(Comparison::Equal),
+            "==" => Ok(Comparison::Equal),
+            "!=" => Ok(Comparison::NotEqual),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq)]
+pub enum BreakpointCondition {
+    #[display(fmt = "{} {:X}", "_0", "_1")]
+    Test(Comparison, u64),
+    #[display(fmt = "Read")]
+    Read,
+    #[display(fmt = "Write")]
+    Write,
+}
+
 #[derive(Debug, Display, Clone, PartialEq, Eq)]
 /// A breakpoint that triggers when a monitored value is set to a given value.
-#[display(fmt = "Breakpoint: {} == {:X}", monitor, value)]
+#[display(fmt = "Breakpoint: {} {}", monitor, condition)]
 pub struct Breakpoint {
     /// The value that should be checked
     pub monitor: RWTarget,
     /// Value to check against. For 8-bit registers or memory locations, only
     /// the lower 8-bits are checked
-    pub value: u64,
+    pub condition: BreakpointCondition,
 }
 
 impl Breakpoint {
-    pub fn new(monitor: RWTarget, value: u64) -> Breakpoint {
-        Breakpoint { monitor, value }
+    /// New breakpoint with the specified condition
+    pub fn new(monitor: RWTarget, condition: BreakpointCondition) -> Breakpoint {
+        Breakpoint { monitor, condition }
     }
 
     /// Returns whether this breakpoint is active
     pub fn should_break(&self, gb: &gameboy::GameBoy) -> bool {
         let read_result = self.monitor.read(gb);
-        read_result.is_ok() && read_result.unwrap() == self.value
+        use BreakpointCondition::*;
+        use Comparison::*;
+        if let Ok(value) = read_result {
+            match self.condition {
+                Test(GreaterThan, test) => value > test,
+                Test(GreaterThanEqual, test) => value >= test,
+                Test(LessThan, test) => value < test,
+                Test(LessThanEqual, test) => value <= test,
+                Test(Equal, test) => value == test,
+                Test(NotEqual, test) => value != test,
+                Read => false,
+                Write => false,
+            }
+        } else {
+            false
+        }
     }
 }

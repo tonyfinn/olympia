@@ -108,6 +108,7 @@ builder_struct!(
 );
 
 pub struct EmulatorDisplay {
+    #[allow(dead_code)]
     context: glib::MainContext,
     emu: Rc<RemoteEmulator>,
     widget: EmulatorDisplayWidget,

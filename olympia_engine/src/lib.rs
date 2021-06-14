@@ -24,9 +24,9 @@ pub use olympia_core::disasm;
 pub use olympia_core::instructions;
 pub use olympia_core::registers;
 
-pub mod debug;
 pub mod events;
 pub mod gameboy;
+pub mod gbdebug;
 pub mod instructionsn;
 pub mod remote;
 pub mod rom;

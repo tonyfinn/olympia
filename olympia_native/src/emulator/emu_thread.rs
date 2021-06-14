@@ -191,6 +191,11 @@ impl EmulatorThread {
         gb.step()?;
         for bp in breakpoints.iter() {
             if bp.breakpoint.should_break(gb) {
+                log::info!(
+                    "Hit breakpoint: {} {}",
+                    bp.breakpoint.monitor,
+                    bp.breakpoint.condition
+                );
                 return Ok(ExecMode::HitBreakpoint(bp.clone()));
             }
         }

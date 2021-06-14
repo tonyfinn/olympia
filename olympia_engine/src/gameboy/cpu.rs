@@ -51,6 +51,7 @@ impl Interrupt {
     }
 
     pub(crate) fn set(&self, ie: &mut u8) {
+        log::trace!(target: "cpu/interrupt", "Enabled interrupt {:?}", self);
         match self {
             Interrupt::VBlank => *ie |= 1,
             Interrupt::LCDStatus => *ie |= 2,
@@ -84,7 +85,7 @@ struct Registers {
 
 impl Registers {
     fn read_u8(&self, reg: registers::ByteRegister) -> u8 {
-        match reg {
+        let val = match reg {
             br::A => self.af.to_le_bytes()[1],
             br::F => self.af.to_le_bytes()[0],
             br::B => self.bc.to_le_bytes()[1],
@@ -93,21 +94,26 @@ impl Registers {
             br::E => self.de.to_le_bytes()[0],
             br::H => self.hl.to_le_bytes()[1],
             br::L => self.hl.to_le_bytes()[0],
-        }
+        };
+        log::trace!(target: "cpu/registers", "Read {:X} from {:?}", val, reg);
+        val
     }
 
     fn read_u16(&self, reg: registers::WordRegister) -> u16 {
-        match reg {
+        let val = match reg {
             wr::AF => self.af.to_le(),
             wr::BC => self.bc.to_le(),
             wr::DE => self.de.to_le(),
             wr::HL => self.hl.to_le(),
             wr::SP => self.sp.to_le(),
             wr::PC => self.pc.to_le(),
-        }
+        };
+        log::trace!(target: "cpu/registers", "Read {:X} from {:?}", val, reg);
+        val
     }
 
     fn write_u8(&mut self, reg: registers::ByteRegister, value: u8) {
+        log::trace!(target: "cpu/registers", "Writing {:X} to {:?}", value, reg);
         let full_register = reg.lookup_word_register();
         let byte = reg.lookup_byte();
 
@@ -146,6 +152,7 @@ impl Registers {
     }
 
     fn write_u16(&mut self, reg: registers::WordRegister, value: u16) {
+        log::trace!(target: "cpu/registers", "Writing {:X} to {:?}", value, reg);
         self.write_raw(reg, value.to_le());
     }
 
@@ -162,14 +169,18 @@ impl Registers {
     }
 
     fn read_flag(&self, flag: registers::Flag) -> bool {
-        self.af & (1u16 << flag.bit()) != 0
+        let value = self.af & (1u16 << flag.bit()) != 0;
+        log::trace!(target: "cpu/flags", "Read flag {:?}: {}", flag, value);
+        value
     }
 
     fn set_flag(&mut self, flag: registers::Flag) {
+        log::trace!(target: "cpu/flags", "Enabled flag {:?}", flag);
         self.af |= 1 << flag.bit();
     }
 
     fn reset_flag(&mut self, flag: registers::Flag) {
+        log::trace!(target: "cpu/flags", "Reset flag {:?}", flag);
         self.af &= !(1u16 << flag.bit());
     }
 }

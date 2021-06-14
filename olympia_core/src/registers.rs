@@ -154,6 +154,7 @@ impl TryFrom<ByteRegisterTarget> for ByteRegister {
 ///
 /// Note that many instructions leave flags alone,
 /// and others may repurpose them for side channel information.
+#[derive(Debug)]
 pub enum Flag {
     /// The last arithmetic operation resulted in 0
     Zero,

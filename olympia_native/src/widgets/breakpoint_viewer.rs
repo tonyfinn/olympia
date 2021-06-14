@@ -3,8 +3,10 @@ use crate::utils;
 
 use glib::clone;
 use gtk::prelude::*;
+use olympia_engine::gbdebug::BreakpointCondition;
+use olympia_engine::gbdebug::Comparison;
 use olympia_engine::{
-    debug::{Breakpoint, RWTarget},
+    gbdebug::{Breakpoint, RWTarget},
     remote::{RemoteEmulator, UiBreakpoint},
 };
 use std::rc::Rc;
@@ -17,6 +19,8 @@ builder_struct!(
         monitor_input: gtk::Entry,
         #[ogtk(id = "BreakpointListStore")]
         store: gtk::ListStore,
+        #[ogtk(id = "DebuggerConditionPicker")]
+        condition_picker: gtk::ComboBoxText,
         #[ogtk(id = "DebuggerExpectedValueEntry")]
         value_input: gtk::Entry,
     }
@@ -57,11 +61,27 @@ impl BreakpointViewer {
         self.context.spawn_local(self.clone().add_breakpoint());
     }
 
+    fn condition_changed(self: &Rc<Self>) {
+        let text = self.widget.condition_picker.get_active_text();
+
+        if let Some(active_text) = text {
+            log::debug!("Condition changed: {}", active_text);
+            let has_value = !(active_text == "Read" || active_text == "Write");
+            self.widget.value_input.set_visible(has_value);
+        }
+    }
+
     pub fn connect_ui_events(self: &Rc<Self>) {
         self.widget
             .add_button
             .connect_clicked(clone!(@weak self as bpv => move |_| {
                 bpv.add_clicked();
+            }));
+
+        self.widget
+            .condition_picker
+            .connect_changed(clone!(@weak self as bpv => move |_| {
+                bpv.condition_changed();
             }));
     }
 
@@ -88,8 +108,25 @@ impl BreakpointViewer {
                 .get_text()
                 .and_then(|s| u64::from_str_radix(s.as_str(), 16).ok())
         };
-        match (target, value) {
-            (Some(t), Some(v)) => Some(Breakpoint::new(t, v).into()),
+        let condition = self
+            .widget
+            .condition_picker
+            .get_active_text()
+            .and_then(|s| {
+                let comparison: Result<Comparison, _> = s.parse();
+                if let Ok(comp) = comparison {
+                    let expected_value = value?;
+                    Some(BreakpointCondition::Test(comp, expected_value))
+                } else if s == "Read" {
+                    Some(BreakpointCondition::Read)
+                } else if s == "Write" {
+                    Some(BreakpointCondition::Write)
+                } else {
+                    None
+                }
+            });
+        match (target, condition) {
+            (Some(t), Some(c)) => Some(Breakpoint::new(t, c).into()),
             _ => None,
         }
     }
@@ -103,7 +140,7 @@ impl BreakpointViewer {
                 &[
                     &breakpoint.active,
                     &format!("{}", breakpoint.breakpoint.monitor),
-                    &format!("== {:X}", breakpoint.breakpoint.value),
+                    &format!("{}", breakpoint.breakpoint.condition),
                 ],
             );
         }
