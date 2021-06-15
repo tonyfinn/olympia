@@ -24,19 +24,65 @@ pub(crate) struct Debugger {
     window: ApplicationWindow,
 }
 
+fn create_child<C: IsA<gtk::Widget> + IsA<glib::Object>>(
+    parent_builder: &gtk::Builder,
+    builder_xml: &str,
+    container_id: &str,
+    content_id: &str,
+) -> gtk::Builder {
+    let child_builder = gtk::Builder::new_from_string(builder_xml);
+    let container: gtk::Box = parent_builder.get_object(container_id).unwrap();
+    let content: C = child_builder.get_object(content_id).unwrap();
+    container.pack_start(&content, true, true, 0);
+    child_builder
+}
+
 impl Debugger {
     pub(crate) fn new(app: &Application) -> Rc<Debugger> {
         let ctx = glib::MainContext::default();
         let emu = glib_remote_emulator(ctx.clone());
 
-        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
-        let playback_controls = PlaybackControls::from_builder(&builder, ctx.clone(), emu.clone());
-        let window: ApplicationWindow = builder.get_object("MainWindow").unwrap();
+        let root_builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+
+        let playback_controls =
+            PlaybackControls::from_builder(&root_builder, ctx.clone(), emu.clone());
+        let window: ApplicationWindow = root_builder.get_object("MainWindow").unwrap();
         let open_action = gio::SimpleAction::new("open", None);
-        let register_labels = RegisterLabels::from_builder(&builder, ctx.clone(), emu.clone());
-        let emulator_display = EmulatorDisplay::from_builder(&builder, ctx.clone(), emu.clone());
-        let memory_viewer = MemoryViewer::from_builder(&builder, ctx.clone(), emu.clone(), 17);
-        let breakpoint_viewer = BreakpointViewer::from_builder(&builder, ctx.clone(), emu.clone());
+        let emulator_display =
+            EmulatorDisplay::from_builder(&root_builder, ctx.clone(), emu.clone());
+
+        let register_builder = create_child::<gtk::Box>(
+            &root_builder,
+            include_str!("../../res/registers.ui"),
+            "RegistersContainer",
+            "Registers",
+        );
+        let register_labels =
+            RegisterLabels::from_builder(&register_builder, ctx.clone(), emu.clone());
+
+        let memv_builder = create_child::<gtk::Box>(
+            &root_builder,
+            include_str!("../../res/memory.ui"),
+            "MemoryContainer",
+            "Memory",
+        );
+        let memory_viewer = MemoryViewer::from_builder(&memv_builder, ctx.clone(), emu.clone(), 17);
+
+        create_child::<gtk::Label>(
+            &root_builder,
+            include_str!("../../res/disassembly.ui"),
+            "DisassemblyContainer",
+            "Disassembly",
+        );
+
+        let bpv_builder = create_child::<gtk::Box>(
+            &root_builder,
+            include_str!("../../res/breakpoints.ui"),
+            "BreakpointsContainer",
+            "Breakpoints",
+        );
+        let breakpoint_viewer =
+            BreakpointViewer::from_builder(&bpv_builder, ctx.clone(), emu.clone());
 
         window.set_application(Some(app));
         window.add_action(&open_action);

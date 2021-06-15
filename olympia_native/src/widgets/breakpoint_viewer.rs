@@ -62,11 +62,11 @@ impl BreakpointViewer {
     }
 
     fn condition_changed(self: &Rc<Self>) {
-        let text = self.widget.condition_picker.get_active_text();
+        let id = self.widget.condition_picker.get_active_id();
 
-        if let Some(active_text) = text {
-            log::debug!("Condition changed: {}", active_text);
-            let has_value = !(active_text == "Read" || active_text == "Write");
+        if let Some(active_id) = id {
+            log::debug!("Condition changed: {}", active_id);
+            let has_value = !(active_id == "Read" || active_id == "Write");
             self.widget.value_input.set_visible(has_value);
         }
     }
@@ -108,23 +108,25 @@ impl BreakpointViewer {
                 .get_text()
                 .and_then(|s| u64::from_str_radix(s.as_str(), 16).ok())
         };
-        let condition = self
-            .widget
-            .condition_picker
-            .get_active_text()
-            .and_then(|s| {
-                let comparison: Result<Comparison, _> = s.parse();
-                if let Ok(comp) = comparison {
-                    let expected_value = value?;
-                    Some(BreakpointCondition::Test(comp, expected_value))
-                } else if s == "Read" {
-                    Some(BreakpointCondition::Read)
-                } else if s == "Write" {
-                    Some(BreakpointCondition::Write)
-                } else {
-                    None
-                }
-            });
+        let picker = &self.widget.condition_picker;
+        let condition = picker.get_active_text().and_then(|s| {
+            let comparison: Result<Comparison, _> = s.parse();
+            if let Ok(comp) = comparison {
+                let expected_value = value?;
+                Some(BreakpointCondition::Test(comp, expected_value))
+            } else {
+                picker.get_active_id().and_then(|id| {
+                    println!("{}", id);
+                    if id == "Read" {
+                        Some(BreakpointCondition::Read)
+                    } else if id == "Write" {
+                        Some(BreakpointCondition::Write)
+                    } else {
+                        None
+                    }
+                })
+            }
+        });
         match (target, condition) {
             (Some(t), Some(c)) => Some(Breakpoint::new(t, c).into()),
             _ => None,
