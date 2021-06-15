@@ -7,7 +7,7 @@
     <property name="orientation">vertical</property>
     <property name="spacing">5</property>
     <child>
-      <object class="GtkTreeView" id="DebuggerBreakpointTree">
+      <object class="GtkTreeView" id="BreakpointTree">
         <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="enable_grid_lines">both</property>
@@ -15,10 +15,10 @@
         <property name="margin_left">1</property>
         <property name="model">BreakpointListStore</property>
         <child>
-          <object class="GtkTreeViewColumn" id="active-column">
+          <object class="GtkTreeViewColumn">
             <property name="title">Active</property>
             <child>
-              <object class="GtkCellRendererToggle" />
+              <object class="GtkCellRendererToggle" id="BreakpointActiveToggle" />
               <attributes>
                 <attribute name="active">0</attribute>
               </attributes>
@@ -26,7 +26,7 @@
           </object>
         </child>
         <child>
-          <object class="GtkTreeViewColumn" id="source-column">
+          <object class="GtkTreeViewColumn" id="BreakpointSourceColumn">
             <property name="title">Monitor</property>
             <child>
               <object class="GtkCellRendererText" />
@@ -37,7 +37,7 @@
           </object>
         </child>
         <child>
-          <object class="GtkTreeViewColumn" id="value-column">
+          <object class="GtkTreeViewColumn" id="BreakpointValueColumn">
             <property name="title">Break When</property>
             <child>
               <object class="GtkCellRendererText" />

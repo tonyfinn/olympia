@@ -2,6 +2,7 @@ use crate::builder_struct;
 use crate::utils;
 
 use glib::clone;
+use glib::value::FromValue;
 use gtk::prelude::*;
 use olympia_engine::gbdebug::BreakpointCondition;
 use olympia_engine::gbdebug::Comparison;
@@ -10,6 +11,8 @@ use olympia_engine::{
     remote::{RemoteEmulator, UiBreakpoint},
 };
 use std::rc::Rc;
+
+const ACTIVE_COLUMN_INDEX: i32 = 0;
 
 builder_struct!(
     pub(crate) struct BreakpointViewerWidget {
@@ -23,6 +26,8 @@ builder_struct!(
         condition_picker: gtk::ComboBoxText,
         #[ogtk(id = "DebuggerExpectedValueEntry")]
         value_input: gtk::Entry,
+        #[ogtk(id = "BreakpointActiveToggle")]
+        active_column_renderer: gtk::CellRendererToggle,
     }
 );
 
@@ -61,6 +66,48 @@ impl BreakpointViewer {
         self.context.spawn_local(self.clone().add_breakpoint());
     }
 
+    fn get_tree_value(
+        self: &Rc<Self>,
+        path: &gtk::TreePath,
+        column_index: i32,
+    ) -> Option<glib::Value> {
+        match self.widget.store.get_iter(path) {
+            Some(x) => Some(self.widget.store.get_value(&x, column_index)),
+            _ => None,
+        }
+    }
+
+    fn set_tree_value<T: ToValue>(
+        self: &Rc<Self>,
+        path: &gtk::TreePath,
+        column_index: i32,
+        value: T,
+    ) {
+        let iter = self.widget.store.get_iter(path);
+
+        let iter = match iter {
+            Some(x) => x,
+            _ => return,
+        };
+        self.widget
+            .store
+            .set_value(&iter, column_index as u32, &value.to_value());
+    }
+
+    fn bp_active_toggled(self: &Rc<Self>, path: gtk::TreePath) {
+        let previous_state: bool = self
+            .get_tree_value(&path, ACTIVE_COLUMN_INDEX)
+            .and_then(|v| v.get_some().ok())
+            .unwrap_or_default();
+        let new_state = !previous_state;
+        self.set_tree_value(&path, ACTIVE_COLUMN_INDEX, new_state);
+        log::debug!(
+            "Toggled breakpoint from {} to {}",
+            previous_state,
+            new_state
+        );
+    }
+
     fn condition_changed(self: &Rc<Self>) {
         let id = self.widget.condition_picker.get_active_id();
 
@@ -83,6 +130,12 @@ impl BreakpointViewer {
             .connect_changed(clone!(@weak self as bpv => move |_| {
                 bpv.condition_changed();
             }));
+
+        self.widget.active_column_renderer.connect_toggled(
+            clone!(@weak self as bpv => move |_, path| {
+                bpv.bp_active_toggled(path);
+            }),
+        );
     }
 
     fn parse_breakpoint(&self) -> Option<UiBreakpoint> {
