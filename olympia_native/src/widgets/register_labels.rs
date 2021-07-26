@@ -156,19 +156,19 @@ mod tests {
             sp: 0x1111,
         });
 
-        let af_text: Option<String> = component.widget.af_input.get_text().map(|txt| txt.into());
-        let bc_text: Option<String> = component.widget.bc_input.get_text().map(|txt| txt.into());
-        let de_text: Option<String> = component.widget.de_input.get_text().map(|txt| txt.into());
-        let hl_text: Option<String> = component.widget.hl_input.get_text().map(|txt| txt.into());
-        let pc_text: Option<String> = component.widget.pc_input.get_text().map(|txt| txt.into());
-        let sp_text: Option<String> = component.widget.sp_input.get_text().map(|txt| txt.into());
+        let af_text: String = component.widget.af_input.get_text().into();
+        let bc_text: String = component.widget.bc_input.get_text().into();
+        let de_text: String = component.widget.de_input.get_text().into();
+        let hl_text: String = component.widget.hl_input.get_text().into();
+        let pc_text: String = component.widget.pc_input.get_text().into();
+        let sp_text: String = component.widget.sp_input.get_text().into();
 
-        assert_eq!(af_text, Some(String::from("6666")));
-        assert_eq!(bc_text, Some(String::from("5555")));
-        assert_eq!(de_text, Some(String::from("4444")));
-        assert_eq!(hl_text, Some(String::from("3333")));
-        assert_eq!(pc_text, Some(String::from("2222")));
-        assert_eq!(sp_text, Some(String::from("1111")));
+        assert_eq!(af_text, String::from("6666"));
+        assert_eq!(bc_text, String::from("5555"));
+        assert_eq!(de_text, String::from("4444"));
+        assert_eq!(hl_text, String::from("3333"));
+        assert_eq!(pc_text, String::from("2222"));
+        assert_eq!(sp_text, String::from("1111"));
         context.release();
     }
 
@@ -177,7 +177,7 @@ mod tests {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
         let emu = test_utils::get_loaded_remote_emu(context.clone());
-        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let builder = gtk::Builder::from_string(include_str!("../../res/registers.ui"));
         let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
 
         let task = async {
@@ -187,20 +187,19 @@ mod tests {
         };
         let actual_registers = test_utils::wait_for_task(&context, task).unwrap();
         test_utils::digest_events(&context);
+        let af_text: String = component.widget.af_input.get_text().into();
+        let bc_text: String = component.widget.bc_input.get_text().into();
+        let de_text: String = component.widget.de_input.get_text().into();
+        let hl_text: String = component.widget.hl_input.get_text().into();
+        let pc_text: String = component.widget.pc_input.get_text().into();
+        let sp_text: String = component.widget.sp_input.get_text().into();
 
-        let af_text: Option<String> = component.widget.af_input.get_text().map(|txt| txt.into());
-        let bc_text: Option<String> = component.widget.bc_input.get_text().map(|txt| txt.into());
-        let de_text: Option<String> = component.widget.de_input.get_text().map(|txt| txt.into());
-        let hl_text: Option<String> = component.widget.hl_input.get_text().map(|txt| txt.into());
-        let pc_text: Option<String> = component.widget.pc_input.get_text().map(|txt| txt.into());
-        let sp_text: Option<String> = component.widget.sp_input.get_text().map(|txt| txt.into());
-
-        assert_eq!(af_text, Some(format!("{:04X}", actual_registers.af)));
-        assert_eq!(bc_text, Some(format!("{:04X}", actual_registers.bc)));
-        assert_eq!(de_text, Some(format!("{:04X}", actual_registers.de)));
-        assert_eq!(hl_text, Some(format!("{:04X}", actual_registers.hl)));
-        assert_eq!(pc_text, Some(format!("{:04X}", actual_registers.pc)));
-        assert_eq!(sp_text, Some(format!("{:04X}", actual_registers.sp)));
+        assert_eq!(af_text, format!("{:04X}", actual_registers.af));
+        assert_eq!(bc_text, format!("{:04X}", actual_registers.bc));
+        assert_eq!(de_text, format!("{:04X}", actual_registers.de));
+        assert_eq!(hl_text, format!("{:04X}", actual_registers.hl));
+        assert_eq!(pc_text, format!("{:04X}", actual_registers.pc));
+        assert_eq!(sp_text, format!("{:04X}", actual_registers.sp));
         context.release();
     }
 
@@ -209,14 +208,14 @@ mod tests {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
         let emu = test_utils::get_loaded_remote_emu(context.clone());
-        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let builder = gtk::Builder::from_string(include_str!("../../res/registers.ui"));
         let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
 
         component.handle_register_write(WordRegister::BC, 0x8080);
 
-        let bc_text: Option<String> = component.widget.bc_input.get_text().map(|txt| txt.into());
+        let bc_text: String = component.widget.bc_input.get_text().into();
 
-        assert_eq!(bc_text, Some("8080".into()));
+        assert_eq!(bc_text, "8080");
         context.release();
     }
 }

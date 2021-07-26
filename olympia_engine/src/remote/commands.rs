@@ -6,24 +6,12 @@ use derive_more::Error;
 use alloc::{string::String, vec::Vec};
 
 use crate::{
-    gameboy::StepError, gbdebug::Breakpoint, registers::WordRegister, remote::Event,
+    gameboy::StepError,
+    monitor::{Breakpoint, BreakpointIdentifier},
+    registers::WordRegister,
+    remote::Event,
     rom::CartridgeLoadError,
 };
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct UiBreakpoint {
-    pub active: bool,
-    pub breakpoint: Breakpoint,
-}
-
-impl From<Breakpoint> for UiBreakpoint {
-    fn from(breakpoint: Breakpoint) -> UiBreakpoint {
-        UiBreakpoint {
-            active: true,
-            breakpoint,
-        }
-    }
-}
 
 /// The running/not running state of the remote emulator
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -33,7 +21,7 @@ pub enum ExecMode {
     /// The emulator is not running as it paused
     Paused,
     /// The emulator is not running as has hit a breakpoint
-    HitBreakpoint(UiBreakpoint),
+    HitBreakpoint(Breakpoint),
     /// The emulator is running at actual gameboy speed
     Standard,
     /// The emulator is running as fast as possible
@@ -119,7 +107,11 @@ pub enum EmulatorCommand {
     /// Set the exec mode - paused, 1x speed or fast forward
     SetMode(ExecMode),
     /// Add a breakpoint
-    AddBreakpoint(UiBreakpoint),
+    AddBreakpoint(Breakpoint),
+    /// Set the active state of a breakpoint
+    SetBreakpointActive(BreakpointIdentifier, bool),
+    /// Remove a breakpoint
+    RemoveBreakpoint(BreakpointIdentifier),
 }
 
 #[derive(Debug, PartialEq, PartialOrd, From)]
@@ -133,6 +125,41 @@ impl ExecTime {
     }
 }
 
+/// Identifier of a newly added breakpoint
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AddBreakpointResponse {
+    pub id: BreakpointIdentifier,
+}
+
+impl From<BreakpointIdentifier> for AddBreakpointResponse {
+    fn from(id: BreakpointIdentifier) -> AddBreakpointResponse {
+        AddBreakpointResponse { id }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ToggleBreakpointResponse {
+    pub id: BreakpointIdentifier,
+    pub new_state: bool,
+}
+
+impl ToggleBreakpointResponse {
+    pub fn new(id: BreakpointIdentifier, new_state: bool) -> ToggleBreakpointResponse {
+        ToggleBreakpointResponse { id, new_state }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveBreakpointRespnse {
+    pub id: BreakpointIdentifier,
+}
+
+impl From<BreakpointIdentifier> for RemoveBreakpointRespnse {
+    fn from(id: BreakpointIdentifier) -> RemoveBreakpointRespnse {
+        RemoveBreakpointRespnse { id }
+    }
+}
+
 #[derive(Debug, From, TryInto, PartialEq)]
 /// A response to an emulator command
 pub enum EmulatorResponse {
@@ -142,7 +169,9 @@ pub enum EmulatorResponse {
     Step(Result<()>),
     QueryExecTime(Result<ExecTime>),
     SetMode(core::result::Result<ExecMode, ()>),
-    AddBreakpoint(core::result::Result<(), ()>),
+    AddBreakpoint(core::result::Result<AddBreakpointResponse, ()>),
+    ToggleBreakpoint(core::result::Result<ToggleBreakpointResponse, ()>),
+    RemoveBreakpoint(core::result::Result<RemoveBreakpointRespnse, ()>),
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Hash)]

@@ -30,7 +30,7 @@ fn create_child<C: IsA<gtk::Widget> + IsA<glib::Object>>(
     container_id: &str,
     content_id: &str,
 ) -> gtk::Builder {
-    let child_builder = gtk::Builder::new_from_string(builder_xml);
+    let child_builder = gtk::Builder::from_string(builder_xml);
     let container: gtk::Box = parent_builder.get_object(container_id).unwrap();
     let content: C = child_builder.get_object(content_id).unwrap();
     container.pack_start(&content, true, true, 0);
@@ -42,7 +42,7 @@ impl Debugger {
         let ctx = glib::MainContext::default();
         let emu = glib_remote_emulator(ctx.clone());
 
-        let root_builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let root_builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
 
         let playback_controls =
             PlaybackControls::from_builder(&root_builder, ctx.clone(), emu.clone());

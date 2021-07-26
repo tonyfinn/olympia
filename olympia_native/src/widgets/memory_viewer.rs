@@ -4,7 +4,7 @@ use glib::clone;
 use gtk::prelude::*;
 use olympia_engine::{
     address::LiteralAddress,
-    events::{ManualStepEvent, MemoryWriteEvent, RomLoadedEvent},
+    events::{ManualStepEvent, MemoryEvent, RomLoadedEvent},
     registers::WordRegister,
     remote::{QueryMemoryResponse, RemoteEmulator},
 };
@@ -23,9 +23,9 @@ impl MemoryViewerRow {
         let addr = gtk::Label::new(Some(&format!("0x{:04X}", offset)));
         let value_labels: Vec<gtk::Label> = (0..16).map(|_| gtk::Label::new(Some("--"))).collect();
         let layout = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-        layout.add(&addr);
+        layout.pack_start(&addr, false, false, 0);
         for val in value_labels.iter() {
-            layout.add(val);
+            layout.pack_start(val, false, false, 0);
         }
         for label in value_labels.iter().chain(std::iter::once(&addr)) {
             let font_attr = pango::Attribute::new_family("monospace").unwrap();
@@ -159,10 +159,10 @@ impl MemoryViewer {
     pub(crate) fn get_layout(&self) -> gtk::EventBox {
         let event_catcher = gtk::EventBox::new();
         let layout = gtk::Box::new(gtk::Orientation::Vertical, 5);
-        layout.set_margin_start(20);
-        layout.set_margin_end(20);
+        layout.set_margin_start(5);
+        layout.set_margin_end(5);
         for row in self.rows.iter() {
-            layout.add(&row.layout);
+            layout.pack_start(&row.layout, false, false, 0);
         }
         event_catcher.add(&layout);
         event_catcher
@@ -204,7 +204,7 @@ impl MemoryViewer {
             Inhibit(true)
         }));
         viewer_box.add_events(gdk::EventMask::SCROLL_MASK);
-        self.widget.panel.add(&viewer_box);
+        self.widget.panel.pack_start(&viewer_box, false, false, 0);
 
         self.widget
             .pc_button
@@ -252,8 +252,13 @@ impl MemoryViewer {
             });
 
         self.emu
-            .on_widget(self.clone(), move |viewer, mw: MemoryWriteEvent| {
-                viewer.handle_write(mw.address, mw.new_value);
+            .on_widget(self.clone(), move |viewer, evt: MemoryEvent| {
+                if let MemoryEvent::Write {
+                    address, new_value, ..
+                } = evt
+                {
+                    viewer.handle_write(address, new_value);
+                }
             });
     }
 
@@ -267,14 +272,13 @@ impl MemoryViewer {
     }
 
     fn goto_address(self: Rc<Self>, address_entry: &gtk::Entry) {
-        if let Some(text) = address_entry.get_text() {
-            let text_string = text.as_str();
-            let parsed = u16::from_str_radix(text_string, 16);
-            if let Ok(val) = parsed {
-                let ctx = self.context.clone();
-                self.offset.replace(self.resolve(val));
-                ctx.spawn_local(self.refresh())
-            }
+        let text = address_entry.get_text();
+        let text_string = text.as_str();
+        let parsed = u16::from_str_radix(text_string, 16);
+        if let Ok(val) = parsed {
+            let ctx = self.context.clone();
+            self.offset.replace(self.resolve(val));
+            ctx.spawn_local(self.refresh())
         }
     }
 
@@ -300,7 +304,7 @@ mod test {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let builder = gtk::Builder::from_string(include_str!("../../res/memory.ui"));
         let component =
             MemoryViewer::from_builder(&builder, context.clone(), emu.clone(), num_visible_rows);
         (context, emu, component)
@@ -316,7 +320,7 @@ mod test {
                 let col = row
                     .cell(j)
                     .expect(&format!("No cell found at row {} column {}", i, j));
-                assert_eq!(col.get_text().unwrap(), "--");
+                assert_eq!(col.get_text(), "--");
             }
         }
     }
@@ -340,10 +344,7 @@ mod test {
                     .cell(j)
                     .expect(&format!("No cell found at row {} column {}", i, j));
                 let actual_value = memory_data.data.get((i * 0x10) + j).unwrap().unwrap();
-                assert_eq!(
-                    col.get_text().unwrap().as_str(),
-                    format!("{:02X}", actual_value)
-                );
+                assert_eq!(col.get_text().as_str(), format!("{:02X}", actual_value));
             }
         }
     }
@@ -358,7 +359,12 @@ mod test {
 
         test_utils::wait_for_task(&context, task);
 
-        component.widget.address_entry.get_buffer().set_text("8000");
+        component
+            .widget
+            .address_entry
+            .get_buffer()
+            .set_text("0x8000");
+        test_utils::next_tick(&context, &emu);
         component.widget.go_button.clicked();
         test_utils::next_tick(&context, &emu);
         for x in 0..0x30 {
@@ -371,8 +377,8 @@ mod test {
                 let actual_value = component
                     .row(row_idx)
                     .and_then(|row| row.cell(cell_idx))
-                    .and_then(|cell| cell.get_text())
-                    .map(|s| s.as_str().to_string());
+                    .map(|cell| cell.get_text().to_string());
+
                 let expected_value = format!("{:02X}", ((1 + row_idx) * 0x10) + cell_idx);
 
                 assert_eq!(actual_value, Some(expected_value));
@@ -390,8 +396,9 @@ mod test {
 
         test_utils::wait_for_task(&context, task);
 
-        component.widget.address_entry.get_buffer().set_text("8000");
-        component.widget.go_button.clicked();
+        component.widget.address_entry.set_text("0x8000");
+        test_utils::next_tick(&context, &emu);
+        component.widget.go_button.emit_clicked();
         test_utils::next_tick(&context, &emu);
 
         for i in 0..16 {
@@ -400,7 +407,7 @@ mod test {
                 let col = row
                     .cell(j)
                     .expect(&format!("No cell found at row {} column {}", i, j));
-                assert_eq!(col.get_text().unwrap().as_str(), "00");
+                assert_eq!(col.get_text().as_str(), "00");
             }
         }
     }

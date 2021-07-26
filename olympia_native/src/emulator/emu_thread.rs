@@ -3,32 +3,34 @@ use glib::clone;
 use olympia_engine::{
     events::{propagate_events, EventEmitter, ModeChangeEvent},
     gameboy::{GameBoy, GameBoyModel, StepError, CYCLE_FREQ},
+    monitor::{BreakpointState, DebugMonitor},
     registers::WordRegister,
     remote,
     remote::{
         CommandId, EmulatorCommand, EmulatorResponse, ExecMode, ExecTime, LoadRomError,
-        QueryMemoryResponse, QueryRegistersResponse, RemoteEmulatorOutput, UiBreakpoint,
+        QueryMemoryResponse, QueryRegistersResponse, RemoteEmulatorOutput,
+        ToggleBreakpointResponse,
     },
     rom::Cartridge,
 };
 
-use std::rc::Rc;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
+use std::{cell::RefCell, rc::Rc};
 
 struct SenderClosed {}
 
 pub(crate) struct EmulatorState {
     pub gameboy: Option<GameBoy>,
-    pub breakpoints: Vec<UiBreakpoint>,
+    pub monitor: Rc<RefCell<DebugMonitor>>,
 }
 
 impl EmulatorState {
     pub(crate) fn new() -> EmulatorState {
         EmulatorState {
             gameboy: None,
-            breakpoints: vec![],
+            monitor: Rc::new(RefCell::new(DebugMonitor::new())),
         }
     }
 
@@ -41,10 +43,13 @@ impl EmulatorState {
     }
 
     pub(crate) fn load_rom(&mut self, data: Vec<u8>) -> Result<(), LoadRomError> {
-        self.gameboy = Some(GameBoy::new(
-            Cartridge::from_data(data)?,
-            GameBoyModel::GameBoy,
+        let gb = GameBoy::new(Cartridge::from_data(data)?, GameBoyModel::GameBoy);
+        gb.events.on(Box::new(
+            clone!(@weak self.monitor as monitor => move |evt| {
+                monitor.borrow_mut().handle_event(&evt);
+            }),
         ));
+        self.gameboy = Some(gb);
         Ok(())
     }
 
@@ -79,7 +84,7 @@ impl EmulatorState {
         let mut data: Vec<Option<u8>> = Vec::with_capacity((end_addr - start_addr) as usize + 1);
         if let Some(gb) = self.gameboy.as_ref() {
             for addr in start_addr..=end_addr {
-                data.push(gb.read_memory_u8(addr).ok())
+                data.push(gb.get_memory_u8(addr).ok())
             }
             Ok(QueryMemoryResponse { start_addr, data })
         } else {
@@ -93,7 +98,6 @@ pub(super) struct EmulatorThread {
     rx: mpsc::Receiver<(CommandId, EmulatorCommand)>,
     tx: Rc<glib::Sender<RemoteEmulatorOutput>>,
     events: Rc<EventEmitter<remote::Event>>,
-    breakpoints: Vec<UiBreakpoint>,
     exec_mode: ExecMode,
 }
 
@@ -107,7 +111,6 @@ impl EmulatorThread {
             state,
             rx: command_rx,
             tx: Rc::new(event_tx),
-            breakpoints: Vec::new(),
             events: Rc::new(EventEmitter::new()),
             exec_mode: ExecMode::Unloaded,
         }
@@ -168,12 +171,36 @@ impl EmulatorThread {
                     EmulatorResponse::QueryExecTime(self.state.exec_time())
                 }
                 EmulatorCommand::SetMode(mode) => {
+                    if mode == ExecMode::Standard || mode == ExecMode::Uncapped {
+                        self.state.monitor.borrow_mut().resume();
+                    }
                     self.exec_mode = mode;
                     EmulatorResponse::SetMode(Ok(self.exec_mode.clone()))
                 }
                 EmulatorCommand::AddBreakpoint(bp) => {
-                    self.breakpoints.push(bp);
-                    EmulatorResponse::AddBreakpoint(Ok(()))
+                    let resp = self.state.monitor.borrow_mut().add_breakpoint(bp);
+                    EmulatorResponse::AddBreakpoint(Ok(resp.into()))
+                }
+                EmulatorCommand::RemoveBreakpoint(id) => {
+                    let resp = self.state.monitor.borrow_mut().remove_breakpoint(id);
+                    if resp.is_none() {
+                        log::info!("Tried to remove invalid breakpoint {:?}", id);
+                    }
+                    EmulatorResponse::RemoveBreakpoint(Ok(id.into()))
+                }
+                EmulatorCommand::SetBreakpointActive(id, state) => {
+                    let resp = self
+                        .state
+                        .monitor
+                        .borrow_mut()
+                        .set_breakpoint_state(id, state);
+                    if let Some(state) = resp {
+                        EmulatorResponse::ToggleBreakpoint(Ok(ToggleBreakpointResponse::new(
+                            id, state,
+                        )))
+                    } else {
+                        EmulatorResponse::ToggleBreakpoint(Err(()))
+                    }
                 }
             };
             self.tx
@@ -184,20 +211,14 @@ impl EmulatorThread {
     }
 
     fn step(
-        breakpoints: &Vec<UiBreakpoint>,
         gb: &mut GameBoy,
+        monitor: &RefCell<DebugMonitor>,
         inital_mode: ExecMode,
     ) -> Result<ExecMode, StepError> {
         gb.step()?;
-        for bp in breakpoints.iter() {
-            if bp.breakpoint.should_break(gb) {
-                log::info!(
-                    "Hit breakpoint: {} {}",
-                    bp.breakpoint.monitor,
-                    bp.breakpoint.condition
-                );
-                return Ok(ExecMode::HitBreakpoint(bp.clone()));
-            }
+        if let BreakpointState::HitBreakpoint(bp) = monitor.borrow().state() {
+            println!("Hit breakpoint: {:?}", bp);
+            return Ok(ExecMode::HitBreakpoint(bp.clone()));
         }
         Ok(inital_mode)
     }
@@ -217,13 +238,13 @@ impl EmulatorThread {
                     ExecMode::Standard => {
                         thread::sleep(Duration::from_secs_f64(1.0 / (f64::from(CYCLE_FREQ))));
                         let step_result =
-                            EmulatorThread::step(&self.breakpoints, gb, self.exec_mode.clone());
+                            EmulatorThread::step(gb, &self.state.monitor, self.exec_mode.clone());
                         gb.add_exec_time(start_time.elapsed().as_secs_f64());
                         step_result
                     }
                     ExecMode::Uncapped => {
                         let step_result =
-                            EmulatorThread::step(&self.breakpoints, gb, self.exec_mode.clone());
+                            EmulatorThread::step(gb, &self.state.monitor, self.exec_mode.clone());
                         gb.add_exec_time(start_time.elapsed().as_secs_f64());
                         step_result
                     }

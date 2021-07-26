@@ -143,12 +143,10 @@ mod tests {
     use crate::utils::test_utils;
     use olympia_engine::{
         events::{ManualStepEvent, ModeChangeEvent, RomLoadedEvent},
-        gbdebug::{Breakpoint, BreakpointCondition, Comparison},
+        monitor::{Breakpoint, BreakpointCondition, Comparison},
         registers::WordRegister,
         remote,
-        remote::{
-            ExecMode, LoadRomError, QueryMemoryResponse, QueryRegistersResponse, UiBreakpoint,
-        },
+        remote::{ExecMode, LoadRomError, QueryMemoryResponse, QueryRegistersResponse},
     };
     use std::{cell::RefCell, rc::Rc, time::Duration};
 
@@ -287,11 +285,10 @@ mod tests {
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
         emu.on::<ModeChangeEvent, _>(f);
-        let bp: UiBreakpoint = Breakpoint::new(
+        let bp = Breakpoint::new(
             WordRegister::PC.into(),
             BreakpointCondition::Test(Comparison::Equal, 0x150),
-        )
-        .into();
+        );
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
             emu.add_breakpoint(bp.clone()).await.unwrap();
@@ -324,11 +321,10 @@ mod tests {
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
         let (f, events) = track_event();
         emu.on::<ModeChangeEvent, _>(f);
-        let bp: UiBreakpoint = Breakpoint::new(
+        let bp = Breakpoint::new(
             WordRegister::PC.into(),
             BreakpointCondition::Test(Comparison::Equal, 0x150),
-        )
-        .into();
+        );
         let task = async {
             emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
             emu.add_breakpoint(bp.clone()).await.unwrap();

@@ -1,6 +1,7 @@
 //! Methods useful for implementing debugging functionality
 
 use crate::address;
+use crate::events::{Event, MemoryEvent};
 use crate::gameboy;
 use crate::registers;
 
@@ -160,6 +161,19 @@ pub enum Comparison {
     NotEqual,
 }
 
+impl Comparison {
+    pub fn test(&self, value_to_test: u64, reference_value: u64) -> bool {
+        match self {
+            Comparison::GreaterThan => value_to_test > reference_value,
+            Comparison::GreaterThanEqual => value_to_test >= reference_value,
+            Comparison::LessThan => value_to_test < reference_value,
+            Comparison::LessThanEqual => value_to_test <= reference_value,
+            Comparison::Equal => value_to_test == reference_value,
+            Comparison::NotEqual => value_to_test != reference_value,
+        }
+    }
+}
+
 impl FromStr for Comparison {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -195,32 +209,147 @@ pub struct Breakpoint {
     /// Value to check against. For 8-bit registers or memory locations, only
     /// the lower 8-bits are checked
     pub condition: BreakpointCondition,
+    /// Whether the breakpoint should be considered
+    pub active: bool,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct BreakpointIdentifier(u32);
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum BreakpointState {
+    Inactive,
+    HitBreakpoint(Breakpoint),
 }
 
 impl Breakpoint {
     /// New breakpoint with the specified condition
     pub fn new(monitor: RWTarget, condition: BreakpointCondition) -> Breakpoint {
-        Breakpoint { monitor, condition }
+        Breakpoint {
+            monitor,
+            condition,
+            active: true,
+        }
     }
 
     /// Returns whether this breakpoint is active
     pub fn should_break(&self, gb: &gameboy::GameBoy) -> bool {
         let read_result = self.monitor.read(gb);
         use BreakpointCondition::*;
-        use Comparison::*;
         if let Ok(value) = read_result {
             match self.condition {
-                Test(GreaterThan, test) => value > test,
-                Test(GreaterThanEqual, test) => value >= test,
-                Test(LessThan, test) => value < test,
-                Test(LessThanEqual, test) => value <= test,
-                Test(Equal, test) => value == test,
-                Test(NotEqual, test) => value != test,
+                Test(cmp, reference_value) => cmp.test(value, reference_value),
                 Read => false,
                 Write => false,
             }
         } else {
             false
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct DebugMonitor {
+    breakpoints: Vec<(BreakpointIdentifier, Breakpoint)>,
+    state: BreakpointState,
+    next_identifier: u32,
+}
+
+impl DebugMonitor {
+    pub fn new() -> DebugMonitor {
+        DebugMonitor {
+            breakpoints: Vec::new(),
+            state: BreakpointState::Inactive,
+            next_identifier: 0,
+        }
+    }
+
+    pub fn resume(&mut self) {
+        self.state = BreakpointState::Inactive
+    }
+
+    pub fn state(&self) -> BreakpointState {
+        self.state.clone()
+    }
+
+    pub fn handle_event(&mut self, event: &Event) -> bool {
+        match event {
+            Event::Memory(MemoryEvent::Read { address, .. }) => self.handle_read((*address).into()),
+            Event::Memory(MemoryEvent::Write {
+                address, new_value, ..
+            }) => self.handle_write((*address).into(), (*new_value).into()),
+            _ => false,
+        }
+    }
+
+    pub fn add_breakpoint(&mut self, bp: Breakpoint) -> BreakpointIdentifier {
+        let identifier = BreakpointIdentifier(self.next_identifier);
+        self.breakpoints.push((identifier, bp));
+        self.next_identifier += 1;
+        identifier
+    }
+
+    pub fn remove_breakpoint(&mut self, id_to_remove: BreakpointIdentifier) -> Option<Breakpoint> {
+        let idx = self
+            .breakpoints
+            .iter()
+            .position(|(id, _)| *id == id_to_remove)?;
+
+        let (_, bp) = self.breakpoints.remove(idx);
+        Some(bp)
+    }
+
+    pub fn set_breakpoint_state(
+        &mut self,
+        id_to_update: BreakpointIdentifier,
+        state: bool,
+    ) -> Option<bool> {
+        let breakpoint = self
+            .breakpoints
+            .iter_mut()
+            .find(|(id, _)| id_to_update == *id);
+
+        if let Some((_, bp)) = breakpoint {
+            bp.active = state;
+            Some(state)
+        } else {
+            log::warn!(
+                "Tried to set state of invalid breakpoint {:?}",
+                id_to_update
+            );
+            None
+        }
+    }
+
+    fn handle_read(&mut self, target: RWTarget) -> bool {
+        for (_id, bp) in self.breakpoints.iter() {
+            if !bp.active {
+                continue;
+            }
+            if bp.condition == BreakpointCondition::Read && target == bp.monitor {
+                self.state = BreakpointState::HitBreakpoint(bp.clone());
+                return true;
+            }
+        }
+        false
+    }
+
+    fn handle_write(&mut self, target: RWTarget, value: u64) -> bool {
+        for (_id, bp) in self.breakpoints.iter() {
+            if !bp.active {
+                continue;
+            }
+            if bp.condition == BreakpointCondition::Write && target == bp.monitor {
+                self.state = BreakpointState::HitBreakpoint(bp.clone());
+                return true;
+            } else if let BreakpointCondition::Test(cmp, reference_value) = bp.condition {
+                if target == bp.monitor && cmp.test(value, reference_value) {
+                    log::info!("Broke on bp {} {} {}", value, cmp, reference_value);
+                    self.state = BreakpointState::HitBreakpoint(bp.clone());
+                    return true;
+                }
+            }
+        }
+        false
     }
 }

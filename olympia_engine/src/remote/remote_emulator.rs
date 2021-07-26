@@ -1,10 +1,12 @@
 use crate::{
     events::{EventHandlerId, ManualStepEvent, ModeChangeEvent, Repeat, RomLoadedEvent},
+    monitor::{Breakpoint, BreakpointIdentifier},
     remote::{
         commands,
         commands::{
             CommandId, EmulatorCommand, EmulatorResponse, ExecMode, ExecTime, LoadRomError,
-            QueryMemoryResponse, QueryRegistersResponse, RemoteEmulatorOutput, UiBreakpoint,
+            QueryMemoryResponse, QueryRegistersResponse, RemoteEmulatorOutput,
+            ToggleBreakpointResponse,
         },
         events::{AdapterEventWrapper, Event as RemoteEvent, RemoteEventListeners},
     },
@@ -20,6 +22,8 @@ use core::{
     task::{Context, Poll, Waker},
 };
 use hashbrown::HashMap;
+
+use super::commands::{AddBreakpointResponse, RemoveBreakpointRespnse};
 
 pub(crate) struct PendingResponses {
     responses: HashMap<CommandId, EmulatorResponse>,
@@ -294,10 +298,34 @@ impl RemoteEmulator {
         result
     }
 
-    /// Add a breakpoint to the remote system
-    pub async fn add_breakpoint(&self, breakpoint: UiBreakpoint) -> Result<(), ()> {
+    /// Add a breakpoint to the remote emulator
+    pub async fn add_breakpoint(
+        &self,
+        breakpoint: Breakpoint,
+    ) -> Result<AddBreakpointResponse, ()> {
         self.adapter
             .send_command(EmulatorCommand::AddBreakpoint(breakpoint))
+            .await
+    }
+
+    /// Set a breakpoint to a given active state
+    pub async fn set_breakpoint_state(
+        &self,
+        id: BreakpointIdentifier,
+        state: bool,
+    ) -> Result<ToggleBreakpointResponse, ()> {
+        self.adapter
+            .send_command(EmulatorCommand::SetBreakpointActive(id, state))
+            .await
+    }
+
+    /// Remove a breakpoint from the remote emulator
+    pub async fn remove_breakpoint(
+        &self,
+        id: BreakpointIdentifier,
+    ) -> Result<RemoveBreakpointRespnse, ()> {
+        self.adapter
+            .send_command(EmulatorCommand::RemoveBreakpoint(id))
             .await
     }
 }

@@ -19,28 +19,28 @@ license = "GPL-3.0-or-later"
 gitlab = { repository = "tonyfinn/olympia", branch = "master" }
 
 [dependencies]
-cairo-rs = "0.8.1"
+cairo-rs = "0.9.1"
 derive_more = "0.99.5"
 log = "0.4.14"
 pretty_env_logger = "0.4.0"
 olympia_engine = { version = "0.4.0", path = "../olympia_engine", features = ["std"] }
 
 [dependencies.gdk]
-version = "0.12.0"
+version = "0.13.2"
 features = ["v3_22"]
 
 [dependencies.gtk]
-version = "0.8.0"
+version = "0.9.0"
 features = ["v3_22"]
 
 [dependencies.glib]
-version = "0.9.0"
+version = "0.10.0"
 features = ["v2_56"]
 
 [dependencies.gio]
-version = "0.8.0"
+version = "0.9.0"
 features = ["v2_56"]
 
 [dependencies.pango]
-version = "0.8.0"
+version = "0.9.1"
 features = ["v1_40"]

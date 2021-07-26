@@ -122,8 +122,31 @@ impl GameBoy {
         self.time_elapsed += time;
     }
 
+    /// Query a value at the given address
+    ///
+    /// This should be used by external consumers, as it will not trigger read breakpoints
+    pub fn get_memory_u8<A: Into<address::LiteralAddress>>(
+        &self,
+        addr: A,
+    ) -> memory::MemoryResult<u8> {
+        self.mem.read_u8_internal(addr.into())
+    }
+
+    /// Sets a memory value at the given address
+    ///
+    /// This should be used by external consumers, as it will not trigger write breakpoints
+    pub fn set_memory_u8<A: Into<address::LiteralAddress>>(
+        &mut self,
+        addr: A,
+        val: u8,
+    ) -> memory::MemoryResult<()> {
+        self.mem.write_u8_internal(addr.into(), val)
+    }
+
     /// Read a value from the given memory address.
-    pub fn read_memory_u8<A: Into<address::LiteralAddress>>(
+    ///
+    /// This should only be used by the gameboy engine as it will trigger read breakpoints
+    pub(crate) fn read_memory_u8<A: Into<address::LiteralAddress>>(
         &self,
         addr: A,
     ) -> memory::MemoryResult<u8> {
@@ -131,7 +154,9 @@ impl GameBoy {
     }
 
     /// Write a value to the given memory address.
-    pub fn write_memory_u8<A: Into<address::LiteralAddress>>(
+    ///
+    /// This should only be used by the gameboy engine as it will trigger read breakpoints
+    pub(crate) fn write_memory_u8<A: Into<address::LiteralAddress>>(
         &mut self,
         addr: A,
         val: u8,
@@ -142,7 +167,7 @@ impl GameBoy {
     /// Read an value at the given memory address as a signed integer.
     ///
     /// This is primarily useful for reading the target of a JR instruction.
-    pub fn read_memory_i8<A: Into<address::LiteralAddress>>(
+    pub(crate) fn read_memory_i8<A: Into<address::LiteralAddress>>(
         &self,
         addr: A,
     ) -> memory::MemoryResult<i8> {
@@ -154,7 +179,7 @@ impl GameBoy {
     /// Note that the value is read in little endian format.
     /// This means that given `0xC000` = `0x12` and `0xC001` = `0x45`,
     /// the value read will be `0x4512`
-    pub fn read_memory_u16<A: Into<address::LiteralAddress>>(
+    pub(crate) fn read_memory_u16<A: Into<address::LiteralAddress>>(
         &self,
         target: A,
     ) -> memory::MemoryResult<u16> {
@@ -170,7 +195,7 @@ impl GameBoy {
     /// Note that the value is written in little endian format.
     /// This means that given value of `0xABCD` and `target` of `0xC000`
     /// then `0xC000` will be set to `0xCD` and `0xC001` will be set to `0xAB`
-    pub fn write_memory_u16<A: Into<address::LiteralAddress>>(
+    pub(crate) fn write_memory_u16<A: Into<address::LiteralAddress>>(
         &mut self,
         target: A,
         value: u16,
@@ -781,7 +806,7 @@ mod test {
         assert_eq!(
             *actual_events,
             vec![
-                events::MemoryWriteEvent::new(0x9456.into(), 0x24, 0x24,).into(),
+                events::MemoryEvent::write(0x9456.into(), 0x24, 0x24,).into(),
                 events::RegisterWriteEvent::new(wr::BC, 0x1234).into(),
             ]
         );

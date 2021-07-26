@@ -188,7 +188,7 @@ pub struct MemoryData {
 
 pub struct Memory {
     data: MemoryData,
-    pub events: events::EventEmitter<events::MemoryWriteEvent>,
+    pub events: events::EventEmitter<events::MemoryEvent>,
 }
 
 impl Memory {
@@ -215,7 +215,21 @@ impl Memory {
     }
 
     pub fn read_u8<A: Into<address::LiteralAddress>>(&self, target: A) -> MemoryResult<u8> {
-        let address::LiteralAddress(addr) = target.into();
+        let address = target.into();
+        let result = self.read_u8_internal(address);
+
+        if let Ok(value) = result {
+            self.events.emit(events::MemoryEvent::read(address, value));
+        };
+
+        result
+    }
+
+    pub(crate) fn read_u8_internal(
+        &self,
+        address: address::LiteralAddress,
+    ) -> Result<u8, MemoryError> {
+        let addr = address.0;
         if CARTRIDGE_ROM.contains(addr) {
             self.data
                 .cartridge
@@ -252,6 +266,24 @@ impl Memory {
         value: u8,
     ) -> MemoryResult<()> {
         let address = target.into();
+        let write_result = self.write_u8_internal(address, value);
+
+        if write_result.is_ok() {
+            // need to read the actual new value in case of partial registers
+            // unmapped memory, or writes to ROM address space
+            let new_value = self.read_u8(address).unwrap_or(0xFF);
+            self.events
+                .emit(events::MemoryEvent::write(address, value, new_value));
+        }
+
+        write_result
+    }
+
+    pub(crate) fn write_u8_internal(
+        &mut self,
+        address: address::LiteralAddress,
+        value: u8,
+    ) -> Result<(), MemoryError> {
         let addr = address.0;
         let write_result = if CARTRIDGE_ROM.contains(addr) {
             self.data
@@ -284,15 +316,6 @@ impl Memory {
         } else {
             Err(MemoryError::UnmappedAddress(addr))
         };
-
-        if write_result.is_ok() {
-            // need to read the actual new value in case of partial registers
-            // unmapped memory, or writes to ROM address space
-            let new_value = self.read_u8(address).unwrap_or(0xFF);
-            self.events
-                .emit(events::MemoryWriteEvent::new(address, value, new_value));
-        }
-
         write_result
     }
 
@@ -478,11 +501,10 @@ mod tests {
     #[test]
     fn test_write_event() {
         use core::cell::RefCell;
-        let event_log: Rc<RefCell<Vec<events::MemoryWriteEvent>>> =
-            Rc::new(RefCell::new(Vec::new()));
+        let event_log: Rc<RefCell<Vec<events::MemoryEvent>>> = Rc::new(RefCell::new(Vec::new()));
         let handler_log = Rc::clone(&event_log);
 
-        let handler = move |evt: &events::MemoryWriteEvent| {
+        let handler = move |evt: &events::MemoryEvent| {
             handler_log.borrow_mut().push(evt.clone());
         };
 
@@ -496,18 +518,17 @@ mod tests {
 
         assert_eq!(
             *actual_events,
-            vec![events::MemoryWriteEvent::new(0x9000.into(), 0x26, 0x26,).into()]
+            vec![events::MemoryEvent::write(0x9000.into(), 0x26, 0x26,).into()]
         );
     }
 
     #[test]
     fn test_write_unwriteable() {
         use core::cell::RefCell;
-        let event_log: Rc<RefCell<Vec<events::MemoryWriteEvent>>> =
-            Rc::new(RefCell::new(Vec::new()));
+        let event_log: Rc<RefCell<Vec<events::MemoryEvent>>> = Rc::new(RefCell::new(Vec::new()));
         let handler_log = Rc::clone(&event_log);
 
-        let handler = move |evt: &events::MemoryWriteEvent| {
+        let handler = move |evt: &events::MemoryEvent| {
             handler_log.borrow_mut().push(evt.clone());
         };
 
@@ -521,7 +542,7 @@ mod tests {
 
         assert_eq!(
             *actual_events,
-            vec![events::MemoryWriteEvent::new(0x1000.into(), 0x26, 0x00,).into()]
+            vec![events::MemoryEvent::write(0x1000.into(), 0x26, 0x00,).into()]
         );
     }
 }

@@ -1,5 +1,5 @@
 use crate::events::{
-    Event as EngineEvent, EventHandlerId, HBlankEvent, ManualStepEvent, MemoryWriteEvent,
+    Event as EngineEvent, EventHandlerId, HBlankEvent, ManualStepEvent, MemoryEvent,
     ModeChangeEvent, RegisterWriteEvent, Repeat, RomLoadedEvent, StepCompleteEvent, VBlankEvent,
 };
 use alloc::boxed::Box;
@@ -20,7 +20,7 @@ pub enum Event {
     ManualStep(ManualStepEvent),
     StepComplete(StepCompleteEvent),
     RegisterWrite(RegisterWriteEvent),
-    MemoryWrite(MemoryWriteEvent),
+    Memory(MemoryEvent),
     RomLoaded(RomLoadedEvent),
 }
 
@@ -35,7 +35,7 @@ impl Event {
             ManualStep(_) => TypeId::of::<ManualStepEvent>(),
             StepComplete(_) => TypeId::of::<StepCompleteEvent>(),
             RegisterWrite(_) => TypeId::of::<RegisterWriteEvent>(),
-            MemoryWrite(_) => TypeId::of::<MemoryWriteEvent>(),
+            Memory(_) => TypeId::of::<MemoryEvent>(),
             RomLoaded(_) => TypeId::of::<RomLoadedEvent>(),
         }
     }
@@ -49,7 +49,7 @@ impl From<EngineEvent> for Event {
             ee::VBlank(e) => re::VBlank(e),
             ee::HBlank(e) => re::HBlank(e),
             ee::RegisterWrite(e) => re::RegisterWrite(e),
-            ee::MemoryWrite(e) => re::MemoryWrite(e),
+            ee::Memory(e) => re::Memory(e),
             ee::StepComplete(e) => re::StepComplete(e),
         }
     }

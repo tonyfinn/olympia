@@ -4,7 +4,7 @@ use std::ops;
 use derive_more::{Display, Error, From};
 use olympia_engine::{
     gameboy,
-    gbdebug::{parse_number, Breakpoint, BreakpointCondition, Comparison, RWTarget},
+    monitor::{parse_number, Breakpoint, BreakpointCondition, Comparison, RWTarget},
     registers::{ByteRegister as br, WordRegister as wr},
 };
 use structopt::StructOpt;
@@ -130,7 +130,7 @@ impl<'a> CliDebugger<'a> {
             }
             let val = self
                 .gb
-                .read_memory_u8(addr)
+                .get_memory_u8(addr)
                 .map(|val| format!("{:02X}", val))
                 .unwrap_or_else(|_| "--".to_string());
             write!(self.out, "{} ", val)?;
@@ -557,7 +557,7 @@ mod test {
 
         for x in 0..=0x1fu8 {
             let addr = 0xc000 + u16::from(x);
-            gb.write_memory_u8(addr, x).unwrap()
+            gb.set_memory_u8(addr, x).unwrap()
         }
 
         let expected_output = [
@@ -601,7 +601,7 @@ mod test {
 
         for x in 0..=0x1fu8 {
             let addr = 0xffe0 + u16::from(x);
-            gb.write_memory_u8(addr, x).unwrap()
+            gb.set_memory_u8(addr, x).unwrap()
         }
 
         let expected_output = [
@@ -619,7 +619,7 @@ mod test {
 
         for x in 0..=0x1fu8 {
             let addr = 0xffe0 + u16::from(x);
-            gb.write_memory_u8(addr, x).unwrap()
+            gb.set_memory_u8(addr, x).unwrap()
         }
 
         let expected_output = [
@@ -671,7 +671,7 @@ mod test {
         let addr = 0x8000;
 
         gb.write_register_u16(WordRegister::PC, addr);
-        gb.write_memory_u8(addr, 0x70).unwrap(); // LD (HL), B
+        gb.set_memory_u8(addr, 0x70).unwrap(); // LD (HL), B
 
         assert_debug_output(gb, "ci\n", "LD (HL), B\n");
     }
@@ -685,8 +685,8 @@ mod test {
         gb.write_register_u16(olympia_engine::registers::WordRegister::PC, addr);
 
         // RES 0, (HL)
-        gb.write_memory_u8(addr, 0xCB).unwrap();
-        gb.write_memory_u8(addr + 1, 0x86).unwrap();
+        gb.set_memory_u8(addr, 0xCB).unwrap();
+        gb.set_memory_u8(addr + 1, 0x86).unwrap();
 
         assert_debug_output(gb, "ci\n", "RES 0h, (HL)\n");
     }
@@ -700,8 +700,8 @@ mod test {
         gb.write_register_u16(olympia_engine::registers::WordRegister::PC, addr);
 
         // LD HL, SP + -2
-        gb.write_memory_u8(addr, 0xF8).unwrap();
-        gb.write_memory_u8(addr + 1, 0xFE).unwrap();
+        gb.set_memory_u8(addr, 0xF8).unwrap();
+        gb.set_memory_u8(addr + 1, 0xFE).unwrap();
 
         assert_debug_output(gb, "ci\n", "LD HL, SP + -2h\n");
     }
@@ -713,7 +713,7 @@ mod test {
         let addr = 0x8000;
 
         gb.write_register_u16(olympia_engine::registers::WordRegister::PC, addr);
-        gb.write_memory_u8(addr, 0xD3).unwrap();
+        gb.set_memory_u8(addr, 0xD3).unwrap();
 
         assert_debug_output(gb, "ci\n", "DAT D3h\n");
     }
@@ -784,16 +784,16 @@ mod test {
         let result = run_debug_script(gb, &["write 0x8000 0x52", "read 0x8000"]).unwrap();
 
         assert_eq!(result.output, vec!["Wrote 52 (was 0)", "52"]);
-        assert_eq!(result.gb.read_memory_u8(0x8000).unwrap(), 0x52);
+        assert_eq!(result.gb.get_memory_u8(0x8000).unwrap(), 0x52);
     }
 
     #[test]
     fn breakpoint_fast_forward() {
         let mut gb = get_test_gbcpu();
 
-        gb.write_memory_u8(0x8000, 0x33).unwrap(); // INC SP
-        gb.write_memory_u8(0x8001, 0x18).unwrap(); // JR -3
-        gb.write_memory_u8(0x8002, 0xFD).unwrap();
+        gb.set_memory_u8(0x8000, 0x33).unwrap(); // INC SP
+        gb.set_memory_u8(0x8001, 0x18).unwrap(); // JR -3
+        gb.set_memory_u8(0x8002, 0xFD).unwrap();
 
         gb.write_register_u16(wr::PC, 0x8000);
         gb.write_register_u16(wr::SP, 0x8000);

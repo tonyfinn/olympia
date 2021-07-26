@@ -21,7 +21,8 @@ mod remote_emulator;
 
 pub use commands::{
     CommandId, EmulatorCommand, EmulatorResponse, Error, ExecMode, ExecTime, LoadRomError,
-    QueryMemoryResponse, QueryRegistersResponse, RemoteEmulatorOutput, Result, UiBreakpoint,
+    QueryMemoryResponse, QueryRegistersResponse, RemoteEmulatorOutput, Result,
+    ToggleBreakpointResponse,
 };
 
 pub use events::{AdapterEventWrapper, Event, EventSendError, RemoteEventListeners, Sender};

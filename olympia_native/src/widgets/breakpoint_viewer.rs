@@ -1,18 +1,22 @@
 use crate::builder_struct;
 use crate::utils;
 
+use derive_more::{From, Into};
 use glib::clone;
-use glib::value::FromValue;
+use glib::subclass::prelude::*;
+use glib::GBoxed;
 use gtk::prelude::*;
-use olympia_engine::gbdebug::BreakpointCondition;
-use olympia_engine::gbdebug::Comparison;
+use olympia_engine::monitor::BreakpointCondition;
+use olympia_engine::monitor::BreakpointIdentifier;
+use olympia_engine::monitor::Comparison;
 use olympia_engine::{
-    gbdebug::{Breakpoint, RWTarget},
-    remote::{RemoteEmulator, UiBreakpoint},
+    monitor::{Breakpoint, RWTarget},
+    remote::RemoteEmulator,
 };
 use std::rc::Rc;
 
 const ACTIVE_COLUMN_INDEX: i32 = 0;
+const ID_COLUMN_INDEX: i32 = 3;
 
 builder_struct!(
     pub(crate) struct BreakpointViewerWidget {
@@ -30,6 +34,10 @@ builder_struct!(
         active_column_renderer: gtk::CellRendererToggle,
     }
 );
+
+#[derive(Clone, Debug, PartialEq, Eq, GBoxed, From, Into)]
+#[gboxed(type_name = "boxed_identifier")]
+struct BoxedIdentifier(BreakpointIdentifier);
 
 pub(crate) struct BreakpointViewer {
     context: glib::MainContext,
@@ -62,7 +70,7 @@ impl BreakpointViewer {
         BreakpointViewer::from_widget(context, emu, widget)
     }
 
-    fn add_clicked(self: &Rc<Self>) {
+    fn add_clicked(self: Rc<Self>) {
         self.context.spawn_local(self.clone().add_breakpoint());
     }
 
@@ -95,17 +103,29 @@ impl BreakpointViewer {
     }
 
     fn bp_active_toggled(self: &Rc<Self>, path: gtk::TreePath) {
+        self.context
+            .spawn_local(self.clone().toggle_breakpoint(path));
+    }
+
+    async fn toggle_breakpoint(self: Rc<Self>, path: gtk::TreePath) {
         let previous_state: bool = self
             .get_tree_value(&path, ACTIVE_COLUMN_INDEX)
             .and_then(|v| v.get_some().ok())
             .unwrap_or_default();
+        let id: bool = self
+            .get_tree_value(&path, ACTIVE_COLUMN_INDEX)
+            .and_then(|v| v.get_some().ok())
+            .unwrap_or_default();
         let new_state = !previous_state;
-        self.set_tree_value(&path, ACTIVE_COLUMN_INDEX, new_state);
-        log::debug!(
-            "Toggled breakpoint from {} to {}",
-            previous_state,
-            new_state
-        );
+        /*let result = self.emu.set_breakpoint_state(id, new_state).await;
+        if let Ok(resp) = result {
+            log::debug!(
+                "Toggled breakpoint from {} to {}",
+                previous_state,
+                new_state
+            );
+            self.set_tree_value(&path, ACTIVE_COLUMN_INDEX, resp.new_state);
+        }*/
     }
 
     fn condition_changed(self: &Rc<Self>) {
@@ -138,28 +158,21 @@ impl BreakpointViewer {
         );
     }
 
-    fn parse_breakpoint(&self) -> Option<UiBreakpoint> {
-        let target: Option<RWTarget> = self
-            .widget
-            .monitor_input
-            .get_text()
-            .and_then(|s| s.as_str().parse().ok());
+    fn parse_breakpoint(&self) -> Option<Breakpoint> {
+        let target: Option<RWTarget> = self.widget.monitor_input.get_text().parse().ok();
         let value = if let Some(RWTarget::Cycles) = target {
-            self.widget.value_input.get_text().and_then(|text| {
-                let s = text.as_str();
-                let (num, multiplier) = if s.ends_with("s") {
-                    let s = s.replace("s", "");
-                    (String::from(s.as_str()), 1024 * 1024)
-                } else {
-                    (s.into(), 1)
-                };
-                u64::from_str_radix(&num, 16).ok().map(|x| x * multiplier)
-            })
+            let text = self.widget.value_input.get_text();
+            let s = text.as_str();
+            let (num, multiplier) = if s.ends_with("s") {
+                let s = s.replace("s", "");
+                (String::from(s.as_str()), 1024 * 1024)
+            } else {
+                (s.into(), 1)
+            };
+            u64::from_str_radix(&num, 16).ok().map(|x| x * multiplier)
         } else {
-            self.widget
-                .value_input
-                .get_text()
-                .and_then(|s| u64::from_str_radix(s.as_str(), 16).ok())
+            let s = self.widget.value_input.get_text();
+            u64::from_str_radix(s.as_str(), 16).ok()
         };
         let picker = &self.widget.condition_picker;
         let condition = picker.get_active_text().and_then(|s| {
@@ -181,7 +194,7 @@ impl BreakpointViewer {
             }
         });
         match (target, condition) {
-            (Some(t), Some(c)) => Some(Breakpoint::new(t, c).into()),
+            (Some(t), Some(c)) => Some(Breakpoint::new(t, c)),
             _ => None,
         }
     }
@@ -194,8 +207,8 @@ impl BreakpointViewer {
                 &[0, 1, 2],
                 &[
                     &breakpoint.active,
-                    &format!("{}", breakpoint.breakpoint.monitor),
-                    &format!("{}", breakpoint.breakpoint.condition),
+                    &format!("{}", breakpoint.monitor),
+                    &format!("{}", breakpoint.condition),
                 ],
             );
         }

@@ -41,15 +41,38 @@ pub struct RomLoadedEvent;
 /// A step has happened by a manual user request
 pub struct ManualStepEvent;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Constructor)]
-/// Memory has been written to
-pub struct MemoryWriteEvent {
-    /// Location written to
-    pub address: address::LiteralAddress,
-    /// Value written to that location
-    pub value: u8,
-    /// The actual new value after the write
-    pub new_value: u8,
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// Memory has been accessed
+pub enum MemoryEvent {
+    /// Memory has been read from
+    Read {
+        /// Location read from
+        address: address::LiteralAddress,
+        /// Value read from that location
+        value: u8,
+    },
+    /// Memory has been written to
+    Write {
+        /// Location written to
+        address: address::LiteralAddress,
+        /// Value written to that location
+        value: u8,
+        /// The actual new value after the write
+        new_value: u8,
+    },
+}
+
+impl MemoryEvent {
+    pub(crate) fn read(address: address::LiteralAddress, value: u8) -> MemoryEvent {
+        MemoryEvent::Read { address, value }
+    }
+    pub(crate) fn write(address: address::LiteralAddress, value: u8, new_value: u8) -> MemoryEvent {
+        MemoryEvent::Write {
+            address,
+            value,
+            new_value,
+        }
+    }
 }
 
 /// A register has been written to
@@ -93,7 +116,7 @@ pub struct Repeat(pub bool);
 /// Gameboy events that frontends might be interested in
 pub enum Event {
     /// A write occured to a memory mapped location
-    MemoryWrite(MemoryWriteEvent),
+    Memory(MemoryEvent),
     /// A write occured to a named register
     RegisterWrite(RegisterWriteEvent),
     /// The PPU reached its hblank cycle

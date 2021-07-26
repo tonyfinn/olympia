@@ -149,6 +149,7 @@
       <column type="gboolean" />
       <column type="gchararray" />
       <column type="gchararray" />
+      <column type="GObject" />
     </columns>
   </object>
 </interface>

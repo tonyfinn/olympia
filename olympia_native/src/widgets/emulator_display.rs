@@ -69,7 +69,7 @@ impl Buffer {
         }
     }
 
-    fn build_image_surface(&self) -> Result<cairo::ImageSurface, cairo::Status> {
+    fn build_image_surface(&self) -> Result<cairo::ImageSurface, cairo::Error> {
         let result = cairo::ImageSurface::create_for_data(
             self.front_pixels.clone(),
             cairo::Format::Rgb24,

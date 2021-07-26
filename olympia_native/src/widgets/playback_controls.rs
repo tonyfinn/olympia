@@ -125,7 +125,7 @@ mod tests {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
         assert_eq!(false, component.widget.play.get_sensitive());
@@ -140,7 +140,7 @@ mod tests {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
         let task = async {
@@ -160,7 +160,7 @@ mod tests {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
         let task = async {
@@ -194,7 +194,7 @@ mod tests {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
         let task = async {
@@ -227,7 +227,7 @@ mod tests {
         test_utils::setup_gtk().unwrap();
         let context = test_utils::setup_context();
         let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::new_from_string(include_str!("../../res/debugger.ui"));
+        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
         let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
         let task = async {
