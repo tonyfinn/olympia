@@ -53,6 +53,7 @@ impl Buffer {
         if gb_y >= HEIGHT {
             panic!("Y co-ord too large {}", gb_y);
         }
+        self.back[(gb_y * self.width) + gb_x] = pixel.clone();
         let render_x_start = gb_x * self.scale;
         let render_y_start = gb_y * self.scale;
         for x_subpx in 0..self.scale {
@@ -134,8 +135,8 @@ impl EmulatorDisplay {
     pub(crate) fn connect_ui_events(self: &Rc<Self>) {
         self.widget.drawing_area.connect_draw(clone!(@weak self as display => @default-return Inhibit(false), move |_drawing_area, cr| {
             if let Some(ref surface) = display.buffer.borrow().image_surface {
-                cr.set_source_surface(surface, 0.0, 0.0);
-                cr.paint();
+                cr.set_source_surface(surface, 0.0, 0.0).expect("Could not set surface");
+                cr.paint().expect("Could not paint");
             }
             Inhibit(false)
         }));
@@ -205,7 +206,7 @@ mod tests {
         });
         buffer.hblank(HBlankEvent {
             pixels: vec![bg_pixel(3), bg_pixel(0), bg_pixel(3), bg_pixel(0)],
-            current_line: 0,
+            current_line: 1,
         });
         buffer.vblank();
 
