@@ -1,4 +1,4 @@
-FROM rust:1.43-slim
+FROM rust:1.54-slim
 
 RUN CARGO_HOME=/builds/tonyfinn/olympia/.cargo \
     mkdir -p $CARGO_HOME && \
