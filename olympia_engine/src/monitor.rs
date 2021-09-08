@@ -1,7 +1,7 @@
 //! Methods useful for implementing debugging functionality
 
 use crate::address;
-use crate::events::{Event, MemoryEvent};
+use crate::events::{Event, MemoryEvent, RegisterWriteEvent};
 use crate::gameboy;
 use crate::registers;
 
@@ -279,6 +279,9 @@ impl DebugMonitor {
             Event::Memory(MemoryEvent::Write {
                 address, new_value, ..
             }) => self.handle_write((*address).into(), (*new_value).into()),
+            Event::RegisterWrite(RegisterWriteEvent { reg, value }) => {
+                self.handle_write((*reg).into(), (*value).into())
+            }
             _ => false,
         }
     }

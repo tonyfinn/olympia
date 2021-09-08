@@ -343,7 +343,6 @@ mod tests {
             };
             test_utils::wait_for_task(&context, play_task);
             std::thread::sleep(Duration::from_millis(2000));
-            eprintln!("Fast forward sleep completed");
             test_utils::digest_events(&context);
             assert_eq!(
                 events.borrow().clone(),

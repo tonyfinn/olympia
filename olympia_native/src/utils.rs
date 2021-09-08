@@ -37,7 +37,6 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::emulator::glib::glib_remote_emulator;
-    use glib::error::BoolError;
     use olympia_engine::remote::RemoteEmulator;
     use std::{
         any::Any,
@@ -136,17 +135,12 @@ pub(crate) mod test_utils {
 
     pub fn digest_events(ctx: &glib::MainContext) {
         let start_time = Instant::now();
-        let min_churn_time = Duration::from_millis(200);
         let timeout = Duration::from_millis(1000);
-        while start_time.elapsed() < min_churn_time || ctx.pending() {
-            eprintln!("Digest cycle");
+        while ctx.pending() {
             if start_time.elapsed() > timeout {
                 panic!("Timeout of {:?} elapsed", timeout);
             }
-            if ctx.pending() {
-                eprintln!("Events churned");
-                ctx.iteration(false);
-            }
+            ctx.iteration(true);
         }
     }
 
@@ -167,8 +161,7 @@ pub(crate) mod test_utils {
 
     /// Gets a sample remote emulator setup with no ROM loaded
     pub(crate) fn get_unloaded_remote_emu(context: glib::MainContext) -> Rc<RemoteEmulator> {
-        let emu = glib_remote_emulator(context);
-        emu
+        glib_remote_emulator(context)
     }
 
     // Gets a sample remote emulator setup loaded with a fizzbuzz ROM
