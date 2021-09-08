@@ -5,6 +5,7 @@ use gtk::prelude::*;
 use olympia_engine::{
     address::LiteralAddress,
     events::{ManualStepEvent, MemoryEvent, RomLoadedEvent},
+    monitor::parse_number,
     registers::WordRegister,
     remote::{QueryMemoryResponse, RemoteEmulator},
 };
@@ -196,7 +197,7 @@ impl MemoryViewer {
     }
 
     fn connect_ui_events(self: &Rc<Self>) {
-        self.widget.address_entry.set_text("0000");
+        self.widget.address_entry.set_text("0x0000");
 
         let viewer_box = self.get_layout();
         viewer_box.connect_scroll_event(clone!(@strong self as mem_viewer => move |_, evt| {
@@ -274,11 +275,13 @@ impl MemoryViewer {
     fn goto_address(self: Rc<Self>, address_entry: &gtk::Entry) {
         let text = address_entry.text();
         let text_string = text.as_str();
-        let parsed = u16::from_str_radix(text_string, 16);
+        let parsed = parse_number(text_string);
         if let Ok(val) = parsed {
             let ctx = self.context.clone();
             self.offset.replace(self.resolve(val));
             ctx.spawn_local(self.refresh())
+        } else {
+            log::error!("text_string did not parse: {}", text_string);
         }
     }
 
