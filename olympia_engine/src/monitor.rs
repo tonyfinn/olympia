@@ -6,6 +6,7 @@ use crate::gameboy;
 use crate::registers;
 
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::str::FromStr;
 use derive_more::{Display, From};

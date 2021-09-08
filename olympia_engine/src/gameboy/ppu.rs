@@ -1,4 +1,5 @@
 use alloc::collections::VecDeque;
+use alloc::vec::Vec;
 
 use crate::{
     events::{EventEmitter, HBlankEvent, PPUEvent, VBlankEvent},
@@ -543,7 +544,7 @@ mod test {
             *events,
             vec![PPUEvent::HBlank(HBlankEvent {
                 pixels: expected_pixels,
-                current_line: 0,
+                current_line: 101,
             })]
         );
     }

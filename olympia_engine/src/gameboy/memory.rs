@@ -271,7 +271,7 @@ impl Memory {
         if write_result.is_ok() {
             // need to read the actual new value in case of partial registers
             // unmapped memory, or writes to ROM address space
-            let new_value = self.read_u8(address).unwrap_or(0xFF);
+            let new_value = self.read_u8_internal(address).unwrap_or(0xFF);
             self.events
                 .emit(events::MemoryEvent::write(address, value, new_value));
         }
