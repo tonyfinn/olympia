@@ -22,7 +22,7 @@ test:
         reports:
             cobertura: target/coverage/cobertura.xml
     script:
-        - Xvfb :1 & CARGO_HOME=./.cargo DISPLAY=:1 build/test.sh
+        - Xvfb :1 & CARGO_HOME=./.cargo DISPLAY=:1 cargo test
 
 docker_container:
     rules:

@@ -38,12 +38,9 @@ Missing features:
 
 ## Testing
 
-Tests using GTK must run single threaded. This leaves the following options for running tests:
+Run `cargo test`
 
-* Use `test.sh` to split test runs into two runs, one for other tests and one for GTK tests
-* Use `cargo test --test-threads 1` to run all tests in one thread
-* Use `cargo test --skip gtk_` to skip gtk tests.
-
+If writing tests that use GTK, make sure to wrap them in `test_utils::with_unloaded_emu` or `test_utils::with_loaded_emu` to properly handle GTK setup and running on a single thread.
 ## License
 
 Olympia is licensed under the GPL v3+, available at LICENSE.txt. (c) Tony Finn 2019
