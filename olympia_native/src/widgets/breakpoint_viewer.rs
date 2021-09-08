@@ -79,8 +79,8 @@ impl BreakpointViewer {
         path: &gtk::TreePath,
         column_index: i32,
     ) -> Option<glib::Value> {
-        match self.widget.store.get_iter(path) {
-            Some(x) => Some(self.widget.store.get_value(&x, column_index)),
+        match self.widget.store.iter(path) {
+            Some(x) => Some(self.widget.store.value(&x, column_index)),
             _ => None,
         }
     }
@@ -91,7 +91,7 @@ impl BreakpointViewer {
         column_index: i32,
         value: T,
     ) {
-        let iter = self.widget.store.get_iter(path);
+        let iter = self.widget.store.iter(path);
 
         let iter = match iter {
             Some(x) => x,
@@ -110,11 +110,11 @@ impl BreakpointViewer {
     async fn toggle_breakpoint(self: Rc<Self>, path: gtk::TreePath) {
         let previous_state: bool = self
             .get_tree_value(&path, ACTIVE_COLUMN_INDEX)
-            .and_then(|v| v.get_some().ok())
+            .and_then(|v| v.get().ok())
             .unwrap_or_default();
         let id: bool = self
             .get_tree_value(&path, ACTIVE_COLUMN_INDEX)
-            .and_then(|v| v.get_some().ok())
+            .and_then(|v| v.get().ok())
             .unwrap_or_default();
         let new_state = !previous_state;
         /*let result = self.emu.set_breakpoint_state(id, new_state).await;
@@ -129,7 +129,7 @@ impl BreakpointViewer {
     }
 
     fn condition_changed(self: &Rc<Self>) {
-        let id = self.widget.condition_picker.get_active_id();
+        let id = self.widget.condition_picker.active_id();
 
         if let Some(active_id) = id {
             log::debug!("Condition changed: {}", active_id);
@@ -159,9 +159,9 @@ impl BreakpointViewer {
     }
 
     fn parse_breakpoint(&self) -> Option<Breakpoint> {
-        let target: Option<RWTarget> = self.widget.monitor_input.get_text().parse().ok();
+        let target: Option<RWTarget> = self.widget.monitor_input.text().parse().ok();
         let value = if let Some(RWTarget::Cycles) = target {
-            let text = self.widget.value_input.get_text();
+            let text = self.widget.value_input.text();
             let s = text.as_str();
             let (num, multiplier) = if s.ends_with("s") {
                 let s = s.replace("s", "");
@@ -171,17 +171,17 @@ impl BreakpointViewer {
             };
             u64::from_str_radix(&num, 16).ok().map(|x| x * multiplier)
         } else {
-            let s = self.widget.value_input.get_text();
+            let s = self.widget.value_input.text();
             u64::from_str_radix(s.as_str(), 16).ok()
         };
         let picker = &self.widget.condition_picker;
-        let condition = picker.get_active_text().and_then(|s| {
+        let condition = picker.active_text().and_then(|s| {
             let comparison: Result<Comparison, _> = s.parse();
             if let Ok(comp) = comparison {
                 let expected_value = value?;
                 Some(BreakpointCondition::Test(comp, expected_value))
             } else {
-                picker.get_active_id().and_then(|id| {
+                picker.active_id().and_then(|id| {
                     println!("{}", id);
                     if id == "Read" {
                         Some(BreakpointCondition::Read)
@@ -204,11 +204,10 @@ impl BreakpointViewer {
             utils::run_infallible(self.emu.add_breakpoint(breakpoint.clone())).await;
             self.widget.store.insert_with_values(
                 None,
-                &[0, 1, 2],
                 &[
-                    &breakpoint.active,
-                    &format!("{}", breakpoint.monitor),
-                    &format!("{}", breakpoint.condition),
+                    (0, &breakpoint.active),
+                    (1, &format!("{}", breakpoint.monitor)),
+                    (2, &format!("{}", breakpoint.condition)),
                 ],
             );
         }

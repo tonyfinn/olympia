@@ -71,7 +71,7 @@ impl PlaybackControls {
     }
 
     fn play_clicked(self: &Rc<Self>) {
-        let new_mode = if self.widget.play.get_active() {
+        let new_mode = if self.widget.play.is_active() {
             ExecMode::Standard
         } else {
             ExecMode::Paused
@@ -80,7 +80,7 @@ impl PlaybackControls {
     }
 
     fn fast_clicked(self: &Rc<Self>) {
-        let new_mode = if self.widget.fast.get_active() {
+        let new_mode = if self.widget.fast.is_active() {
             ExecMode::Uncapped
         } else {
             ExecMode::Paused
@@ -122,122 +122,117 @@ mod tests {
 
     #[test]
     fn gtk_test_from_builder_config() {
-        test_utils::setup_gtk().unwrap();
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
-        let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
+        test_utils::with_unloaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
+            let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
-        assert_eq!(false, component.widget.play.get_sensitive());
-        assert_eq!(false, component.widget.play.get_active());
-        assert_eq!(false, component.widget.step.get_sensitive());
-        assert_eq!(false, component.widget.fast.get_sensitive());
-        assert_eq!(false, component.widget.fast.get_active());
+            assert_eq!(false, component.widget.play.get_sensitive());
+            assert_eq!(false, component.widget.play.is_active());
+            assert_eq!(false, component.widget.step.get_sensitive());
+            assert_eq!(false, component.widget.fast.get_sensitive());
+            assert_eq!(false, component.widget.fast.is_active());
+        });
     }
 
     #[test]
     fn gtk_test_activate_buttons_on_rom_load() {
-        test_utils::setup_gtk().unwrap();
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
-        let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
+        test_utils::with_unloaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
+            let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-        };
-        test_utils::wait_for_task(&context, task);
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+            };
+            test_utils::wait_for_task(&context, task);
 
-        assert_eq!(true, component.widget.play.get_sensitive());
-        assert_eq!(false, component.widget.play.get_active());
-        assert_eq!(true, component.widget.step.get_sensitive());
-        assert_eq!(true, component.widget.fast.get_sensitive());
-        assert_eq!(false, component.widget.fast.get_active());
+            assert_eq!(true, component.widget.play.get_sensitive());
+            assert_eq!(false, component.widget.play.is_active());
+            assert_eq!(true, component.widget.step.get_sensitive());
+            assert_eq!(true, component.widget.fast.get_sensitive());
+            assert_eq!(false, component.widget.fast.is_active());
+        });
     }
 
     #[test]
     fn gtk_test_play_toggle_button() {
-        test_utils::setup_gtk().unwrap();
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
-        let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
+        test_utils::with_unloaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
+            let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-        };
-        test_utils::wait_for_task(&context, task);
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+            };
+            test_utils::wait_for_task(&context, task);
 
-        component.widget.play.set_active(true);
+            component.widget.play.set_active(true);
 
-        test_utils::next_tick(&context, &emu);
+            test_utils::next_tick(&context, &emu);
 
-        assert_eq!(true, component.widget.play.get_sensitive());
-        assert_eq!(true, component.widget.play.get_active());
-        assert_eq!(true, component.widget.fast.get_sensitive());
-        assert_eq!(false, component.widget.fast.get_active());
-        assert_eq!(false, component.widget.step.get_sensitive());
+            assert_eq!(true, component.widget.play.get_sensitive());
+            assert_eq!(true, component.widget.play.is_active());
+            assert_eq!(true, component.widget.fast.get_sensitive());
+            assert_eq!(false, component.widget.fast.is_active());
+            assert_eq!(false, component.widget.step.get_sensitive());
 
-        component.widget.play.set_active(false);
+            component.widget.play.set_active(false);
 
-        test_utils::next_tick(&context, &emu);
+            test_utils::next_tick(&context, &emu);
 
-        assert_eq!(true, component.widget.play.get_sensitive());
-        assert_eq!(false, component.widget.play.get_active());
-        assert_eq!(true, component.widget.fast.get_sensitive());
-        assert_eq!(false, component.widget.fast.get_active());
-        assert_eq!(true, component.widget.step.get_sensitive());
+            assert_eq!(true, component.widget.play.get_sensitive());
+            assert_eq!(false, component.widget.play.is_active());
+            assert_eq!(true, component.widget.fast.get_sensitive());
+            assert_eq!(false, component.widget.fast.is_active());
+            assert_eq!(true, component.widget.step.get_sensitive());
+        });
     }
 
     #[test]
     fn gtk_test_fast_toggle_button() {
-        test_utils::setup_gtk().unwrap();
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
-        let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
+        test_utils::with_unloaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
+            let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-        };
-        test_utils::wait_for_task(&context, task);
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+            };
+            test_utils::wait_for_task(&context, task);
 
-        component.widget.fast.set_active(true);
+            component.widget.fast.set_active(true);
 
-        test_utils::next_tick(&context, &emu);
+            test_utils::next_tick(&context, &emu);
 
-        assert_eq!(true, component.widget.play.get_sensitive());
-        assert_eq!(false, component.widget.play.get_active());
-        assert_eq!(true, component.widget.fast.get_sensitive());
-        assert_eq!(true, component.widget.fast.get_active());
-        assert_eq!(false, component.widget.step.get_sensitive());
+            assert_eq!(true, component.widget.play.get_sensitive());
+            assert_eq!(false, component.widget.play.is_active());
+            assert_eq!(true, component.widget.fast.get_sensitive());
+            assert_eq!(true, component.widget.fast.is_active());
+            assert_eq!(false, component.widget.step.get_sensitive());
 
-        component.widget.fast.set_active(false);
-        test_utils::next_tick(&context, &emu);
+            component.widget.fast.set_active(false);
+            test_utils::next_tick(&context, &emu);
 
-        assert_eq!(true, component.widget.play.get_sensitive());
-        assert_eq!(false, component.widget.play.get_active());
-        assert_eq!(true, component.widget.fast.get_sensitive());
-        assert_eq!(false, component.widget.fast.get_active());
-        assert_eq!(true, component.widget.step.get_sensitive());
+            assert_eq!(true, component.widget.play.get_sensitive());
+            assert_eq!(false, component.widget.play.is_active());
+            assert_eq!(true, component.widget.fast.get_sensitive());
+            assert_eq!(false, component.widget.fast.is_active());
+            assert_eq!(true, component.widget.step.get_sensitive());
+        });
     }
 
     #[test]
     fn gtk_test_step_toggle_button() {
-        test_utils::setup_gtk().unwrap();
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
-        let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
+        test_utils::with_unloaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
+            let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
 
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-        };
-        test_utils::wait_for_task(&context, task);
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+            };
+            test_utils::wait_for_task(&context, task);
 
-        component.widget.step.clicked();
+            component.widget.step.clicked();
 
-        let registers = test_utils::wait_for_task(&context, emu.query_registers()).unwrap();
-        assert_eq!(registers.pc, 0x101);
+            let registers = test_utils::wait_for_task(&context, emu.query_registers()).unwrap();
+            assert_eq!(registers.pc, 0x101);
+        });
     }
 }

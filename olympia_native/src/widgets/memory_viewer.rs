@@ -28,7 +28,7 @@ impl MemoryViewerRow {
             layout.pack_start(val, false, false, 0);
         }
         for label in value_labels.iter().chain(std::iter::once(&addr)) {
-            let font_attr = pango::Attribute::new_family("monospace").unwrap();
+            let font_attr = pango::Attribute::new_family("monospace");
             let attr_list = pango::AttrList::new();
             attr_list.insert(font_attr);
             label.set_attributes(Some(&attr_list));
@@ -66,7 +66,7 @@ impl MemoryViewerRow {
             };
             let label = &self.value_labels[i as usize];
             label.set_text(&formatted);
-            label.set_property_has_focus(is_pc);
+            label.set_has_focus(is_pc);
         }
     }
 }
@@ -272,7 +272,7 @@ impl MemoryViewer {
     }
 
     fn goto_address(self: Rc<Self>, address_entry: &gtk::Entry) {
-        let text = address_entry.get_text();
+        let text = address_entry.text();
         let text_string = text.as_str();
         let parsed = u16::from_str_radix(text_string, 16);
         if let Ok(val) = parsed {
@@ -284,7 +284,7 @@ impl MemoryViewer {
 
     fn handle_scroll_evt(self: Rc<Self>, evt: &gdk::EventScroll) {
         let ctx = self.context.clone();
-        match evt.get_direction() {
+        match evt.direction() {
             gdk::ScrollDirection::Down => self.scroll_down(1),
             gdk::ScrollDirection::Up => self.scroll_up(1),
             _ => (),
@@ -298,117 +298,119 @@ mod test {
     use super::*;
     use crate::utils::test_utils;
 
-    fn setup_widget(
-        num_visible_rows: u16,
-    ) -> (glib::MainContext, Rc<RemoteEmulator>, Rc<MemoryViewer>) {
-        test_utils::setup_gtk().unwrap();
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let builder = gtk::Builder::from_string(include_str!("../../res/memory.ui"));
-        let component =
-            MemoryViewer::from_builder(&builder, context.clone(), emu.clone(), num_visible_rows);
-        (context, emu, component)
-    }
-
     #[test]
     fn gtk_test_initial_load() {
-        let (_, _, component) = setup_widget(16);
+        test_utils::with_unloaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/memory.ui"));
+            let component = MemoryViewer::from_builder(&builder, context.clone(), emu.clone(), 16);
 
-        for i in 0..16 {
-            let row = component.row(i).expect(&format!("No row found at {}", i));
-            for j in 0..16 {
-                let col = row
-                    .cell(j)
-                    .expect(&format!("No cell found at row {} column {}", i, j));
-                assert_eq!(col.get_text(), "--");
+            for i in 0..16 {
+                let row = component.row(i).expect(&format!("No row found at {}", i));
+                for j in 0..16 {
+                    let col = row
+                        .cell(j)
+                        .expect(&format!("No cell found at row {} column {}", i, j));
+                    assert_eq!(col.text(), "--");
+                }
             }
-        }
+        });
     }
 
     #[test]
     fn gtk_test_rom_loaded() {
-        let (context, emu, component) = setup_widget(16);
+        test_utils::with_unloaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/memory.ui"));
+            let component = MemoryViewer::from_builder(&builder, context.clone(), emu.clone(), 16);
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+                emu.query_memory(0x00, 0xFF).await
+            };
+            let memory_data = test_utils::wait_for_task(&context, task).unwrap();
 
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-            emu.query_memory(0x00, 0xFF).await
-        };
-        let memory_data = test_utils::wait_for_task(&context, task).unwrap();
+            test_utils::next_tick(&context, &emu);
 
-        test_utils::next_tick(&context, &emu);
-
-        for i in 0..16 {
-            let row = component.row(i).expect(&format!("No row found at {}", i));
-            for j in 0..16 {
-                let col = row
-                    .cell(j)
-                    .expect(&format!("No cell found at row {} column {}", i, j));
-                let actual_value = memory_data.data.get((i * 0x10) + j).unwrap().unwrap();
-                assert_eq!(col.get_text().as_str(), format!("{:02X}", actual_value));
+            for i in 0..16 {
+                let row = component.row(i).expect(&format!("No row found at {}", i));
+                for j in 0..16 {
+                    let col = row
+                        .cell(j)
+                        .expect(&format!("No cell found at row {} column {}", i, j));
+                    let actual_value = memory_data.data.get((i * 0x10) + j).unwrap().unwrap();
+                    assert_eq!(col.text().as_str(), format!("{:02X}", actual_value));
+                }
             }
-        }
+        });
     }
 
     #[test]
     fn gtk_handle_write() {
-        let (context, emu, component) = setup_widget(2);
+        test_utils::with_unloaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/memory.ui"));
+            let component = MemoryViewer::from_builder(&builder, context.clone(), emu.clone(), 16);
 
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-        };
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+            };
 
-        test_utils::wait_for_task(&context, task);
+            test_utils::wait_for_task(&context, task);
 
-        component
-            .widget
-            .address_entry
-            .get_buffer()
-            .set_text("0x8000");
-        test_utils::next_tick(&context, &emu);
-        component.widget.go_button.clicked();
-        test_utils::next_tick(&context, &emu);
-        for x in 0..0x30 {
-            let addr = 0x7FF0 + u16::from(x);
-            component.handle_write(addr.into(), x);
-        }
-
-        for row_idx in 0..2 {
-            for cell_idx in 0..0xF {
-                let actual_value = component
-                    .row(row_idx)
-                    .and_then(|row| row.cell(cell_idx))
-                    .map(|cell| cell.get_text().to_string());
-
-                let expected_value = format!("{:02X}", ((1 + row_idx) * 0x10) + cell_idx);
-
-                assert_eq!(actual_value, Some(expected_value));
+            component.widget.address_entry.set_text("0x8000");
+            test_utils::next_tick(&context, &emu);
+            component.widget.go_button.clicked();
+            test_utils::next_tick(&context, &emu);
+            for x in 0..0x30 {
+                let addr = 0x7FF0 + u16::from(x);
+                component.handle_write(addr.into(), x);
             }
-        }
+
+            for row_idx in 0..2 {
+                for cell_idx in 0..0xF {
+                    let actual_value = component
+                        .row(row_idx)
+                        .and_then(|row| row.cell(cell_idx))
+                        .map(|cell| cell.text().to_string());
+
+                    let expected_value = format!("{:02X}", ((1 + row_idx) * 0x10) + cell_idx);
+
+                    assert_eq!(actual_value, Some(expected_value));
+                }
+            }
+        });
     }
 
     #[test]
     fn gtk_test_goto_address() {
-        let (context, emu, component) = setup_widget(16);
+        test_utils::with_unloaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/memory.ui"));
+            let component = MemoryViewer::from_builder(&builder, context.clone(), emu.clone(), 16);
 
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-        };
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+            };
 
-        test_utils::wait_for_task(&context, task);
+            test_utils::wait_for_task(&context, task);
 
-        component.widget.address_entry.set_text("0x8000");
-        test_utils::next_tick(&context, &emu);
-        component.widget.go_button.emit_clicked();
-        test_utils::next_tick(&context, &emu);
+            component.widget.address_entry.set_text("0x8000");
+            component.widget.go_button.clicked();
+            test_utils::next_tick(&context, &emu);
 
-        for i in 0..16 {
-            let row = component.row(i).expect(&format!("No row found at {}", i));
-            for j in 0..16 {
-                let col = row
-                    .cell(j)
-                    .expect(&format!("No cell found at row {} column {}", i, j));
-                assert_eq!(col.get_text().as_str(), "00");
+            for i in 0..16 {
+                let row = component.row(i).expect(&format!("No row found at {}", i));
+                for j in 0..16 {
+                    let col = row
+                        .cell(j)
+                        .expect(&format!("No cell found at row {} column {}", i, j));
+                    let col_text = col.text();
+                    assert_eq!(
+                        col_text.as_str(),
+                        "00",
+                        "Expected value \"{}\" to be \"00\" at row {} column {}",
+                        col_text,
+                        i,
+                        j
+                    );
+                }
             }
-        }
+        });
     }
 }

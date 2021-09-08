@@ -162,192 +162,202 @@ mod tests {
 
     #[test]
     fn test_load_rom() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let (f, events) = track_event();
-        emu.on::<RomLoadedEvent, _>(f);
-        let task = async { emu.load_rom(test_utils::fizzbuzz_rom()).await };
-        let resp = test_utils::wait_for_task(&context, task);
-        assert_eq!(resp, Ok(()));
-        assert_eq!(events.borrow().clone(), vec![RomLoadedEvent]);
+        test_utils::with_context(|context| {
+            let emu = test_utils::get_unloaded_remote_emu(context.clone());
+            let (f, events) = track_event();
+            emu.on::<RomLoadedEvent, _>(f);
+            let task = async { emu.load_rom(test_utils::fizzbuzz_rom()).await };
+            let resp = test_utils::wait_for_task(&context, task);
+            assert_eq!(resp, Ok(()));
+            assert_eq!(events.borrow().clone(), vec![RomLoadedEvent]);
+        })
     }
 
     #[test]
     fn test_load_rom_error() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let resp = context.block_on(emu.load_rom(vec![0x00]));
-        assert!(matches!(resp, Err(LoadRomError::InvalidRom(_))));
+        test_utils::with_context(|context| {
+            let emu = test_utils::get_unloaded_remote_emu(context.clone());
+            let resp = context.block_on(emu.load_rom(vec![0x00]));
+            assert!(matches!(resp, Err(LoadRomError::InvalidRom(_))));
+        });
     }
 
     #[test]
     fn test_load_starts_paused() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let (f, events) = track_event();
-        emu.on::<ModeChangeEvent, _>(f);
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-        };
-        test_utils::wait_for_task(&context, task);
-        assert_eq!(
-            events.borrow().clone(),
-            vec![ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused)]
-        );
+        test_utils::with_context(|context| {
+            let emu = test_utils::get_unloaded_remote_emu(context.clone());
+            let (f, events) = track_event();
+            emu.on::<ModeChangeEvent, _>(f);
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+            };
+            test_utils::wait_for_task(&context, task);
+            assert_eq!(
+                events.borrow().clone(),
+                vec![ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused)]
+            );
+        });
     }
 
     #[test]
     fn test_step() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let (f, events) = track_event();
-        emu.on::<ManualStepEvent, _>(f);
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-            emu.step().await
-        };
-        let step_result = test_utils::wait_for_task(&context, task);
-        assert_eq!(events.borrow().clone(), vec![ManualStepEvent]);
-        assert_eq!(step_result, Ok(()))
+        test_utils::with_context(|context| {
+            let emu = test_utils::get_unloaded_remote_emu(context.clone());
+            let (f, events) = track_event();
+            emu.on::<ManualStepEvent, _>(f);
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+                emu.step().await
+            };
+            let step_result = test_utils::wait_for_task(&context, task);
+            assert_eq!(events.borrow().clone(), vec![ManualStepEvent]);
+            assert_eq!(step_result, Ok(()))
+        });
     }
 
     #[test]
     fn test_step_unloaded() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let task = async { emu.step().await };
-        let step_result = test_utils::wait_for_task(&context, task);
-        assert_eq!(step_result, Err(remote::Error::NoRomLoaded))
+        test_utils::with_context(|context| {
+            let emu = test_utils::get_unloaded_remote_emu(context.clone());
+            let task = async { emu.step().await };
+            let step_result = test_utils::wait_for_task(&context, task);
+            assert_eq!(step_result, Err(remote::Error::NoRomLoaded))
+        });
     }
 
     #[test]
     fn test_query_memory() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_loaded_remote_emu(context.clone());
-        let task = async {
-            emu.step().await.unwrap();
-            emu.query_memory(0x00, 0x04).await
-        };
-        let memory_result = test_utils::wait_for_task(&context, task);
-        let expected_data = vec![201, 0, 0, 0, 0].into_iter().map(|x| Some(x)).collect();
-        assert_eq!(
-            memory_result,
-            Ok(QueryMemoryResponse {
-                start_addr: 0x00,
-                data: expected_data
-            })
-        )
+        test_utils::with_context(|context| {
+            let emu = test_utils::get_loaded_remote_emu(context.clone());
+            let task = async {
+                emu.step().await.unwrap();
+                emu.query_memory(0x00, 0x04).await
+            };
+            let memory_result = test_utils::wait_for_task(&context, task);
+            let expected_data = vec![201, 0, 0, 0, 0].into_iter().map(|x| Some(x)).collect();
+            assert_eq!(
+                memory_result,
+                Ok(QueryMemoryResponse {
+                    start_addr: 0x00,
+                    data: expected_data
+                })
+            )
+        });
     }
 
     #[test]
     fn test_query_memory_unloaded() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let task = async { emu.query_memory(0x00, 0x04).await };
-        let memory_result = test_utils::wait_for_task(&context, task);
-        assert_eq!(memory_result, Err(remote::Error::NoRomLoaded))
+        test_utils::with_context(|context| {
+            let emu = test_utils::get_unloaded_remote_emu(context.clone());
+            let task = async { emu.query_memory(0x00, 0x04).await };
+            let memory_result = test_utils::wait_for_task(&context, task);
+            assert_eq!(memory_result, Err(remote::Error::NoRomLoaded))
+        });
     }
 
     #[test]
     fn test_query_register() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_loaded_remote_emu(context.clone());
-        let task = async {
-            emu.step().await.unwrap();
-            emu.query_registers().await
-        };
-        let register_result = test_utils::wait_for_task(&context, task);
-        assert_eq!(
-            register_result,
-            Ok(QueryRegistersResponse {
-                af: 0x01b0,
-                bc: 0x0013,
-                de: 0x00d8,
-                hl: 0x014d,
-                sp: 0xfffe,
-                pc: 0x0101,
-            })
-        )
+        test_utils::with_context(|context| {
+            let emu = test_utils::get_loaded_remote_emu(context.clone());
+            let task = async {
+                emu.step().await.unwrap();
+                emu.query_registers().await
+            };
+            let register_result = test_utils::wait_for_task(&context, task);
+            assert_eq!(
+                register_result,
+                Ok(QueryRegistersResponse {
+                    af: 0x01b0,
+                    bc: 0x0013,
+                    de: 0x00d8,
+                    hl: 0x014d,
+                    sp: 0xfffe,
+                    pc: 0x0101,
+                })
+            )
+        });
     }
 
     #[test]
     fn test_query_register_unloaded() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let task = async { emu.query_registers().await };
-        let register_result = test_utils::wait_for_task(&context, task);
-        assert_eq!(register_result, Err(remote::Error::NoRomLoaded))
+        test_utils::with_context(|context| {
+            let emu = test_utils::get_unloaded_remote_emu(context.clone());
+            let task = async { emu.query_registers().await };
+            let register_result = test_utils::wait_for_task(&context, task);
+            assert_eq!(register_result, Err(remote::Error::NoRomLoaded))
+        });
     }
 
     #[test]
     fn test_run_to_breakpoint() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let (f, events) = track_event();
-        emu.on::<ModeChangeEvent, _>(f);
-        let bp = Breakpoint::new(
-            WordRegister::PC.into(),
-            BreakpointCondition::Test(Comparison::Equal, 0x150),
-        );
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-            emu.add_breakpoint(bp.clone()).await.unwrap();
-        };
-        test_utils::wait_for_task(&context, task);
-        let play_task = async {
-            emu.set_mode(ExecMode::Standard).await.unwrap();
-        };
-        test_utils::wait_for_task(&context, play_task);
-        std::thread::sleep(Duration::from_millis(200));
-        test_utils::digest_events(&context);
-        let emulation_time = test_utils::wait_for_task(&context, emu.exec_time()).unwrap();
-        // 1 cycle for NOP, 4 for JUMP
-        let actual_gb_time =
-            Duration::from_secs_f64(5.0 / f64::from(olympia_engine::gameboy::CYCLE_FREQ));
-        assert!(emulation_time.duration() >= actual_gb_time);
-        assert_eq!(
-            events.borrow().clone(),
-            vec![
-                ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused),
-                ModeChangeEvent::new(ExecMode::Paused, ExecMode::Standard),
-                ModeChangeEvent::new(ExecMode::Standard, ExecMode::HitBreakpoint(bp)),
-            ]
-        );
+        test_utils::with_unloaded_emu(|context, emu| {
+            let (f, events) = track_event();
+            emu.on::<ModeChangeEvent, _>(f);
+            let bp = Breakpoint::new(
+                WordRegister::PC.into(),
+                BreakpointCondition::Test(Comparison::Equal, 0x150),
+            );
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+                emu.add_breakpoint(bp.clone()).await.unwrap();
+            };
+            test_utils::wait_for_task(&context, task);
+            let play_task = async {
+                emu.set_mode(ExecMode::Standard).await.unwrap();
+            };
+            test_utils::wait_for_task(&context, play_task);
+            std::thread::sleep(Duration::from_millis(200));
+            test_utils::digest_events(&context);
+            let emulation_time = test_utils::wait_for_task(&context, emu.exec_time()).unwrap();
+            // 1 cycle for NOP, 4 for JUMP
+            let actual_gb_time =
+                Duration::from_secs_f64(5.0 / f64::from(olympia_engine::gameboy::CYCLE_FREQ));
+            assert!(emulation_time.duration() >= actual_gb_time);
+            assert_eq!(
+                events.borrow().clone(),
+                vec![
+                    ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused),
+                    ModeChangeEvent::new(ExecMode::Paused, ExecMode::Standard),
+                    ModeChangeEvent::new(ExecMode::Standard, ExecMode::HitBreakpoint(bp)),
+                ]
+            );
+        });
     }
 
     #[test]
     fn test_ff_to_breakpoint() {
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_unloaded_remote_emu(context.clone());
-        let (f, events) = track_event();
-        emu.on::<ModeChangeEvent, _>(f);
-        let bp = Breakpoint::new(
-            WordRegister::PC.into(),
-            BreakpointCondition::Test(Comparison::Equal, 0x150),
-        );
-        let task = async {
-            emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
-            emu.add_breakpoint(bp.clone()).await.unwrap();
-        };
-        test_utils::wait_for_task(&context, task);
-        let play_task = async {
-            emu.set_mode(ExecMode::Uncapped).await.unwrap();
-        };
-        test_utils::wait_for_task(&context, play_task);
-        std::thread::sleep(Duration::from_millis(200));
-        test_utils::digest_events(&context);
-        assert_eq!(
-            events.borrow().clone(),
-            vec![
-                ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused),
-                ModeChangeEvent::new(ExecMode::Paused, ExecMode::Uncapped),
-                ModeChangeEvent::new(ExecMode::Uncapped, ExecMode::HitBreakpoint(bp)),
-            ]
-        );
-        // TODO: Test in release mode only, debug builds too slow
-        // let emulation_time: ExecTime = wait_for_task(&context, emu.exec_time()).unwrap();
-        // // 1 cycle for NOP, 4 for JUMP
-        // let actual_gb_time = Duration::from_secs_f64(5.0 / f64::from(olympia_engine::gameboy::CYCLE_FREQ));
-        // assert!(dbg!(Duration::from(emulation_time)) <= dbg!(actual_gb_time));
+        test_utils::with_unloaded_emu(|context, emu| {
+            let (f, events) = track_event();
+            emu.on::<ModeChangeEvent, _>(f);
+            let bp = Breakpoint::new(
+                WordRegister::PC.into(),
+                BreakpointCondition::Test(Comparison::Equal, 0x150),
+            );
+            let task = async {
+                emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
+                emu.add_breakpoint(bp.clone()).await.unwrap();
+            };
+            test_utils::wait_for_task(&context, task);
+            let play_task = async {
+                emu.set_mode(ExecMode::Uncapped).await.unwrap();
+            };
+            test_utils::wait_for_task(&context, play_task);
+            std::thread::sleep(Duration::from_millis(2000));
+            eprintln!("Fast forward sleep completed");
+            test_utils::digest_events(&context);
+            assert_eq!(
+                events.borrow().clone(),
+                vec![
+                    ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused),
+                    ModeChangeEvent::new(ExecMode::Paused, ExecMode::Uncapped),
+                    ModeChangeEvent::new(ExecMode::Uncapped, ExecMode::HitBreakpoint(bp)),
+                ]
+            );
+            // TODO: Test in release mode only, debug builds too slow
+            // let emulation_time: ExecTime = wait_for_task(&context, emu.exec_time()).unwrap();
+            // // 1 cycle for NOP, 4 for JUMP
+            // let actual_gb_time = Duration::from_secs_f64(5.0 / f64::from(olympia_engine::gameboy::CYCLE_FREQ));
+            // assert!(dbg!(Duration::from(emulation_time)) <= dbg!(actual_gb_time));
+        });
     }
 }

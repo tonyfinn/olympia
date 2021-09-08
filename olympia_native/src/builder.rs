@@ -21,7 +21,7 @@ macro_rules! builder_struct {
         impl $struct_name {
             fn from_builder(builder: &gtk::Builder) -> Result<$struct_name, crate::builder::MissingUIElement> {
                 Ok($struct_name {
-                    $($field_name: builder.get_object($id).ok_or_else(
+                    $($field_name: builder.object($id).ok_or_else(
                         || crate::builder::MissingUIElement($id.into())
                     )?),+
                 })

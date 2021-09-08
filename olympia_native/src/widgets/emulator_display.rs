@@ -2,7 +2,6 @@ use crate::builder_struct;
 
 use glib::clone;
 use gtk::prelude::*;
-use gtk::WidgetExt;
 use log::trace;
 use olympia_engine::{
     events::{HBlankEvent, VBlankEvent},
@@ -191,12 +190,10 @@ mod tests {
         x: i32,
         y: i32,
     ) -> Result<Vec<u8>, cairo::BorrowError> {
-        let stride = surface.get_stride();
-        let bpp = surface.get_format().stride_for_width(1).unwrap() as usize;
+        let stride = surface.stride();
+        let bpp = surface.format().stride_for_width(1).unwrap() as usize;
         let idx = ((y * stride) + (x * (bpp as i32))) as usize;
-        surface
-            .get_data()
-            .map(|data| Vec::from(&data[idx..idx + bpp]))
+        surface.data().map(|data| Vec::from(&data[idx..idx + bpp]))
     }
 
     #[test]

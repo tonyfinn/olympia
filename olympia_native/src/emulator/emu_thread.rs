@@ -130,7 +130,7 @@ impl EmulatorThread {
                 .events
                 .on(Box::new(clone!(@weak emu_thread.tx as tx => move |evt| {
                     if let Err(e) = tx.send(RemoteEmulatorOutput::Event(evt.clone())) {
-                        eprintln!("Cannot report emulator output event: {:?}", e);
+                        eprintln!("Cannot report emulator output event: {:?}. Event {:?}", e, evt);
                     }
                 })));
             emu_thread.run();

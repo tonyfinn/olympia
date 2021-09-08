@@ -31,8 +31,8 @@ fn create_child<C: IsA<gtk::Widget> + IsA<glib::Object>>(
     content_id: &str,
 ) -> gtk::Builder {
     let child_builder = gtk::Builder::from_string(builder_xml);
-    let container: gtk::Box = parent_builder.get_object(container_id).unwrap();
-    let content: C = child_builder.get_object(content_id).unwrap();
+    let container: gtk::Box = parent_builder.object(container_id).unwrap();
+    let content: C = child_builder.object(content_id).unwrap();
     container.pack_start(&content, true, true, 0);
     child_builder
 }
@@ -46,7 +46,7 @@ impl Debugger {
 
         let playback_controls =
             PlaybackControls::from_builder(&root_builder, ctx.clone(), emu.clone());
-        let window: ApplicationWindow = root_builder.get_object("MainWindow").unwrap();
+        let window: ApplicationWindow = root_builder.object("MainWindow").unwrap();
         let open_action = gio::SimpleAction::new("open", None);
         let emulator_display =
             EmulatorDisplay::from_builder(&root_builder, ctx.clone(), emu.clone());
@@ -107,7 +107,7 @@ impl Debugger {
                     None,
                 );
                 file_chooser.run();
-                if let Some(filename) = file_chooser.get_filename() {
+                if let Some(filename) = file_chooser.filename() {
                     ctx.spawn_local(debugger.clone().load_rom(filename.into()));
                 }
             }),

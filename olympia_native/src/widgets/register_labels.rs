@@ -140,82 +140,76 @@ mod tests {
 
     #[test]
     fn gtk_render_text() {
-        test_utils::setup_gtk().unwrap();
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_loaded_remote_emu(context.clone());
-        let widget = RegisterLabelsWidget::default();
-        let component = RegisterLabels::from_widget(context.clone(), emu, widget);
-        test_utils::wait_for_task(&context, component.clone().update());
+        test_utils::with_loaded_emu(|context, emu| {
+            let widget = RegisterLabelsWidget::default();
+            let component = RegisterLabels::from_widget(context.clone(), emu, widget);
+            test_utils::wait_for_task(&context, component.clone().update());
 
-        component.render(QueryRegistersResponse {
-            af: 0x6666,
-            bc: 0x5555,
-            de: 0x4444,
-            hl: 0x3333,
-            pc: 0x2222,
-            sp: 0x1111,
+            component.render(QueryRegistersResponse {
+                af: 0x6666,
+                bc: 0x5555,
+                de: 0x4444,
+                hl: 0x3333,
+                pc: 0x2222,
+                sp: 0x1111,
+            });
+
+            let af_text: String = component.widget.af_input.text().into();
+            let bc_text: String = component.widget.bc_input.text().into();
+            let de_text: String = component.widget.de_input.text().into();
+            let hl_text: String = component.widget.hl_input.text().into();
+            let pc_text: String = component.widget.pc_input.text().into();
+            let sp_text: String = component.widget.sp_input.text().into();
+
+            assert_eq!(af_text, String::from("6666"));
+            assert_eq!(bc_text, String::from("5555"));
+            assert_eq!(de_text, String::from("4444"));
+            assert_eq!(hl_text, String::from("3333"));
+            assert_eq!(pc_text, String::from("2222"));
+            assert_eq!(sp_text, String::from("1111"));
         });
-
-        let af_text: String = component.widget.af_input.get_text().into();
-        let bc_text: String = component.widget.bc_input.get_text().into();
-        let de_text: String = component.widget.de_input.get_text().into();
-        let hl_text: String = component.widget.hl_input.get_text().into();
-        let pc_text: String = component.widget.pc_input.get_text().into();
-        let sp_text: String = component.widget.sp_input.get_text().into();
-
-        assert_eq!(af_text, String::from("6666"));
-        assert_eq!(bc_text, String::from("5555"));
-        assert_eq!(de_text, String::from("4444"));
-        assert_eq!(hl_text, String::from("3333"));
-        assert_eq!(pc_text, String::from("2222"));
-        assert_eq!(sp_text, String::from("1111"));
-        context.release();
     }
 
     #[test]
     fn gtk_integration() {
-        test_utils::setup_gtk().unwrap();
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_loaded_remote_emu(context.clone());
-        let builder = gtk::Builder::from_string(include_str!("../../res/registers.ui"));
-        let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
+        test_utils::with_loaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/registers.ui"));
+            let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
 
-        let task = async {
-            emu.step().await.unwrap();
-            emu.step().await.unwrap();
-            emu.query_registers().await
-        };
-        let actual_registers = test_utils::wait_for_task(&context, task).unwrap();
-        test_utils::digest_events(&context);
-        let af_text: String = component.widget.af_input.get_text().into();
-        let bc_text: String = component.widget.bc_input.get_text().into();
-        let de_text: String = component.widget.de_input.get_text().into();
-        let hl_text: String = component.widget.hl_input.get_text().into();
-        let pc_text: String = component.widget.pc_input.get_text().into();
-        let sp_text: String = component.widget.sp_input.get_text().into();
+            let task = async {
+                emu.step().await.unwrap();
+                emu.step().await.unwrap();
+                emu.query_registers().await
+            };
+            let actual_registers = test_utils::wait_for_task(&context, task).unwrap();
+            test_utils::digest_events(&context);
+            let af_text: String = component.widget.af_input.text().into();
+            let bc_text: String = component.widget.bc_input.text().into();
+            let de_text: String = component.widget.de_input.text().into();
+            let hl_text: String = component.widget.hl_input.text().into();
+            let pc_text: String = component.widget.pc_input.text().into();
+            let sp_text: String = component.widget.sp_input.text().into();
 
-        assert_eq!(af_text, format!("{:04X}", actual_registers.af));
-        assert_eq!(bc_text, format!("{:04X}", actual_registers.bc));
-        assert_eq!(de_text, format!("{:04X}", actual_registers.de));
-        assert_eq!(hl_text, format!("{:04X}", actual_registers.hl));
-        assert_eq!(pc_text, format!("{:04X}", actual_registers.pc));
-        assert_eq!(sp_text, format!("{:04X}", actual_registers.sp));
-        context.release();
+            assert_eq!(af_text, format!("{:04X}", actual_registers.af));
+            assert_eq!(bc_text, format!("{:04X}", actual_registers.bc));
+            assert_eq!(de_text, format!("{:04X}", actual_registers.de));
+            assert_eq!(hl_text, format!("{:04X}", actual_registers.hl));
+            assert_eq!(pc_text, format!("{:04X}", actual_registers.pc));
+            assert_eq!(sp_text, format!("{:04X}", actual_registers.sp));
+        });
     }
 
     #[test]
     fn gtk_handle_write() {
-        test_utils::setup_gtk().unwrap();
-        let context = test_utils::setup_context();
-        let emu = test_utils::get_loaded_remote_emu(context.clone());
-        let builder = gtk::Builder::from_string(include_str!("../../res/registers.ui"));
-        let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
+        test_utils::with_loaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/registers.ui"));
+            let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
 
-        component.handle_register_write(WordRegister::BC, 0x8080);
+            component.handle_register_write(WordRegister::BC, 0x8080);
 
-        let bc_text: String = component.widget.bc_input.get_text().into();
+            let bc_text: String = component.widget.bc_input.text().into();
 
-        assert_eq!(bc_text, "8080");
-        context.release();
+            assert_eq!(bc_text, "8080");
+        });
     }
 }
