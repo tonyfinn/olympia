@@ -64,6 +64,14 @@ fn print_rom_info(cartridge: rom::Cartridge, out: &mut dyn io::Write) -> Olympia
             writeln!(out, "MBC2")?;
             writeln!(out, "RAM Size: 512 x 4 bits")?
         }
+        rom::ControllerEnum::Type3(mbc3) => {
+            writeln!(out, "MBC3")?;
+            writeln!(
+                out,
+                "RAM Size: {}KiB",
+                rom::CartridgeController::ram_size(&mbc3) / 1024
+            )?
+        }
     }
 
     write!(out, "ROM Size: {}KiB", cartridge.data.len() / 1024)?;

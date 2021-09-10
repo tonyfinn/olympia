@@ -453,7 +453,7 @@ mod test {
     fn get_test_gbcpu() -> gameboy::GameBoy {
         let cartridge = rom::Cartridge {
             data: vec![0xF1u8; 0x8000],
-            controller: rom::MBC2::default().into(),
+            controller: rom::MBC2::new(5).into(),
             target: rom::TargetConsole::GameBoyOnly,
         };
         gameboy::GameBoy::new(cartridge, gameboy::GameBoyModel::GameBoy)

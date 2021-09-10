@@ -276,7 +276,7 @@ pub struct MBC1 {
 }
 
 impl MBC1 {
-    fn new(ram_size: usize, cartridge_type_id: u8) -> MBC1 {
+    pub fn new(ram_size: usize, cartridge_type_id: u8) -> MBC1 {
         let has_ram = (cartridge_type_id & 0b10) != 0;
         let has_battery = (cartridge_type_id & 0b11) == 0b11;
         let ram = if has_ram {
@@ -425,7 +425,7 @@ pub struct MBC2 {
 }
 
 impl MBC2 {
-    fn new(cartridge_type_id: u8) -> MBC2 {
+    pub fn new(cartridge_type_id: u8) -> MBC2 {
         MBC2 {
             selected_rom: 1,
             ram_enabled: false,
@@ -535,7 +535,7 @@ pub struct MBC3 {
 }
 
 impl MBC3 {
-    fn new(ram_size: usize, cartridge_type_id: u8) -> MBC3 {
+    pub fn new(ram_size: usize, cartridge_type_id: u8) -> MBC3 {
         let has_timer = (cartridge_type_id & 0b100) != 0;
         let has_ram = (cartridge_type_id & 0b10) != 0;
         let has_battery = (cartridge_type_id & 0b11) == 0b11;
