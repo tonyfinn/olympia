@@ -230,7 +230,7 @@ impl Memory {
         address: address::LiteralAddress,
     ) -> Result<u8, MemoryError> {
         let addr = address.0;
-        if CARTRIDGE_ROM.contains(addr) {
+        if CARTRIDGE_ROM.contains(addr) || SWITCHABLE_ROM.contains(addr) {
             self.data
                 .cartridge
                 .read(addr)
@@ -250,6 +250,9 @@ impl Memory {
             Ok(self.data.oamram[(addr - OAM_RAM.start) as usize])
         } else if CPU_RAM.contains(addr) {
             Ok(self.data.cpuram[(addr - CPU_RAM.start) as usize])
+        } else if MODEL_RESERVED.contains(addr) {
+            // DMG/SGB behaviour is to return 0
+            Ok(0)
         } else if is_mem_register(addr) {
             self.data
                 .registers
@@ -285,7 +288,7 @@ impl Memory {
         value: u8,
     ) -> Result<(), MemoryError> {
         let addr = address.0;
-        let write_result = if CARTRIDGE_ROM.contains(addr) {
+        let write_result = if CARTRIDGE_ROM.contains(addr) || SWITCHABLE_ROM.contains(addr) {
             self.data
                 .cartridge
                 .write(addr, value)
@@ -312,6 +315,9 @@ impl Memory {
             Ok(())
         } else if CPU_RAM.contains(addr) {
             self.data.cpuram[(addr - CPU_RAM.start) as usize] = value;
+            Ok(())
+        } else if MODEL_RESERVED.contains(addr) {
+            /// DMG/SGB behaviour is to ignore usage
             Ok(())
         } else {
             Err(MemoryError::UnmappedAddress(addr))
