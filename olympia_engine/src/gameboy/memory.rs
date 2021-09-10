@@ -67,8 +67,8 @@ pub enum MemoryError {
     #[display(fmt = "Invalid address in RAM: 0x{:X}", "_0")]
     InvalidRamAddress(u16),
     /// The address maps to an area that is unmapped for the
-    /// current gameboy model. This can include areas that are unmapped in
-    /// all models, or registers that only exist on Game Boy Color
+    /// current gameboy model. This currently includes unimplemented registers,
+    /// or registers that only exist on Game Boy Color
     #[display(fmt = "Unmapped address: 0x{:X}", "_0")]
     UnmappedAddress(u16),
 }
@@ -322,10 +322,10 @@ impl Memory {
             self.data.cpuram[(addr - CPU_RAM.start) as usize] = value;
             Ok(())
         } else if MODEL_RESERVED.contains(addr) {
-            /// DMG/SGB behaviour is to ignore usage
+            // DMG/SGB behaviour is to ignore usage
             Ok(())
         } else {
-            Err(MemoryError::UnmappedAddress(addr))
+            panic!("Tried to write to unmapped address {} - all addresses should be implemented for writes", address)
         };
         write_result
     }
@@ -495,16 +495,12 @@ mod tests {
     #[test]
     fn test_unmapped_address() {
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
-        let mut memory = Memory::new(cartridge);
+        let memory = Memory::new(cartridge);
 
-        let addr = 0xFEC0;
+        let addr = 0xFF50;
 
         assert_eq!(
             memory.read_u8(addr),
-            Err(MemoryError::UnmappedAddress(addr))
-        );
-        assert_eq!(
-            memory.write_u8(addr, 0xFE),
             Err(MemoryError::UnmappedAddress(addr))
         );
     }

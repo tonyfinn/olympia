@@ -722,7 +722,7 @@ mod test {
     fn test_current_instruction_invalid() {
         let mut gb = get_test_gbcpu();
 
-        let addr = 0xFEFE;
+        let addr = 0xFF51;
 
         gb.write_register_u16(olympia_engine::registers::WordRegister::PC, addr);
 
