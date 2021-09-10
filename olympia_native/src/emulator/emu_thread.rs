@@ -216,7 +216,6 @@ impl EmulatorThread {
         inital_mode: ExecMode,
     ) -> Result<ExecMode, StepError> {
         gb.step()?;
-        println!("PC: {:X}", gb.read_register_u16(WordRegister::PC));
         if let BreakpointState::HitBreakpoint(bp) = monitor.borrow().state() {
             println!("Hit breakpoint: {:?}", bp);
             return Ok(ExecMode::HitBreakpoint(bp.clone()));
