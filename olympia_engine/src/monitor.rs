@@ -111,6 +111,17 @@ impl RWTarget {
         }
         Ok(current_value.unwrap())
     }
+
+    pub fn overlaps(&self, other: RWTarget) -> bool {
+        if self == &other {
+            return true;
+        }
+        match (self, other) {
+            (RWTarget::WordRegister(wr), RWTarget::ByteRegister(br)) => wr.contains(br),
+            (RWTarget::ByteRegister(br), RWTarget::WordRegister(wr)) => wr.contains(*br),
+            _ => false,
+        }
+    }
 }
 
 /// Indicates a value could not be parsed as a Read/Write target
@@ -330,7 +341,7 @@ impl DebugMonitor {
             if !bp.active {
                 continue;
             }
-            if bp.condition == BreakpointCondition::Read && target == bp.monitor {
+            if bp.condition == BreakpointCondition::Read && target.overlaps(bp.monitor) {
                 self.state = BreakpointState::HitBreakpoint(bp.clone());
                 return true;
             }
@@ -343,14 +354,24 @@ impl DebugMonitor {
             if !bp.active {
                 continue;
             }
-            if bp.condition == BreakpointCondition::Write && target == bp.monitor {
+            if bp.condition == BreakpointCondition::Write && target.overlaps(bp.monitor) {
                 self.state = BreakpointState::HitBreakpoint(bp.clone());
                 return true;
             } else if let BreakpointCondition::Test(cmp, reference_value) = bp.condition {
-                if target == bp.monitor && cmp.test(value, reference_value) {
-                    log::info!("Broke on bp {} {} {}", value, cmp, reference_value);
-                    self.state = BreakpointState::HitBreakpoint(bp.clone());
-                    return true;
+                if target.overlaps(bp.monitor) {
+                    let test_value = if let RWTarget::ByteRegister(br) = target {
+                        match br.lookup_byte() {
+                            registers::WordByte::High => (value & 0xFF00) >> 8,
+                            registers::WordByte::Low => value & 0xFF,
+                        }
+                    } else {
+                        value
+                    };
+                    if cmp.test(test_value, reference_value) {
+                        log::info!("Broke on bp {} {} {}", value, cmp, reference_value);
+                        self.state = BreakpointState::HitBreakpoint(bp.clone());
+                        return true;
+                    }
                 }
             }
         }

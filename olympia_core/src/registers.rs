@@ -55,6 +55,17 @@ impl WordRegister {
         use WordRegister as wr;
         [wr::AF, wr::BC, wr::DE, wr::HL, wr::SP, wr::PC]
     }
+
+    pub fn contains(&self, byte_reg: ByteRegister) -> bool {
+        use ByteRegister as br;
+        match self {
+            WordRegister::AF => byte_reg == br::A || byte_reg == br::B,
+            WordRegister::BC => byte_reg == br::B || byte_reg == br::C,
+            WordRegister::DE => byte_reg == br::D || byte_reg == br::E,
+            WordRegister::HL => byte_reg == br::H || byte_reg == br::L,
+            _ => false,
+        }
+    }
 }
 
 impl core::str::FromStr for WordRegister {
