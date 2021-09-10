@@ -69,7 +69,7 @@ pub struct GameBoy {
 /// an emulated instruction.
 pub enum StepError {
     /// Errors related to memory access
-    #[display(fmt = "Accessing invalid memory location")]
+    #[display(fmt = "Accessing invalid memory location: {0}", _0)]
     Memory(memory::MemoryError),
     /// Opcodes that don't map to a valid instruction
     #[display(fmt = "Attempted to exec invalid opcode {}", _0)]
