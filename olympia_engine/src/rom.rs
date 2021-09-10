@@ -103,31 +103,22 @@ impl Cartridge {
         let cartridge_type_id = data[CARTRIDGE_TYPE_LOCATION];
         let ram_size = lookup_ram_size(data[RAM_SIZE_LOCATION])?;
         let target = lookup_target(data[TARGET_CONSOLE_LOCATION]);
-        match cartridge_type_id {
-            0 => Ok(Cartridge {
-                controller: StaticRom.into(),
-                data,
-                target,
-            }),
-            1 => Ok(Cartridge {
-                controller: MBC1::new(0, false).into(),
-                data,
-                target,
-            }),
-            2 | 3 => Ok(Cartridge {
-                controller: MBC1::new(ram_size, true).into(),
-                data,
-                target,
-            }),
-            5 | 6 => Ok(Cartridge {
-                controller: MBC2::default().into(),
-                data,
-                target,
-            }),
-            _ => Err(CartridgeLoadError::UnsupportedCartridgeType(
-                cartridge_type_id,
-            )),
-        }
+        let controller = match cartridge_type_id {
+            0 => StaticRom.into(),
+            1..=3 => MBC1::new(ram_size, cartridge_type_id).into(),
+            5 | 6 => MBC2::new(cartridge_type_id).into(),
+            0x10..=0x13 => MBC3::new(ram_size, cartridge_type_id).into(),
+            _ => {
+                return Err(CartridgeLoadError::UnsupportedCartridgeType(
+                    cartridge_type_id,
+                ))
+            }
+        };
+        Ok(Cartridge {
+            controller,
+            data,
+            target,
+        })
     }
 }
 
@@ -137,9 +128,10 @@ pub enum ControllerEnum {
     StaticRom(StaticRom),
     /// Uses the MBC 1 controller chip
     Type1(MBC1),
-    /// Uses a MBC 2 controller chip
+    /// Uses the MBC 2 controller chip
     Type2(MBC2),
-    //Type3(MBC3)
+    /// Uses the MBC 3 controller chip
+    Type3(MBC3),
 }
 
 /// Represents a cartridge controller
@@ -154,6 +146,8 @@ pub trait CartridgeController {
     fn write(&mut self, loc: u16, value: u8) -> CartridgeIOResult<()>;
     /// Indicates if a controller contains onboard RAM
     fn has_ram(&self) -> bool;
+    /// Indicates if a controller contains battery packed RAM
+    fn has_battery(&self) -> bool;
     /// Indicates the size of onboard RAM, or 0 if absent
     fn ram_size(&self) -> usize;
 }
@@ -164,6 +158,7 @@ impl CartridgeController for ControllerEnum {
             ControllerEnum::StaticRom(srom) => srom.read_static_rom(loc, rom),
             ControllerEnum::Type1(mbc1) => mbc1.read_static_rom(loc, rom),
             ControllerEnum::Type2(mbc2) => mbc2.read_static_rom(loc, rom),
+            ControllerEnum::Type3(mbc3) => mbc3.read_static_rom(loc, rom),
         }
     }
 
@@ -172,6 +167,7 @@ impl CartridgeController for ControllerEnum {
             ControllerEnum::StaticRom(srom) => srom.read_switchable_rom(loc, rom),
             ControllerEnum::Type1(mbc1) => mbc1.read_switchable_rom(loc, rom),
             ControllerEnum::Type2(mbc2) => mbc2.read_switchable_rom(loc, rom),
+            ControllerEnum::Type3(mbc3) => mbc3.read_switchable_rom(loc, rom),
         }
     }
 
@@ -180,6 +176,7 @@ impl CartridgeController for ControllerEnum {
             ControllerEnum::StaticRom(srom) => srom.read_switchable_ram(loc),
             ControllerEnum::Type1(mbc1) => mbc1.read_switchable_ram(loc),
             ControllerEnum::Type2(mbc2) => mbc2.read_switchable_ram(loc),
+            ControllerEnum::Type3(mbc3) => mbc3.read_switchable_ram(loc),
         }
     }
 
@@ -188,6 +185,7 @@ impl CartridgeController for ControllerEnum {
             ControllerEnum::StaticRom(srom) => srom.write(loc, value),
             ControllerEnum::Type1(mbc1) => mbc1.write(loc, value),
             ControllerEnum::Type2(mbc2) => mbc2.write(loc, value),
+            ControllerEnum::Type3(mbc3) => mbc3.write(loc, value),
         }
     }
 
@@ -196,6 +194,7 @@ impl CartridgeController for ControllerEnum {
             ControllerEnum::StaticRom(srom) => srom.has_ram(),
             ControllerEnum::Type1(mbc1) => mbc1.has_ram(),
             ControllerEnum::Type2(mbc2) => mbc2.has_ram(),
+            ControllerEnum::Type3(mbc3) => mbc3.has_ram(),
         }
     }
 
@@ -204,6 +203,16 @@ impl CartridgeController for ControllerEnum {
             ControllerEnum::StaticRom(srom) => srom.ram_size(),
             ControllerEnum::Type1(mbc1) => mbc1.ram_size(),
             ControllerEnum::Type2(mbc2) => mbc2.ram_size(),
+            ControllerEnum::Type3(mbc3) => mbc3.ram_size(),
+        }
+    }
+
+    fn has_battery(&self) -> bool {
+        match self {
+            ControllerEnum::StaticRom(srom) => srom.has_battery(),
+            ControllerEnum::Type1(mbc1) => mbc1.has_battery(),
+            ControllerEnum::Type2(mbc2) => mbc2.has_battery(),
+            ControllerEnum::Type3(mbc3) => mbc3.has_battery(),
         }
     }
 }
@@ -234,6 +243,10 @@ impl CartridgeController for StaticRom {
         false
     }
 
+    fn has_battery(&self) -> bool {
+        false
+    }
+
     fn ram_size(&self) -> usize {
         0
     }
@@ -258,18 +271,27 @@ pub struct MBC1 {
     selected_high: u8,
     ram_enabled: bool,
     has_ram: bool,
+    has_battery: bool,
     ram: Vec<u8>,
 }
 
 impl MBC1 {
-    fn new(ram_size: usize, has_ram: bool) -> MBC1 {
+    fn new(ram_size: usize, cartridge_type_id: u8) -> MBC1 {
+        let has_ram = (cartridge_type_id & 0b10) != 0;
+        let has_battery = (cartridge_type_id & 0b11) == 0b11;
+        let ram = if has_ram {
+            vec![0x00; ram_size]
+        } else {
+            Vec::new()
+        };
         MBC1 {
             page_mode: MBC1PageMode::LargeRom,
             selected_rom: 1,
             selected_high: 0,
             ram_enabled: false,
             has_ram,
-            ram: vec![0x00; ram_size],
+            has_battery,
+            ram,
         }
     }
 
@@ -379,6 +401,10 @@ impl CartridgeController for MBC1 {
         self.has_ram
     }
 
+    fn has_battery(&self) -> bool {
+        self.has_battery
+    }
+
     fn ram_size(&self) -> usize {
         self.ram.len()
     }
@@ -395,19 +421,19 @@ pub struct MBC2 {
     selected_rom: u8,
     ram_enabled: bool,
     ram: Vec<u8>,
+    has_battery: bool,
 }
 
-impl Default for MBC2 {
-    fn default() -> Self {
+impl MBC2 {
+    fn new(cartridge_type_id: u8) -> MBC2 {
         MBC2 {
             selected_rom: 1,
             ram_enabled: false,
             ram: vec![0x00; 512],
+            has_battery: cartridge_type_id == 6,
         }
     }
-}
 
-impl MBC2 {
     fn selected_rom_bank(&self) -> u8 {
         let bank_id = self.selected_rom & 0xF;
         if bank_id == 0 {
@@ -446,7 +472,7 @@ impl CartridgeController for MBC2 {
             if loc & 0x100 == 0x100 {
                 self.selected_rom = value & 0xF;
             } else {
-                self.ram_enabled = value == 0b1010;
+                self.ram_enabled = (value & 0xF) == 0b1010;
             }
             Ok(())
         } else if memory::CARTRIDGE_RAM.contains(loc) && self.ram_enabled {
@@ -461,6 +487,10 @@ impl CartridgeController for MBC2 {
 
     fn has_ram(&self) -> bool {
         true
+    }
+
+    fn has_battery(&self) -> bool {
+        self.has_battery
     }
 
     fn ram_size(&self) -> usize {
@@ -494,9 +524,135 @@ fn lookup_target(target_id: u8) -> TargetConsole {
     }
 }
 
-/*pub struct MBC3 {
-    selected_rom_bank: u8
-}*/
+pub struct MBC3 {
+    selected_rom: u8,
+    selected_ram: u8,
+    ram_enabled: bool,
+    has_ram: bool,
+    has_timer: bool,
+    has_battery: bool,
+    ram: Vec<u8>,
+}
+
+impl MBC3 {
+    fn new(ram_size: usize, cartridge_type_id: u8) -> MBC3 {
+        let has_timer = (cartridge_type_id & 0b100) != 0;
+        let has_ram = (cartridge_type_id & 0b10) != 0;
+        let has_battery = (cartridge_type_id & 0b11) == 0b11;
+        MBC3 {
+            selected_rom: 1,
+            selected_ram: 0,
+            ram_enabled: false,
+            has_ram,
+            has_timer,
+            has_battery,
+            ram: vec![0x00; ram_size],
+        }
+    }
+
+    fn selected_rom_bank(&self) -> u8 {
+        self.selected_rom & 0x7F
+    }
+
+    fn selected_static_rom_bank(&self) -> u8 {
+        0
+    }
+
+    fn selected_ram_bank(&self) -> u8 {
+        self.selected_ram
+    }
+
+    const fn ram_enable_area() -> Range<u16> {
+        0x0000..0x2000
+    }
+
+    const fn rom_select_area() -> Range<u16> {
+        0x2000..0x4000
+    }
+
+    const fn ram_select_area() -> Range<u16> {
+        0x4000..0x6000
+    }
+
+    const fn timer_latch_area() -> Range<u16> {
+        0x6000..0x8000
+    }
+}
+
+impl CartridgeController for MBC3 {
+    fn read_static_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
+        let bank = u32::from(self.selected_static_rom_bank());
+        let rom_addr = (bank * u32::from(memory::STATIC_ROM.len)) + u32::from(loc);
+        rom.get(usize::try_from(rom_addr).expect("ROM too large for host platform"))
+            .copied()
+            .ok_or(CartridgeIOError::NoDataInRom(loc))
+    }
+
+    fn read_switchable_rom(&self, loc: u16, rom: &[u8]) -> CartridgeIOResult<u8> {
+        let bank_addr = loc - memory::SWITCHABLE_ROM.start;
+        let bank = u32::from(self.selected_rom_bank());
+        let rom_addr = (bank * u32::from(memory::SWITCHABLE_ROM.start)) + u32::from(bank_addr);
+        rom.get(usize::try_from(rom_addr).expect("ROM too large for host platform"))
+            .copied()
+            .ok_or(CartridgeIOError::NoDataInRom(loc))
+    }
+
+    fn read_switchable_ram(&self, loc: u16) -> CartridgeIOResult<u8> {
+        if self.has_ram && self.ram_enabled {
+            let bank = u16::from(self.selected_ram_bank());
+            let ram_addr = (bank * memory::CARTRIDGE_RAM.len) + (loc - memory::CARTRIDGE_RAM.start);
+            Ok(self.ram[usize::from(ram_addr)])
+        } else if self.has_ram {
+            Err(CartridgeIOError::CartridgeRamDisabled)
+        } else {
+            Err(CartridgeIOError::NoCartridgeRam)
+        }
+    }
+
+    fn write(&mut self, loc: u16, value: u8) -> CartridgeIOResult<()> {
+        if MBC3::ram_enable_area().contains(&loc) {
+            self.ram_enabled = (value & 0xF) == 0b1010;
+            Ok(())
+        } else if MBC3::rom_select_area().contains(&loc) {
+            self.selected_rom = value & 0x7F;
+            if self.selected_rom == 0 {
+                self.selected_rom = 1
+            }
+            Ok(())
+        } else if MBC3::ram_select_area().contains(&loc) {
+            self.selected_ram = value & 0x3;
+            Ok(())
+        } else if MBC3::timer_latch_area().contains(&loc) {
+            Ok(())
+        } else if memory::CARTRIDGE_RAM.contains(loc) {
+            if self.ram_enabled {
+                let ram_addr = loc - memory::CARTRIDGE_RAM.start;
+                self.ram[usize::from(ram_addr)] = value;
+            }
+            Ok(())
+        } else {
+            unreachable!()
+        }
+    }
+
+    fn has_ram(&self) -> bool {
+        self.has_ram
+    }
+
+    fn ram_size(&self) -> usize {
+        self.ram.len()
+    }
+
+    fn has_battery(&self) -> bool {
+        self.has_battery
+    }
+}
+
+impl From<MBC3> for ControllerEnum {
+    fn from(mbc: MBC3) -> Self {
+        ControllerEnum::Type3(mbc)
+    }
+}
 
 #[cfg(test)]
 mod tests {
