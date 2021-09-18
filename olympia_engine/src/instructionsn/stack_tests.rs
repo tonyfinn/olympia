@@ -29,9 +29,9 @@ fn test_stack() -> StepResult<()> {
         gb.cpu.read_register_u16(registers::WordRegister::SP),
         0xFFFC
     );
-    assert_eq!(gb.read_memory_u16(0xFFFA)?, 0x0508);
-    assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0508);
-    assert_eq!(gb.read_memory_u16(0xFFF8)?, 0x0508);
+    assert_eq!(gb.get_memory_u16(0xFFFA)?, 0x0508);
+    assert_eq!(gb.get_memory_u16(0xFFFC)?, 0x0508);
+    assert_eq!(gb.get_memory_u16(0xFFF8)?, 0x0508);
     assert_eq!(gb.clocks_elapsed(), 88);
 
     Ok(())
@@ -48,7 +48,7 @@ fn test_store_stack_pointer_memory() -> StepResult<()> {
     )?;
 
     assert_eq!(gb.clocks_elapsed(), 32);
-    assert_eq!(gb.read_memory_u16(0xC000)?, 0x12AB);
+    assert_eq!(gb.get_memory_u16(0xC000)?, 0x12AB);
 
     Ok(())
 }

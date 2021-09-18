@@ -167,11 +167,14 @@ impl GameBoy {
     /// Read an value at the given memory address as a signed integer.
     ///
     /// This is primarily useful for reading the target of a JR instruction.
-    pub(crate) fn read_memory_i8<A: Into<address::LiteralAddress>>(
+    /// This should be used by external consumers, as it will not trigger read breakpoints
+    pub fn get_memory_i8<A: Into<address::LiteralAddress>>(
         &self,
         addr: A,
     ) -> memory::MemoryResult<i8> {
-        Ok(i8::from_le_bytes([self.mem.read_u8(addr)?]))
+        Ok(i8::from_le_bytes([self
+            .mem
+            .read_u8_internal(addr.into())?]))
     }
 
     /// Read a 16-bit value from the address at `target`
@@ -179,14 +182,15 @@ impl GameBoy {
     /// Note that the value is read in little endian format.
     /// This means that given `0xC000` = `0x12` and `0xC001` = `0x45`,
     /// the value read will be `0x4512`
-    pub(crate) fn read_memory_u16<A: Into<address::LiteralAddress>>(
+    /// This should be used by external consumers, as it will not trigger read breakpoints
+    pub fn get_memory_u16<A: Into<address::LiteralAddress>>(
         &self,
         target: A,
     ) -> memory::MemoryResult<u16> {
         let addr = target.into();
         Ok(u16::from_le_bytes([
-            self.mem.read_u8(addr)?,
-            self.mem.read_u8(addr.next())?,
+            self.mem.read_u8_internal(addr)?,
+            self.mem.read_u8_internal(addr.next())?,
         ]))
     }
 
@@ -195,7 +199,8 @@ impl GameBoy {
     /// Note that the value is written in little endian format.
     /// This means that given value of `0xABCD` and `target` of `0xC000`
     /// then `0xC000` will be set to `0xCD` and `0xC001` will be set to `0xAB`
-    pub(crate) fn write_memory_u16<A: Into<address::LiteralAddress>>(
+    /// This should be used by external consumers, as it will not trigger write breakpoints
+    pub fn set_memory_u16<A: Into<address::LiteralAddress>>(
         &mut self,
         target: A,
         value: u16,
@@ -203,8 +208,8 @@ impl GameBoy {
         let addr = target.into();
         let bytes = value.to_le_bytes();
 
-        self.mem.write_u8(addr, bytes[0])?;
-        self.mem.write_u8(addr.next(), bytes[1])?;
+        self.mem.write_u8_internal(addr, bytes[0])?;
+        self.mem.write_u8_internal(addr.next(), bytes[1])?;
         Ok(())
     }
 
@@ -712,8 +717,8 @@ mod test {
     fn test_mem_write_u16_read_u16_sysram() -> memory::MemoryResult<()> {
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
 
-        gb.write_memory_u16(0xc100, 0x1032)?;
-        assert_eq!(gb.read_memory_u16(0xc100), Ok(0x1032));
+        gb.set_memory_u16(0xc100, 0x1032)?;
+        assert_eq!(gb.get_memory_u16(0xc100), Ok(0x1032));
         Ok(())
     }
 
@@ -724,7 +729,7 @@ mod test {
         gb.write_memory_u8(0xc100, 0x48)?;
         gb.write_memory_u8(0xc101, 0x94)?;
 
-        assert_eq!(gb.read_memory_u16(0xc100), Ok(0x9448));
+        assert_eq!(gb.get_memory_u16(0xc100), Ok(0x9448));
         Ok(())
     }
 
@@ -732,7 +737,7 @@ mod test {
     fn test_mem_write_u16_read_u8_sysram() -> memory::MemoryResult<()> {
         let mut gb = GameBoy::new(make_cartridge(), GameBoyModel::GameBoy);
 
-        gb.write_memory_u16(0xc200, 0x1345)?;
+        gb.set_memory_u16(0xc200, 0x1345)?;
 
         assert_eq!(gb.read_memory_u8(0xc200), Ok(0x45));
         assert_eq!(gb.read_memory_u8(0xc201), Ok(0x13));
@@ -746,7 +751,7 @@ mod test {
 
         gb.write_memory_u8(0xc200, 0xa2)?;
 
-        assert_eq!(gb.read_memory_i8(0xc200), Ok(signed_value));
+        assert_eq!(gb.get_memory_i8(0xc200), Ok(signed_value));
         Ok(())
     }
 

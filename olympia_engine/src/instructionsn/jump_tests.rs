@@ -260,7 +260,7 @@ fn test_call() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
+    assert_eq!(gb.get_memory_u16(0xFFFC)?, 0x0203);
     assert_eq!(
         gb.cpu.read_register_u16(registers::WordRegister::PC),
         0x3020
@@ -283,7 +283,7 @@ fn test_call_system() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0201);
+    assert_eq!(gb.get_memory_u16(0xFFFC)?, 0x0201);
     assert_eq!(gb.cpu.read_register_u16(registers::WordRegister::PC), 0x08);
     assert_eq!(
         gb.cpu.read_register_u16(registers::WordRegister::SP),
@@ -305,7 +305,7 @@ fn test_return() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
+    assert_eq!(gb.get_memory_u16(0xFFFC)?, 0x0203);
     assert_eq!(gb.cpu.read_register_u16(registers::WordRegister::PC), 0x203);
     assert_eq!(
         gb.cpu.read_register_u16(registers::WordRegister::SP),
@@ -328,7 +328,7 @@ fn test_return_if() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
+    assert_eq!(gb.get_memory_u16(0xFFFC)?, 0x0203);
     assert_eq!(
         gb.cpu.read_register_u16(registers::WordRegister::SP),
         0xFFFE
@@ -346,7 +346,7 @@ fn test_return_if() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0203);
+    assert_eq!(gb.get_memory_u16(0xFFFC)?, 0x0203);
     assert_eq!(
         gb.cpu.read_register_u16(registers::WordRegister::SP),
         0xFFFC
@@ -367,7 +367,7 @@ fn test_call_if() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0204);
+    assert_eq!(gb.get_memory_u16(0xFFFC)?, 0x0204);
     assert_eq!(
         gb.cpu.read_register_u16(registers::WordRegister::PC),
         0x3020
@@ -382,7 +382,7 @@ fn test_call_if() -> StepResult<()> {
         ],
     )?;
 
-    assert_eq!(gb.read_memory_u16(0xFFFC)?, 0x0000);
+    assert_eq!(gb.get_memory_u16(0xFFFC)?, 0x0000);
     assert_eq!(
         gb.cpu.read_register_u16(registers::WordRegister::PC),
         PROGRAM_START + 4
