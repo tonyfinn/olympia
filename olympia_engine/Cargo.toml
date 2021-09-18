@@ -28,6 +28,7 @@ std = []
 
 [dependencies]
 derive_more = "0.99.5"
+enum_dispatch = "0.3.7"
 hashbrown = "0.7.2"
 log = "0.4.14"
 olympia_core = { version = "0.4.0", path = "../olympia_core" }
