@@ -149,7 +149,7 @@
       <column type="gboolean" />
       <column type="gchararray" />
       <column type="gchararray" />
-      <column type="GObject" />
+      <column type="guint" />
     </columns>
   </object>
 </interface>

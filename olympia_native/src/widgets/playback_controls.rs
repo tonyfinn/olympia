@@ -52,7 +52,12 @@ impl PlaybackControls {
     }
 
     async fn step(self: Rc<Self>) -> () {
-        utils::run_fallible(self.emu.step(), None).await;
+        match utils::run_fallible(self.emu.step(), None).await {
+            Ok(_) => {}
+            Err(e) => {
+                log::warn!(target: "playback_controls", "Failed to step on manual click: {}", e)
+            }
+        };
     }
 
     async fn set_mode(self: Rc<Self>, mode: ExecMode) -> () {

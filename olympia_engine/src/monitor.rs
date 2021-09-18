@@ -9,7 +9,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::str::FromStr;
-use derive_more::{Display, From};
+use derive_more::{Display, From, Into};
 
 /// Parse a user provided number
 ///
@@ -225,7 +225,7 @@ pub struct Breakpoint {
     pub active: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, From, Into, Clone, Copy)]
 pub struct BreakpointIdentifier(u32);
 
 #[derive(Debug, PartialEq, Eq, Clone)]

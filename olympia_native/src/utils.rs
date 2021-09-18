@@ -1,6 +1,6 @@
 use gtk::prelude::*;
 
-pub(crate) fn show_error_dialog<E: std::error::Error>(
+pub(crate) async fn show_error_dialog<E: std::error::Error>(
     err: E,
     window: Option<&gtk::ApplicationWindow>,
 ) {
@@ -11,27 +11,32 @@ pub(crate) fn show_error_dialog<E: std::error::Error>(
         gtk::ButtonsType::Ok,
         &format!("{}", err),
     );
-    dialog.show_all();
+    dialog.run_future().await;
+    dialog.close();
 }
 
-pub(crate) async fn run_infallible<T, F>(future: F) -> ()
+pub(crate) async fn run_infallible<T, F>(future: F) -> T
 where
     F: std::future::Future<Output = Result<T, ()>>,
 {
-    match future.await {
-        Ok(_) => {}
-        Err(_) => {}
-    }
+    future
+        .await
+        .expect("called run_infallible with a fallible method")
 }
 
-pub(crate) async fn run_fallible<T, E, F>(future: F, window: Option<&gtk::ApplicationWindow>) -> ()
+pub(crate) async fn run_fallible<T, E, F>(
+    future: F,
+    window: Option<&gtk::ApplicationWindow>,
+) -> Result<T, E>
 where
     F: std::future::Future<Output = Result<T, E>>,
     E: std::error::Error,
 {
-    if let Err(e) = future.await {
-        show_error_dialog(e, window);
+    let res = future.await;
+    if let Err(ref e) = res {
+        show_error_dialog(e, window).await;
     }
+    res
 }
 
 #[cfg(test)]

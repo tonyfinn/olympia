@@ -123,7 +123,10 @@ impl Debugger {
     }
 
     async fn load_rom(self: Rc<Self>, path: PathBuf) -> () {
-        utils::run_fallible(self.load_rom_fs(path), Some(&self.window)).await;
+        let res = utils::run_fallible(self.load_rom_fs(path), Some(&self.window)).await;
+        if let Err(e) = res {
+            log::error!("Failed to load rom: {}", e);
+        }
     }
 
     pub(crate) fn show_all(&self) {

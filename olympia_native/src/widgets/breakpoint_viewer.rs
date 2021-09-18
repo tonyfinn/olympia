@@ -1,9 +1,8 @@
 use crate::builder_struct;
 use crate::utils;
 
-use derive_more::{From, Into};
+use derive_more::{Display, Error, From, Into};
 use glib::clone;
-use glib::subclass::prelude::*;
 use glib::GBoxed;
 use gtk::prelude::*;
 use olympia_engine::monitor::BreakpointCondition;
@@ -16,6 +15,8 @@ use olympia_engine::{
 use std::rc::Rc;
 
 const ACTIVE_COLUMN_INDEX: i32 = 0;
+const MONITOR_COLUMN_INDEX: i32 = 1;
+const CONDITION_COLUMN_INDEX: i32 = 2;
 const ID_COLUMN_INDEX: i32 = 3;
 
 builder_struct!(
@@ -34,6 +35,16 @@ builder_struct!(
         active_column_renderer: gtk::CellRendererToggle,
     }
 );
+
+#[derive(PartialEq, Eq, Clone, Debug, Display, Error)]
+pub enum BreakpointParseError {
+    #[display(fmt = "Invalid Target {0:?}", _0)]
+    InvalidTarget(#[error(not(source))] String),
+    #[display(fmt = "Invalid value {0:?}", _0)]
+    InvalidValue(#[error(not(source))] String),
+    #[display(fmt = "Invalid target {0:?} and invalid value {1:?}", _0, _1)]
+    InvalidTargetAndValue(String, String),
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, GBoxed, From, Into)]
 #[gboxed(type_name = "boxed_identifier")]
@@ -112,12 +123,12 @@ impl BreakpointViewer {
             .get_tree_value(&path, ACTIVE_COLUMN_INDEX)
             .and_then(|v| v.get().ok())
             .unwrap_or_default();
-        let id: bool = self
-            .get_tree_value(&path, ACTIVE_COLUMN_INDEX)
+        let id: u32 = self
+            .get_tree_value(&path, ID_COLUMN_INDEX)
             .and_then(|v| v.get().ok())
             .unwrap_or_default();
         let new_state = !previous_state;
-        /*let result = self.emu.set_breakpoint_state(id, new_state).await;
+        let result = self.emu.set_breakpoint_state(id.into(), new_state).await;
         if let Ok(resp) = result {
             log::debug!(
                 "Toggled breakpoint from {} to {}",
@@ -125,7 +136,7 @@ impl BreakpointViewer {
                 new_state
             );
             self.set_tree_value(&path, ACTIVE_COLUMN_INDEX, resp.new_state);
-        }*/
+        }
     }
 
     fn condition_changed(self: &Rc<Self>) {
@@ -158,21 +169,20 @@ impl BreakpointViewer {
         );
     }
 
-    fn parse_breakpoint(&self) -> Option<Breakpoint> {
-        let target: Option<RWTarget> = self.widget.monitor_input.text().parse().ok();
+    fn parse_breakpoint(&self) -> Result<Breakpoint, BreakpointParseError> {
+        let target_text: String = self.widget.monitor_input.text().into();
+        let target: Option<RWTarget> = target_text.parse().ok();
+        let value_text: String = self.widget.value_input.text().into();
         let value = if let Some(RWTarget::Cycles) = target {
-            let text = self.widget.value_input.text();
-            let s = text.as_str();
-            let (num, multiplier) = if s.ends_with("s") {
-                let s = s.replace("s", "");
+            let (num, multiplier) = if value_text.ends_with("s") {
+                let s = value_text.replace("s", "");
                 (String::from(s.as_str()), 1024 * 1024)
             } else {
-                (s.into(), 1)
+                (value_text.clone(), 1)
             };
             u64::from_str_radix(&num, 16).ok().map(|x| x * multiplier)
         } else {
-            let s = self.widget.value_input.text();
-            u64::from_str_radix(s.as_str(), 16).ok()
+            u64::from_str_radix(&value_text, 16).ok()
         };
         let picker = &self.widget.condition_picker;
         let condition = picker.active_text().and_then(|s| {
@@ -193,22 +203,117 @@ impl BreakpointViewer {
             }
         });
         match (target, condition) {
-            (Some(t), Some(c)) => Some(Breakpoint::new(t, c)),
-            _ => None,
+            (Some(t), Some(c)) => Ok(Breakpoint::new(t, c)),
+            (None, Some(_cond)) => Err(BreakpointParseError::InvalidTarget(target_text.clone())),
+            (Some(_target), None) => Err(BreakpointParseError::InvalidValue(value_text.clone())),
+            (None, None) => Err(BreakpointParseError::InvalidTargetAndValue(
+                target_text.clone(),
+                value_text.clone(),
+            )),
         }
     }
 
+    async fn add_parsed_breakpoint(&self, breakpoint: &Breakpoint) {
+        let resp = utils::run_infallible(self.emu.add_breakpoint(breakpoint.clone())).await;
+        self.widget.store.insert_with_values(
+            None,
+            &[
+                (ACTIVE_COLUMN_INDEX as u32, &breakpoint.active),
+                (
+                    MONITOR_COLUMN_INDEX as u32,
+                    &format!("{}", breakpoint.monitor),
+                ),
+                (
+                    CONDITION_COLUMN_INDEX as u32,
+                    &format!("{}", breakpoint.condition),
+                ),
+                (ID_COLUMN_INDEX as u32, &u32::from(resp.id)),
+            ],
+        );
+    }
+
     async fn add_breakpoint(self: Rc<Self>) {
-        if let Some(ref breakpoint) = self.parse_breakpoint() {
-            utils::run_infallible(self.emu.add_breakpoint(breakpoint.clone())).await;
-            self.widget.store.insert_with_values(
-                None,
-                &[
-                    (0, &breakpoint.active),
-                    (1, &format!("{}", breakpoint.monitor)),
-                    (2, &format!("{}", breakpoint.condition)),
-                ],
-            );
+        match self.parse_breakpoint() {
+            Ok(bp) => self.add_parsed_breakpoint(&bp).await,
+            Err(err) => {
+                utils::show_error_dialog(err, None).await;
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::test_utils;
+
+    fn count_tree_items(component: Rc<BreakpointViewer>) -> u32 {
+        let iter = component
+            .widget
+            .store
+            .iter_first()
+            .expect("No entries in tree");
+        let mut count = 1;
+        while component.widget.store.iter_next(&iter) {
+            count += 1;
+        }
+        count
+    }
+
+    fn add_breakpoint(
+        component: Rc<BreakpointViewer>,
+        context: &glib::MainContext,
+        emu: Rc<RemoteEmulator>,
+        monitor: &str,
+        condition: &str,
+        value: Option<&str>,
+    ) {
+        component.widget.monitor_input.set_text(monitor);
+        if let Some(v) = value {
+            component.widget.value_input.set_text(v);
+        }
+        component
+            .widget
+            .condition_picker
+            .set_active_id(Some(condition));
+        component.widget.add_button.clicked();
+        test_utils::next_tick(&context, &emu)
+    }
+
+    #[test]
+    fn test_add_breakpoint() {
+        test_utils::with_loaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/breakpoints.ui"));
+            let component = BreakpointViewer::from_builder(&builder, context.clone(), emu.clone());
+            let store = &component.widget.store;
+
+            add_breakpoint(
+                component.clone(),
+                &context,
+                emu.clone(),
+                "PC",
+                "Equal",
+                Some("20"),
+            );
+
+            add_breakpoint(
+                component.clone(),
+                &context,
+                emu.clone(),
+                "AF",
+                "NotEqual",
+                Some("40"),
+            );
+
+            let count = count_tree_items(component.clone());
+            assert_eq!(count, 2);
+            let iter = store.iter_first().unwrap();
+            let active: bool = store.value(&iter, ACTIVE_COLUMN_INDEX).get().unwrap();
+            assert_eq!(active, true);
+            let monitor: String = store.value(&iter, MONITOR_COLUMN_INDEX).get().unwrap();
+            assert_eq!(&monitor, "register PC");
+            let condition: String = store.value(&iter, CONDITION_COLUMN_INDEX).get().unwrap();
+            assert_eq!(&condition, "== 20");
+        });
     }
 }
