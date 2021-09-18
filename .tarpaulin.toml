@@ -1,3 +1,6 @@
+[tests]
+args = [""]
+
 [report]
 output-dir = "target/coverage"
 out = ["Html", "Xml"]

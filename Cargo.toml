@@ -8,7 +8,3 @@ members = [
     "olympia_cli",
     "olympia"
 ]
-
-exclude = [
-    "runtime-macros"
-]

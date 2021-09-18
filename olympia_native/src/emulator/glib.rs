@@ -342,7 +342,7 @@ mod tests {
                 emu.set_mode(ExecMode::Uncapped).await.unwrap();
             };
             test_utils::wait_for_task(&context, play_task);
-            std::thread::sleep(Duration::from_millis(2000));
+            std::thread::sleep(Duration::from_millis(200));
             test_utils::digest_events(&context);
             assert_eq!(
                 events.borrow().clone(),

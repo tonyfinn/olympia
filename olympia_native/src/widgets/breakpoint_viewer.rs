@@ -182,7 +182,6 @@ impl BreakpointViewer {
                 Some(BreakpointCondition::Test(comp, expected_value))
             } else {
                 picker.active_id().and_then(|id| {
-                    println!("{}", id);
                     if id == "Read" {
                         Some(BreakpointCondition::Read)
                     } else if id == "Write" {

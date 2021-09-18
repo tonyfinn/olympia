@@ -1,5 +1,5 @@
 use crate::{
-    events::{EventHandlerId, ManualStepEvent, ModeChangeEvent, Repeat, RomLoadedEvent},
+    events::{EventHandlerId, ManualStepEvent, Repeat, RomLoadedEvent},
     monitor::{Breakpoint, BreakpointIdentifier},
     remote::{
         commands,
@@ -65,7 +65,7 @@ where
                     Ok(t) => {
                         cx.waker().wake_by_ref();
                         t
-                    }
+                    },
                     Err(_) => panic!(
                         "Invalid response recieved for command {:?}.\n\tCommand: {:?}\n\tResponse: {:?}", 
                         self.id,
@@ -163,7 +163,6 @@ impl InternalEmulatorAdapter {
 /// An emulator that is executing elsewhere
 pub struct RemoteEmulator {
     adapter: InternalEmulatorAdapter,
-    mode: RefCell<ExecMode>,
     cached_registers: RefCell<QueryRegistersResponse>,
 }
 
@@ -176,7 +175,6 @@ impl RemoteEmulator {
         let adapter = InternalEmulatorAdapter::new(channel, wrapper);
         RemoteEmulator {
             adapter: adapter,
-            mode: RefCell::new(ExecMode::Unloaded),
             cached_registers: RefCell::new(QueryRegistersResponse::default()),
         }
     }
@@ -212,24 +210,12 @@ impl RemoteEmulator {
         })
     }
 
-    fn apply_mode(&self, new_mode: ExecMode) {
-        let old_mode = self.mode.replace(new_mode.clone());
-        self.adapter
-            .event_listeners
-            .borrow_mut()
-            .emit(ModeChangeEvent { old_mode, new_mode });
-    }
-
     /// Load a given ROM into the remote emulator
     pub async fn load_rom(&self, data: Vec<u8>) -> Result<(), LoadRomError> {
         let result: Result<(), LoadRomError> = self
             .adapter
             .send_command(EmulatorCommand::LoadRom(data))
             .await;
-
-        if result.is_ok() {
-            self.apply_mode(ExecMode::Paused);
-        }
 
         self.adapter
             .event_listeners
@@ -290,11 +276,6 @@ impl RemoteEmulator {
             .adapter
             .send_command(EmulatorCommand::SetMode(mode.clone()))
             .await;
-
-        if result.is_ok() {
-            self.apply_mode(mode);
-        }
-
         result
     }
 

@@ -1,3 +1,3 @@
 #!/bin/bash
-cargo tarpaulin --config .tarpaulin.toml \
+cargo tarpaulin --workspace --config .tarpaulin.toml \
     && xdg-open target/coverage/tarpaulin-report.html

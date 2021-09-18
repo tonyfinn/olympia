@@ -141,8 +141,8 @@ impl EmulatorThread {
 
     fn load_rom(
         state: &mut EmulatorState,
-        data: Vec<u8>,
         events: Rc<EventEmitter<remote::Event>>,
+        data: Vec<u8>,
     ) -> Result<(), LoadRomError> {
         state.load_rom(data)?;
         if let Some(ref gb) = state.gameboy {
@@ -157,9 +157,20 @@ impl EmulatorThread {
         let mut iter = self.rx.try_iter();
         while let Some((id, cmd)) = iter.next() {
             let resp: EmulatorResponse = match cmd {
-                EmulatorCommand::LoadRom(data) => EmulatorResponse::LoadRom(
-                    EmulatorThread::load_rom(&mut self.state, data, self.events.clone()),
-                ),
+                EmulatorCommand::LoadRom(data) => {
+                    let resp = EmulatorResponse::LoadRom(EmulatorThread::load_rom(
+                        &mut self.state,
+                        self.events.clone(),
+                        data,
+                    ));
+                    self.exec_mode = ExecMode::Paused;
+                    self.tx
+                        .send(RemoteEmulatorOutput::Event(
+                            ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused).into(),
+                        ))
+                        .map_err(|_| SenderClosed {})?;
+                    resp
+                }
                 EmulatorCommand::QueryMemory(start_index, end_index) => {
                     EmulatorResponse::QueryMemory(self.state.query_memory(start_index, end_index))
                 }
@@ -174,7 +185,13 @@ impl EmulatorThread {
                     if mode == ExecMode::Standard || mode == ExecMode::Uncapped {
                         self.state.monitor.borrow_mut().resume();
                     }
+                    let old_mode = self.exec_mode.clone();
                     self.exec_mode = mode;
+                    self.tx
+                        .send(RemoteEmulatorOutput::Event(
+                            ModeChangeEvent::new(old_mode, self.exec_mode.clone()).into(),
+                        ))
+                        .map_err(|_| SenderClosed {})?;
                     EmulatorResponse::SetMode(Ok(self.exec_mode.clone()))
                 }
                 EmulatorCommand::AddBreakpoint(bp) => {

@@ -58,6 +58,21 @@ pub enum Palette {
     Sprite1,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SpriteMode {
+    Square,
+    DoubleHeight,
+}
+
+impl SpriteMode {
+    fn height(&self) -> u8 {
+        match self {
+            SpriteMode::Square => 8,
+            SpriteMode::DoubleHeight => 16,
+        }
+    }
+}
+
 impl Default for Palette {
     fn default() -> Self {
         Palette::Background
@@ -135,6 +150,14 @@ impl PPU {
                     self.update_phase(mem);
                 }
             }
+        }
+    }
+
+    fn sprite_mode(&self, mem: &Memory) -> SpriteMode {
+        if (mem.registers().lcdc & 0b100) != 0 {
+            SpriteMode::DoubleHeight
+        } else {
+            SpriteMode::Square
         }
     }
 
@@ -254,13 +277,27 @@ impl PPU {
     }
 
     fn calculate_sprite_pixel(&mut self, mem: &Memory, x: u8, y: u8) -> Option<GBPixel> {
+        let sprite_mode = self.sprite_mode(mem);
         for sprite in self.line_sprites.iter() {
-            if x >= sprite.x && x < sprite.x + 8 {
+            if x >= sprite.x && x < sprite.x + SpriteMode::Square.height() {
                 let sprite_px = x - sprite.x;
                 let sprite_py = y - sprite.y;
-                let tile_base = MEM_LOW_TILES + (u16::from(sprite.tile) * 0x10);
-                let palette_index =
-                    self.read_pixel_palette_index(mem, tile_base, sprite_px, sprite_py);
+                let sprite_index = if sprite_mode == SpriteMode::DoubleHeight
+                    && sprite_py < SpriteMode::Square.height()
+                {
+                    sprite.tile & !1
+                } else if sprite_mode == SpriteMode::DoubleHeight {
+                    sprite.tile | 1
+                } else {
+                    sprite.tile
+                };
+                let tile_base = MEM_LOW_TILES + (u16::from(sprite_index) * 0x10);
+                let palette_index = self.read_pixel_palette_index(
+                    mem,
+                    tile_base,
+                    sprite_px,
+                    sprite_py % SpriteMode::Square.height(),
+                );
 
                 if palette_index == 0 {
                     return None;
