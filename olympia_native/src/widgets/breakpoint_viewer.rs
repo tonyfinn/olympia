@@ -244,6 +244,8 @@ impl BreakpointViewer {
 
 #[cfg(test)]
 mod tests {
+    use gtk::TreePath;
+
     use super::*;
     use crate::utils::test_utils;
 
@@ -314,6 +316,46 @@ mod tests {
             assert_eq!(&monitor, "register PC");
             let condition: String = store.value(&iter, CONDITION_COLUMN_INDEX).get().unwrap();
             assert_eq!(&condition, "== 20");
+        });
+    }
+
+    #[test]
+    fn test_toggle_breakpoint() {
+        test_utils::with_loaded_emu(|context, emu| {
+            let builder = gtk::Builder::from_string(include_str!("../../res/breakpoints.ui"));
+            let component = BreakpointViewer::from_builder(&builder, context.clone(), emu.clone());
+            let store = &component.widget.store;
+            add_breakpoint(
+                component.clone(),
+                &context,
+                emu.clone(),
+                "PC",
+                "Equal",
+                Some("20"),
+            );
+            add_breakpoint(
+                component.clone(),
+                &context,
+                emu.clone(),
+                "AF",
+                "NotEqual",
+                Some("40"),
+            );
+            let mut tree_path = TreePath::new_first();
+            tree_path.next();
+            component
+                .widget
+                .active_column_renderer
+                .emit_by_name("toggled", &[&tree_path.to_str()])
+                .unwrap();
+            test_utils::next_tick(&context, &emu);
+
+            let count = count_tree_items(component.clone());
+            assert_eq!(count, 2);
+            let iter = store.iter_first().unwrap();
+            store.iter_next(&iter);
+            let active: bool = store.value(&iter, ACTIVE_COLUMN_INDEX).get().unwrap();
+            assert_eq!(active, false);
         });
     }
 }
