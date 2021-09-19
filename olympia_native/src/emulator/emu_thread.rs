@@ -1,4 +1,5 @@
-use glib::clone;
+use gtk::glib;
+use gtk::glib::clone;
 
 use olympia_engine::{
     events::{propagate_events, EventEmitter, ModeChangeEvent},

@@ -1,5 +1,6 @@
-use gio::prelude::*;
-use glib::clone;
+use gtk::gio;
+use gtk::glib;
+use gtk::glib::clone;
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow};
 use std::path::PathBuf;
@@ -68,7 +69,7 @@ impl Debugger {
         );
         let memory_viewer = MemoryViewer::from_builder(&memv_builder, ctx.clone(), emu.clone(), 17);
 
-        create_child::<gtk::Label>(
+        create_child::<gtk::Box>(
             &root_builder,
             include_str!("../../res/disassembly.ui"),
             "DisassemblyContainer",

@@ -1,6 +1,8 @@
 use crate::builder_struct;
 
-use glib::clone;
+use gtk::cairo;
+use gtk::glib;
+use gtk::glib::clone;
 use gtk::prelude::*;
 use log::trace;
 use olympia_engine::{

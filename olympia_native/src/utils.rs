@@ -42,6 +42,7 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::emulator::glib::glib_remote_emulator;
+    use gtk::glib;
     use olympia_engine::remote::RemoteEmulator;
     use std::{
         any::Any,

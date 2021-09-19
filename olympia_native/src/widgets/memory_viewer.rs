@@ -1,6 +1,9 @@
 use crate::builder_struct;
 
-use glib::clone;
+use gtk::gdk;
+use gtk::glib;
+use gtk::glib::clone;
+use gtk::pango;
 use gtk::prelude::*;
 use olympia_engine::{
     address::LiteralAddress,

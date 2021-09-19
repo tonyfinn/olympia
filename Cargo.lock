@@ -553,15 +553,10 @@ dependencies = [
 name = "olympia_native"
 version = "0.2.1"
 dependencies = [
- "cairo-rs",
  "derive_more",
- "gdk",
- "gio",
- "glib",
  "gtk",
  "log",
  "olympia_engine",
- "pango",
  "pretty_env_logger",
 ]
 

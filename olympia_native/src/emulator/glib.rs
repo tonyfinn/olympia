@@ -1,5 +1,7 @@
 use crate::emulator::emu_thread::EmulatorThread;
 
+use gtk::glib;
+
 use olympia_engine::{
     events::{EventHandlerId, Repeat},
     remote::{

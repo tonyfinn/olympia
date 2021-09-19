@@ -4,7 +4,7 @@ mod screens;
 mod utils;
 mod widgets;
 
-use gio::prelude::*;
+use gtk::gio;
 use gtk::prelude::*;
 use gtk::Application;
 

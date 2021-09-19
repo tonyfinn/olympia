@@ -1,4 +1,5 @@
 use crate::builder_struct;
+use gtk::glib;
 use gtk::prelude::*;
 use olympia_engine::{
     events::{ManualStepEvent, RegisterWriteEvent, RomLoadedEvent},

@@ -13,16 +13,16 @@
         <property name="visible">True</property>
         <property name="can_focus">False</property>
         <child>
-          <object class="GtkButtonBox" id="EmulatorControls">
+          <object class="GtkBox" id="EmulatorControls">
             <property name="visible">True</property>
             <property name="can_focus">False</property>
             <property name="valign">end</property>
-            <property name="margin_left">5</property>
-            <property name="margin_right">5</property>
+            <property name="margin_start">5</property>
+            <property name="margin_end">5</property>
             <property name="margin_top">5</property>
             <property name="margin_bottom">5</property>
             <property name="vexpand">False</property>
-            <property name="layout_style">expand</property>
+            <property name="homogeneous">True</property>
             <child>
               <object class="GtkButton" id="ResetButton">
                 <property name="label" translatable="yes">Reset</property>
@@ -32,11 +32,6 @@
                 <property name="hexpand">False</property>
                 <property name="vexpand">False</property>
               </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-                <property name="position">0</property>
-              </packing>
             </child>
             <child>
               <object class="GtkButton" id="StepButton">
@@ -46,11 +41,6 @@
                 <property name="receives_default">True</property>
                 <property name="sensitive">False</property>
               </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-                <property name="position">1</property>
-              </packing>
             </child>
             <child>
               <object class="GtkToggleButton" id="PlayButton">
@@ -60,11 +50,6 @@
                 <property name="receives_default">True</property>
                 <property name="sensitive">False</property>
               </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-                <property name="position">2</property>
-              </packing>
             </child>
             <child>
               <object class="GtkToggleButton" id="FastButton">
@@ -74,11 +59,6 @@
                 <property name="receives_default">True</property>
                 <property name="sensitive">False</property>
               </object>
-              <packing>
-                <property name="expand">True</property>
-                <property name="fill">True</property>
-                <property name="position">3</property>
-              </packing>
             </child>
           </object>
           <packing>
@@ -110,11 +90,6 @@
                 <property name="hexpand">False</property>
                 <property name="vexpand">False</property>
               </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">True</property>
-                <property name="position">0</property>
-              </packing>
             </child>
           </object>
           <packing>
@@ -127,8 +102,8 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="show_border">True</property>
-            <property name="margin_right">5</property>
-            <property name="margin_left">5</property>
+            <property name="margin_end">5</property>
+            <property name="margin_start">5</property>
             <child>
               <object class="GtkBox" id="MemoryContainer">
               </object>

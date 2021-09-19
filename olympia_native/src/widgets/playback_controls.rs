@@ -1,5 +1,6 @@
 use crate::{builder_struct, utils};
-use glib::clone;
+use gtk::glib;
+use gtk::glib::clone;
 use gtk::prelude::*;
 use olympia_engine::{
     events::ModeChangeEvent,

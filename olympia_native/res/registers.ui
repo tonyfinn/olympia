@@ -4,8 +4,8 @@
   <object class="GtkBox" id="Registers">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="margin_left">5</property>
-    <property name="margin_right">5</property>
+    <property name="margin_start">5</property>
+    <property name="margin_end">5</property>
     <property name="margin_top">5</property>
     <property name="margin_bottom">5</property>
     <property name="vexpand">True</property>
@@ -27,31 +27,21 @@
                   <object class="GtkLabel" id="AFLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="label" translatable="yes">AF</property>
                     <property name="width_chars">3</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
                 </child>
                 <child>
                   <object class="GtkSpinButton" id="AFInput">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="max_length">5</property>
                     <property name="max_width_chars">5</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
                 </child>
               </object>
             </child>
@@ -70,31 +60,21 @@
                   <object class="GtkLabel" id="BCLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="label" translatable="yes">BC</property>
                     <property name="width_chars">3</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
                 </child>
                 <child>
                   <object class="GtkSpinButton" id="BCInput">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="max_length">5</property>
                     <property name="max_width_chars">5</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
                 </child>
               </object>
             </child>
@@ -113,31 +93,21 @@
                   <object class="GtkLabel" id="DELabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="label" translatable="yes">DE</property>
                     <property name="width_chars">3</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
                 </child>
                 <child>
                   <object class="GtkSpinButton" id="DEInput">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="max_length">5</property>
                     <property name="max_width_chars">5</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
                 </child>
               </object>
             </child>
@@ -156,31 +126,21 @@
                   <object class="GtkLabel" id="HLLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="label" translatable="yes">HL</property>
                     <property name="width_chars">3</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
                 </child>
                 <child>
                   <object class="GtkSpinButton" id="HLInput">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="max_length">5</property>
                     <property name="max_width_chars">5</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
                 </child>
               </object>
             </child>
@@ -199,31 +159,21 @@
                   <object class="GtkLabel" id="SPLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="label" translatable="yes">SP</property>
                     <property name="width_chars">3</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
                 </child>
                 <child>
                   <object class="GtkSpinButton" id="SPInput">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="max_length">5</property>
                     <property name="max_width_chars">5</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
                 </child>
               </object>
             </child>
@@ -242,43 +192,28 @@
                   <object class="GtkLabel" id="PCLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="label" translatable="yes">PC</property>
                     <property name="width_chars">3</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">0</property>
-                  </packing>
                 </child>
                 <child>
                   <object class="GtkSpinButton" id="PCInput">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
-                    <property name="valign">center</property>
-                    <property name="vexpand">False</property>
                     <property name="max_length">5</property>
                     <property name="width_chars">5</property>
                     <property name="max_width_chars">5</property>
+                    <property name="halign">fill</property>
+                    <property name="valign">center</property>
                   </object>
-                  <packing>
-                    <property name="expand">False</property>
-                    <property name="fill">True</property>
-                    <property name="position">1</property>
-                  </packing>
                 </child>
               </object>
             </child>
           </object>
         </child>
       </object>
-      <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">0</property>
-      </packing>
     </child>
   </object>
 </interface>

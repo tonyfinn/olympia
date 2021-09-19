@@ -2,8 +2,8 @@ use crate::builder_struct;
 use crate::utils;
 
 use derive_more::{Display, Error, From, Into};
-use glib::clone;
-use glib::GBoxed;
+use gtk::glib;
+use gtk::glib::{clone, GBoxed};
 use gtk::prelude::*;
 use olympia_engine::monitor::BreakpointCondition;
 use olympia_engine::monitor::BreakpointIdentifier;
