@@ -118,7 +118,7 @@ impl RemoteEventListeners for GlibAdapterEventListeners {
                 let send_result = listener.send(evt.clone());
                 if send_result.is_err() {
                     listener_ids_to_remove.push(id.clone());
-                    eprintln!("Removing listener {:?} due to closed channel", id);
+                    log::warn!(target: "emu_thread", "Removing listener {:?} due to closed channel", id);
                 }
             }
             for id in listener_ids_to_remove {

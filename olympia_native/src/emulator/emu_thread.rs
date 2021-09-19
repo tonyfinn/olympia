@@ -130,7 +130,7 @@ impl EmulatorThread {
                 .events
                 .on(Box::new(clone!(@weak emu_thread.tx as tx => move |evt| {
                     if let Err(e) = tx.send(RemoteEmulatorOutput::Event(evt.clone())) {
-                        eprintln!("Cannot report emulator output event: {:?}. Event {:?}", e, evt);
+                        log::error!(target: "emu_thread", "Cannot report emulator output event: {:?}. Event {:?}", e, evt);
                     }
                 })));
             emu_thread.run();
@@ -234,7 +234,7 @@ impl EmulatorThread {
     ) -> Result<ExecMode, StepError> {
         gb.step()?;
         if let BreakpointState::HitBreakpoint(bp) = monitor.borrow().state() {
-            println!("Hit breakpoint: {:?}", bp);
+            log::info!(target: "emu_thread", "Hit breakpoint: {:?}", bp);
             return Ok(ExecMode::HitBreakpoint(bp.clone()));
         }
         Ok(inital_mode)

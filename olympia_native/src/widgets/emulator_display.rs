@@ -80,7 +80,7 @@ impl Buffer {
                 .unwrap(),
         );
         if let Err(e) = result {
-            eprintln!("Image surface build error: {}", e);
+            log::error!(target: "emulator_display", "Image surface build error: {}", e);
         }
 
         result
