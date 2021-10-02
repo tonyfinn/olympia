@@ -24,6 +24,7 @@ pub use olympia_core::disasm;
 pub use olympia_core::instructions;
 pub use olympia_core::registers;
 
+pub mod disassembler;
 pub mod events;
 pub mod gameboy;
 pub mod instructionsn;

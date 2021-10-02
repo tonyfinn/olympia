@@ -1,7 +1,8 @@
 mod debugger;
-mod disassemble;
+use olympia_engine::disassembler;
 
 use derive_more::{Display, Error, From};
+use olympia_engine::disassembler::DisassemblyFormat;
 
 use std::io;
 use std::path::PathBuf;
@@ -127,7 +128,12 @@ fn run_cli(
         )?,
         OlympiaCommand::Disassemble { verbose, rom } => {
             let data = std::fs::read(rom)?;
-            disassemble::do_disassemble(data, verbose, out)?
+            let format = if verbose {
+                DisassemblyFormat::Verbose
+            } else {
+                DisassemblyFormat::Normal
+            };
+            disassembler::disassemble(data, format, out)?
         }
     }
     Ok(())

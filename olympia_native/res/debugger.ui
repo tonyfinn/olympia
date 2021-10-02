@@ -118,7 +118,7 @@
               </packing>
             </child>
             <child>
-              <object class="GtkBox" id="DisassemblyContainer">
+              <object class="OlympiaDisassembler" id="Disassembler">
               </object>
               <packing>
                 <property name="position">1</property>

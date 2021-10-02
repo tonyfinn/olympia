@@ -1,4 +1,9 @@
+use derive_more::{Deref, From, Into};
+use gtk::glib::{self, GBoxed};
 use gtk::prelude::*;
+use std::rc::Rc;
+
+use olympia_engine::remote::RemoteEmulator;
 
 pub(crate) async fn show_error_dialog<E: std::error::Error>(
     err: E,
@@ -41,7 +46,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod test_utils {
-    use crate::emulator::glib::glib_remote_emulator;
+    use crate::{emulator::glib::glib_remote_emulator, widgets};
     use gtk::glib;
     use olympia_engine::remote::RemoteEmulator;
     use std::{
@@ -68,6 +73,7 @@ pub(crate) mod test_utils {
 
             std::thread::spawn(move || {
                 gtk::init().expect("Failed to init GTK");
+                widgets::register();
                 loop {
                     let task = task_rx.recv().expect("Failed to recieve task");
                     // Actually not guaranteed safe, but the worst that can happen is blowing up the test run
@@ -220,3 +226,6 @@ pub(crate) mod test_utils {
         })
     }
 }
+#[derive(Clone, Deref, From, Into, GBoxed)]
+#[gboxed(type_name = "EmulatorHandle")]
+pub struct EmulatorHandle(Rc<RemoteEmulator>);

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk+" version="3.20"/>
+  <template class="OlympiaAddressPicker" parent="GtkBox">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="orientation">horizontal</property>
+    <property name="halign">center</property>
+    <property name="valign">fill</property>
+    <property name="margin_start">5</property>
+    <property name="margin_end">5</property>
+    <property name="margin_bottom">5</property>
+    <property name="spacing">5</property>
+    <child>
+      <object class="GtkLabel">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="label" translatable="yes">Address:</property>
+        <property name="halign">fill</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkEntry" id="address_entry">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="halign">fill</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkButton" id="pc_button">
+        <property name="label" translatable="yes">PC</property>
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="halign">fill</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkButton" id="go_button">
+        <property name="label" translatable="yes">Go</property>
+        <property name="sensitive">true</property>
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="halign">fill</property>
+      </object>
+    </child>
+  </template>
+</interface>

@@ -2,6 +2,9 @@ use gtk::gio;
 use gtk::glib;
 use gtk::glib::clone;
 use gtk::prelude::*;
+use gtk::CssProvider;
+use gtk::StyleContext;
+use gtk::STYLE_PROVIDER_PRIORITY_APPLICATION;
 use gtk::{Application, ApplicationWindow};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -9,7 +12,7 @@ use std::rc::Rc;
 use crate::emulator::glib::glib_remote_emulator;
 use crate::utils;
 use crate::widgets::{
-    BreakpointViewer, EmulatorDisplay, MemoryViewer, PlaybackControls, RegisterLabels,
+    BreakpointViewer, Disassembler, EmulatorDisplay, MemoryViewer, PlaybackControls, RegisterLabels,
 };
 
 use olympia_engine::remote::{LoadRomError, RemoteEmulator};
@@ -18,6 +21,7 @@ use olympia_engine::remote::{LoadRomError, RemoteEmulator};
 pub(crate) struct Debugger {
     emu: Rc<RemoteEmulator>,
     breakpoint_viewer: Rc<BreakpointViewer>,
+    disassembler: Disassembler,
     emulator_display: Rc<EmulatorDisplay>,
     memory_viewer: Rc<MemoryViewer>,
     register_labels: Rc<RegisterLabels>,
@@ -40,7 +44,7 @@ fn create_child<C: IsA<gtk::Widget> + IsA<glib::Object>>(
 
 impl Debugger {
     pub(crate) fn new(app: &Application) -> Rc<Debugger> {
-        let ctx = glib::MainContext::default();
+        let ctx = glib::MainContext::ref_thread_default();
         let emu = glib_remote_emulator(ctx.clone());
 
         let root_builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
@@ -48,6 +52,16 @@ impl Debugger {
         let playback_controls =
             PlaybackControls::from_builder(&root_builder, ctx.clone(), emu.clone());
         let window: ApplicationWindow = root_builder.object("MainWindow").unwrap();
+        let css_provider = CssProvider::new();
+        css_provider
+            .load_from_data(include_str!("../../res/style.css").as_bytes())
+            .unwrap();
+        let screen = window.screen().expect("No screen found");
+        StyleContext::add_provider_for_screen(
+            &screen,
+            &css_provider,
+            STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
         let open_action = gio::SimpleAction::new("open", None);
         let emulator_display =
             EmulatorDisplay::from_builder(&root_builder, ctx.clone(), emu.clone());
@@ -69,12 +83,8 @@ impl Debugger {
         );
         let memory_viewer = MemoryViewer::from_builder(&memv_builder, ctx.clone(), emu.clone(), 17);
 
-        create_child::<gtk::Box>(
-            &root_builder,
-            include_str!("../../res/disassembly.ui"),
-            "DisassemblyContainer",
-            "Disassembly",
-        );
+        let disassembler: Disassembler = root_builder.object("Disassembler").unwrap();
+        disassembler.attach_emu(emu.clone().into());
 
         let bpv_builder = create_child::<gtk::Box>(
             &root_builder,
@@ -91,6 +101,7 @@ impl Debugger {
         let debugger = Rc::new(Debugger {
             emu,
             breakpoint_viewer,
+            disassembler,
             emulator_display,
             memory_viewer,
             playback_controls,

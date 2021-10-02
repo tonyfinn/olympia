@@ -1,28 +1,51 @@
 use std::io;
 
-use olympia_engine::instructionsn::RuntimeDecoder;
+use crate::instructionsn::RuntimeDecoder;
 
-struct FormattingIterator<T: Iterator<Item = u8>> {
-    verbose: bool,
+/// Format to print disassembly in
+#[derive(Debug, PartialEq, Eq)]
+pub enum DisassemblyFormat {
+    /// Address every 10 bytes + decoded instruction
+    Normal,
+    /// Address every byte + raw bytes + decoded instruction
+    Verbose,
+    /// Verbose with space aligned columns
+    Columnar,
+}
+
+impl Default for DisassemblyFormat {
+    fn default() -> DisassemblyFormat {
+        DisassemblyFormat::Normal
+    }
+}
+
+/// Iterates over a sequence of bytes and emits disassembled instructions
+pub struct DisassemblyIterator<T: Iterator<Item = u8>> {
+    format: DisassemblyFormat,
     next_addr: usize,
     addr: usize,
     source_iterator: T,
     decoder: RuntimeDecoder,
 }
 
-impl<T: Iterator<Item = u8>> FormattingIterator<T> {
-    fn new(verbose: bool, source_iterator: T) -> Self {
-        FormattingIterator {
-            verbose,
+impl<T: Iterator<Item = u8>> DisassemblyIterator<T> {
+    /// Create a new disassembling iterator
+    ///
+    /// `verbose` includes hex values of instructions as well as disassembly
+    ///
+    /// `initial_offset` indicates the starting address of this program fragment
+    pub fn new(source_iterator: T, format: DisassemblyFormat, initial_offset: usize) -> Self {
+        DisassemblyIterator {
+            format,
             source_iterator,
-            next_addr: 0,
-            addr: 0,
+            next_addr: initial_offset,
+            addr: initial_offset,
             decoder: RuntimeDecoder::new(),
         }
     }
 }
 
-impl<T: Iterator<Item = u8>> Iterator for FormattingIterator<T> {
+impl<T: Iterator<Item = u8>> Iterator for DisassemblyIterator<T> {
     type Item = String;
     fn next(&mut self) -> Option<Self::Item> {
         let val = self.source_iterator.next()?;
@@ -43,11 +66,14 @@ impl<T: Iterator<Item = u8>> Iterator for FormattingIterator<T> {
 
         let current_addr = self.addr;
         self.addr += size;
-        if self.verbose {
+        if self.format == DisassemblyFormat::Verbose {
             Some(format!(
                 "{:>6X}:\t\t{:>6}\t\t{}",
                 current_addr, numeric, text
             ))
+        } else if self.format == DisassemblyFormat::Columnar {
+            let addr_text = format!("{:04X}:", current_addr);
+            Some(format!("{:<7}{:>10}    {}", addr_text, numeric, text))
         } else {
             let addr_to_print = if current_addr >= self.next_addr {
                 self.next_addr += 0x10;
@@ -60,12 +86,17 @@ impl<T: Iterator<Item = u8>> Iterator for FormattingIterator<T> {
     }
 }
 
-pub(crate) fn do_disassemble(
+/// Disassembles a complete program
+///
+/// `verbose` includes hex values of instructions as well as disassembly
+///
+/// See [`FormattingIterator`] for more customisable options
+pub fn disassemble(
     data: Vec<u8>,
-    verbose: bool,
+    format: DisassemblyFormat,
     output: &mut dyn std::io::Write,
 ) -> io::Result<()> {
-    let formatting_iterator = FormattingIterator::new(verbose, data.into_iter());
+    let formatting_iterator = DisassemblyIterator::new(data.into_iter(), format, 0);
 
     for disassembled_instruction in formatting_iterator {
         writeln!(output, "{}", disassembled_instruction)?;
@@ -92,7 +123,7 @@ pub mod test {
 
         let mut output: Vec<u8> = Vec::new();
 
-        do_disassemble(data, false, &mut output).unwrap();
+        disassemble(data, DisassemblyFormat::Normal, &mut output).unwrap();
 
         let expected_result = concat!(
             "     0:\t\tLD H, 20h\n",
@@ -129,7 +160,7 @@ pub mod test {
 
         let mut output: Vec<u8> = Vec::new();
 
-        do_disassemble(data, true, &mut output).unwrap();
+        disassemble(data, DisassemblyFormat::Verbose, &mut output).unwrap();
 
         let expected_result = concat!(
             "     0:\t\t  2620\t\tLD H, 20h\n",
