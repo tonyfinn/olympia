@@ -22,11 +22,11 @@ use crate::utils::EmulatorHandle;
 #[template(file = "../../res/address_picker.ui")]
 pub struct AddressPickerInternal {
     #[template_child]
-    address_entry: TemplateChild<gtk::Entry>,
+    pub(crate) address_entry: TemplateChild<gtk::Entry>,
     #[template_child]
-    pc_button: TemplateChild<gtk::Button>,
+    pub(crate) pc_button: TemplateChild<gtk::Button>,
     #[template_child]
-    go_button: TemplateChild<gtk::Button>,
+    pub(crate) go_button: TemplateChild<gtk::Button>,
     emu: RefCell<Option<EmulatorHandle>>,
     address_selected: AtomicU16,
 }
@@ -160,6 +160,11 @@ impl ObjectImpl for AddressPickerInternal {
         self.pc_button
             .connect_clicked(clone!(@strong obj => @default-return (), move |_| {
                 glib::MainContext::ref_thread_default().spawn_local(obj.clone().set_target_to_pc());
+            }));
+        self.address_entry
+            .connect_activate(clone!(@strong obj => @default-return (), move |_| {
+                let address = Self::from_instance(&obj).address_selected.load(Ordering::Relaxed);
+                obj.emit_by_name_with_values(GOTO_ADDRESS_SIGNAL, &[u32::from(address).to_value()]).unwrap();
             }));
         self.go_button
             .connect_clicked(clone!(@strong obj => @default-return (), move |_| {

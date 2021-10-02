@@ -1,4 +1,5 @@
 use crate::builder_struct;
+use crate::widgets::address_picker::AddressPicker;
 
 use gtk::gdk;
 use gtk::glib;
@@ -8,8 +9,6 @@ use gtk::prelude::*;
 use olympia_engine::{
     address::LiteralAddress,
     events::{ManualStepEvent, MemoryEvent, RomLoadedEvent},
-    monitor::parse_number,
-    registers::WordRegister,
     remote::{QueryMemoryResponse, RemoteEmulator},
 };
 use std::cell::RefCell;
@@ -77,14 +76,10 @@ impl MemoryViewerRow {
 
 builder_struct!(
     pub struct MemoryViewerWidget {
-        #[ogtk(id = "MemoryViewerAddressEntry")]
-        address_entry: gtk::Entry,
+        #[ogtk(id = "MemoryAddressPicker")]
+        address_picker: AddressPicker,
         #[ogtk(id = "MemoryViewerPanel")]
         panel: gtk::Box,
-        #[ogtk(id = "MemoryViewerPCButton")]
-        pc_button: gtk::Button,
-        #[ogtk(id = "MemoryViewerGoButton")]
-        go_button: gtk::Button,
     }
 );
 
@@ -181,50 +176,19 @@ impl MemoryViewer {
         }
     }
 
-    async fn set_target_to_pc(self: Rc<Self>, address_entry: gtk::Entry) -> () {
-        let result = self.emu.query_registers().await;
-        if let Ok(registers) = result {
-            let pc_value = registers.read_u16(WordRegister::PC);
-            address_entry.set_text(&format!("{:04X}", pc_value));
-        }
-    }
-
-    fn go_clicked(self: Rc<Self>) {
-        self.clone().goto_address(&self.widget.address_entry)
-    }
-
-    fn pc_clicked(self: Rc<Self>) {
-        let ctx = &self.context;
-        let address_entry = &self.widget.address_entry;
-        ctx.spawn_local(self.clone().set_target_to_pc(address_entry.clone()));
-    }
-
     fn connect_ui_events(self: &Rc<Self>) {
-        self.widget.address_entry.set_text("0x0000");
-
         let viewer_box = self.get_layout();
         viewer_box.connect_scroll_event(clone!(@strong self as mem_viewer => move |_, evt| {
             mem_viewer.clone().handle_scroll_evt(evt);
             Inhibit(true)
         }));
+        self.widget
+            .address_picker
+            .connect_goto(clone!(@strong self as mem_viewer => move |addr| {
+                mem_viewer.clone().goto_address(addr);
+            }));
         viewer_box.add_events(gdk::EventMask::SCROLL_MASK);
         self.widget.panel.pack_start(&viewer_box, false, false, 0);
-
-        self.widget
-            .pc_button
-            .connect_clicked(clone!(@weak self as mem_viewer => move |_| {
-                mem_viewer.pc_clicked();
-            }));
-        self.widget
-            .go_button
-            .connect_clicked(clone!(@weak self as mem_viewer => move |_| {
-                mem_viewer.go_clicked();
-            }));
-        self.widget
-            .address_entry
-            .connect_activate(clone!(@weak self as mem_viewer => move |_| {
-                mem_viewer.go_clicked();
-            }));
     }
 
     fn handle_write(&self, addr: LiteralAddress, val: u8) {
@@ -275,17 +239,10 @@ impl MemoryViewer {
         }
     }
 
-    fn goto_address(self: Rc<Self>, address_entry: &gtk::Entry) {
-        let text = address_entry.text();
-        let text_string = text.as_str();
-        let parsed = parse_number(text_string);
-        if let Ok(val) = parsed {
-            let ctx = self.context.clone();
-            self.offset.replace(self.resolve(val));
-            ctx.spawn_local(self.refresh())
-        } else {
-            log::error!("text_string did not parse: {}", text_string);
-        }
+    fn goto_address(self: Rc<Self>, address: u16) {
+        let ctx = self.context.clone();
+        self.offset.replace(self.resolve(address));
+        ctx.spawn_local(self.refresh())
     }
 
     fn handle_scroll_evt(self: Rc<Self>, evt: &gdk::EventScroll) {
@@ -301,8 +258,10 @@ impl MemoryViewer {
 
 #[cfg(test)]
 mod test {
+    use gtk::subclass::prelude::ObjectSubclassExt;
+
     use super::*;
-    use crate::utils::test_utils;
+    use crate::{utils::test_utils, widgets::address_picker::AddressPickerInternal};
 
     #[test]
     fn gtk_test_initial_load() {
@@ -360,9 +319,11 @@ mod test {
 
             test_utils::wait_for_task(&context, task);
 
-            component.widget.address_entry.set_text("0x8000");
+            let picker_widget =
+                AddressPickerInternal::from_instance(&component.widget.address_picker);
+            picker_widget.address_entry.set_text("0x8000");
             test_utils::next_tick(&context, &emu);
-            component.widget.go_button.clicked();
+            picker_widget.go_button.clicked();
             test_utils::next_tick(&context, &emu);
             for x in 0..0x30 {
                 let addr = 0x7FF0 + u16::from(x);
@@ -396,8 +357,10 @@ mod test {
 
             test_utils::wait_for_task(&context, task);
 
-            component.widget.address_entry.set_text("0x8000");
-            component.widget.go_button.clicked();
+            let picker_widget =
+                AddressPickerInternal::from_instance(&component.widget.address_picker);
+            picker_widget.address_entry.set_text("0x8000");
+            picker_widget.go_button.clicked();
             test_utils::next_tick(&context, &emu);
 
             for i in 0..16 {
