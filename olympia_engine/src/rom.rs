@@ -301,15 +301,30 @@ impl CartridgeController for MBC1 {
     fn write(&mut self, loc: u16, value: u8) -> CartridgeIOResult<()> {
         if MBC1::ram_enable_area().contains(&loc) {
             self.ram_enabled = value == 0b1010;
+            log::info!(target: "rom::mbc1", "Toggled RAM enabled: {}", self.ram_enabled);
             Ok(())
         } else if MBC1::rom_select_area().contains(&loc) {
             self.selected_rom = value & 0x1F;
             if self.selected_rom == 0 {
                 self.selected_rom = 1
             }
+            log::info!(target: "rom::mbc1", "Selected Cart ROM bank: {}", self.selected_rom_bank());
             Ok(())
         } else if MBC1::high_select_area().contains(&loc) {
             self.selected_high = value & 0x3;
+            if self.page_mode == MBC1PageMode::LargeRom {
+                log::info!(
+                    target: "rom::mbc1",
+                    "Selected Static ROM bank: {}, Cart ROM bank: {}",
+                    self.selected_static_rom_bank(), self.selected_rom_bank()
+                );
+            } else {
+                log::info!(
+                    target: "rom::mbc1",
+                    "Selected RAM page: {}, Cart ROM bank: {}",
+                    self.selected_ram_bank(), self.selected_rom_bank()
+                );
+            }
             Ok(())
         } else if MBC1::mode_select_area().contains(&loc) {
             if value == 0x00 {
@@ -317,6 +332,7 @@ impl CartridgeController for MBC1 {
             } else {
                 self.page_mode = MBC1PageMode::LargeRam
             }
+            log::info!(target: "rom::mbc1", "Toggled Page Mode: {:?}", self.page_mode);
             Ok(())
         } else if memory::CARTRIDGE_RAM.contains(loc) {
             if self.ram_enabled {
@@ -397,8 +413,10 @@ impl CartridgeController for MBC2 {
         if memory::STATIC_ROM.contains(loc) {
             if loc & 0x100 == 0x100 {
                 self.selected_rom = value & 0xF;
+                log::info!(target: "rom::mbc2", "Selected ROM bank {}", self.selected_rom_bank());
             } else {
                 self.ram_enabled = (value & 0xF) == 0b1010;
+                log::info!(target: "rom::mbc2", "Toggled RAM {}", self.ram_enabled);
             }
             Ok(())
         } else if memory::CARTRIDGE_RAM.contains(loc) && self.ram_enabled {
@@ -532,15 +550,18 @@ impl CartridgeController for MBC3 {
     fn write(&mut self, loc: u16, value: u8) -> CartridgeIOResult<()> {
         if MBC3::ram_enable_area().contains(&loc) {
             self.ram_enabled = (value & 0xF) == 0b1010;
+            log::info!(target: "rom::mbc3", "Toggled ram: {}", self.ram_enabled);
             Ok(())
         } else if MBC3::rom_select_area().contains(&loc) {
             self.selected_rom = value & 0x7F;
             if self.selected_rom == 0 {
                 self.selected_rom = 1
             }
+            log::info!(target: "rom::mbc3", "Selected ROM bank: {}", self.selected_rom);
             Ok(())
         } else if MBC3::ram_select_area().contains(&loc) {
             self.selected_ram = value & 0x3;
+            log::info!(target: "rom::mbc3", "Selected RAM bank: {}", self.selected_ram);
             Ok(())
         } else if MBC3::timer_latch_area().contains(&loc) {
             Ok(())
