@@ -1,5 +1,3 @@
-use std::io;
-
 use crate::instructionsn::RuntimeDecoder;
 
 /// Format to print disassembly in
@@ -91,11 +89,12 @@ impl<T: Iterator<Item = u8>> Iterator for DisassemblyIterator<T> {
 /// `verbose` includes hex values of instructions as well as disassembly
 ///
 /// See [`FormattingIterator`] for more customisable options
+#[cfg(feature = "std")]
 pub fn disassemble(
     data: Vec<u8>,
     format: DisassemblyFormat,
     output: &mut dyn std::io::Write,
-) -> io::Result<()> {
+) -> std::io::Result<()> {
     let formatting_iterator = DisassemblyIterator::new(data.into_iter(), format, 0);
 
     for disassembled_instruction in formatting_iterator {
