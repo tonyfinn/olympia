@@ -18,7 +18,7 @@ pub const WIDTH: usize = 160;
 pub const INITIAL_SCALE: usize = 2;
 pub const BPP: usize = 4;
 
-struct Buffer {
+pub(crate) struct GBDisplayBuffer {
     front: Vec<GBPixel>,
     front_pixels: Vec<u8>,
     back: Vec<GBPixel>,
@@ -31,11 +31,11 @@ struct Buffer {
 
 const COLORS: [(u8, u8, u8); 4] = [(255, 255, 255), (176, 176, 176), (128, 128, 128), (0, 0, 0)];
 
-impl Buffer {
-    fn new(width: usize, height: usize, scale: usize) -> Buffer {
+impl GBDisplayBuffer {
+    pub(crate) fn new(width: usize, height: usize, scale: usize) -> GBDisplayBuffer {
         let px_width = width * scale;
         let px_height = height * scale;
-        Buffer {
+        GBDisplayBuffer {
             front: vec![GBPixel::default(); width * height],
             front_pixels: vec![0; BPP * px_width * px_height],
             back: vec![GBPixel::default(); width * height],
@@ -47,12 +47,12 @@ impl Buffer {
         }
     }
 
-    fn draw_pixel(&mut self, gb_x: usize, gb_y: usize, pixel: &GBPixel) {
+    pub(crate) fn draw_pixel(&mut self, gb_x: usize, gb_y: usize, pixel: &GBPixel) {
         let color = COLORS[usize::from(pixel.index)];
-        if gb_x >= WIDTH {
+        if gb_x >= self.width {
             panic!("X co-ord too large {}", gb_x);
         }
-        if gb_y >= HEIGHT {
+        if gb_y >= self.height {
             panic!("Y co-ord too large {}", gb_y);
         }
         self.back[(gb_y * self.width) + gb_x] = pixel.clone();
@@ -88,17 +88,25 @@ impl Buffer {
         result
     }
 
-    fn hblank(&mut self, evt: HBlankEvent) {
-        for (x, pixel) in evt.pixels.iter().enumerate() {
-            self.draw_pixel(x, evt.current_line.into(), pixel);
+    fn render_line(&mut self, y: u8, pixels: &[GBPixel]) {
+        for (x, pixel) in pixels.iter().enumerate() {
+            self.draw_pixel(x, y.into(), pixel);
         }
     }
 
-    fn vblank(&mut self) {
+    pub(crate) fn swap_buffers(&mut self) {
         std::mem::swap(&mut self.front, &mut self.back);
         std::mem::swap(&mut self.front_pixels, &mut self.back_pixels);
         trace!("Renderer VBLANK");
         self.image_surface = self.build_image_surface().ok();
+    }
+
+    pub(crate) fn render_to_context(&self, cr: &cairo::Context) {
+        if let Some(ref surface) = self.image_surface {
+            cr.set_source_surface(surface, 0.0, 0.0)
+                .expect("Could not set surface");
+            cr.paint().expect("Could not paint");
+        }
     }
 }
 
@@ -114,7 +122,7 @@ pub struct EmulatorDisplay {
     context: glib::MainContext,
     emu: Rc<RemoteEmulator>,
     widget: EmulatorDisplayWidget,
-    buffer: Rc<RefCell<Buffer>>,
+    buffer: Rc<RefCell<GBDisplayBuffer>>,
 }
 
 impl EmulatorDisplay {
@@ -127,7 +135,11 @@ impl EmulatorDisplay {
             context,
             emu,
             widget,
-            buffer: Rc::new(RefCell::new(Buffer::new(WIDTH, HEIGHT, INITIAL_SCALE))),
+            buffer: Rc::new(RefCell::new(GBDisplayBuffer::new(
+                WIDTH,
+                HEIGHT,
+                INITIAL_SCALE,
+            ))),
         });
         display.connect_ppu_events();
         display.connect_ui_events();
@@ -136,20 +148,19 @@ impl EmulatorDisplay {
 
     pub(crate) fn connect_ui_events(self: &Rc<Self>) {
         self.widget.drawing_area.connect_draw(clone!(@weak self as display => @default-return Inhibit(false), move |_drawing_area, cr| {
-            if let Some(ref surface) = display.buffer.borrow().image_surface {
-                cr.set_source_surface(surface, 0.0, 0.0).expect("Could not set surface");
-                cr.paint().expect("Could not paint");
-            }
+            display.buffer.borrow().render_to_context(&cr);
             Inhibit(false)
         }));
     }
 
     pub(crate) fn hblank(&self, evt: HBlankEvent) {
-        self.buffer.borrow_mut().hblank(evt)
+        self.buffer
+            .borrow_mut()
+            .render_line(evt.current_line, &evt.pixels)
     }
 
     pub(crate) fn vblank(&self) {
-        self.buffer.borrow_mut().vblank();
+        self.buffer.borrow_mut().swap_buffers();
         let scale = self.buffer.borrow().scale;
         self.widget.drawing_area.queue_draw_area(
             0,
@@ -201,16 +212,10 @@ mod tests {
 
     #[test]
     fn test_render_buffer() {
-        let mut buffer = Buffer::new(4, 4, 2);
-        buffer.hblank(HBlankEvent {
-            pixels: vec![bg_pixel(2), bg_pixel(1), bg_pixel(1), bg_pixel(0)],
-            current_line: 0,
-        });
-        buffer.hblank(HBlankEvent {
-            pixels: vec![bg_pixel(3), bg_pixel(0), bg_pixel(3), bg_pixel(0)],
-            current_line: 1,
-        });
-        buffer.vblank();
+        let mut buffer = GBDisplayBuffer::new(4, 4, 2);
+        buffer.render_line(0, &vec![bg_pixel(2), bg_pixel(1), bg_pixel(1), bg_pixel(0)]);
+        buffer.render_line(1, &vec![bg_pixel(3), bg_pixel(0), bg_pixel(3), bg_pixel(0)]);
+        buffer.swap_buffers();
 
         let expected_colors: Vec<Vec<usize>> = vec![
             vec![2, 2, 1, 1, 1, 1, 0, 0],

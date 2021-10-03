@@ -18,7 +18,7 @@ pub(crate) mod memory;
 mod ppu;
 
 pub use cpu::CYCLE_FREQ;
-pub use memory::{MemoryError, MemoryResult};
+pub use memory::{MemoryError, MemoryRegion, MemoryResult, VRAM};
 pub use ppu::{GBPixel, Palette};
 
 use crate::events;

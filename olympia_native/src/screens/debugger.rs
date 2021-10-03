@@ -12,7 +12,8 @@ use std::rc::Rc;
 use crate::emulator::glib::glib_remote_emulator;
 use crate::utils;
 use crate::widgets::{
-    BreakpointViewer, Disassembler, EmulatorDisplay, MemoryViewer, PlaybackControls, RegisterLabels,
+    BreakpointViewer, Disassembler, EmulatorDisplay, MemoryViewer, PlaybackControls,
+    RegisterLabels, TilesetViewer,
 };
 
 use olympia_engine::remote::{LoadRomError, RemoteEmulator};
@@ -85,6 +86,9 @@ impl Debugger {
 
         let disassembler: Disassembler = root_builder.object("Disassembler").unwrap();
         disassembler.attach_emu(emu.clone().into());
+
+        let tileset_viewer: TilesetViewer = root_builder.object("TilesetViewer").unwrap();
+        tileset_viewer.attach_emu(emu.clone().into());
 
         let bpv_builder = create_child::<gtk::Box>(
             &root_builder,
