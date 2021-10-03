@@ -187,7 +187,7 @@ impl PPU {
             self.phase = PPUPhase::HBlank;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_HBLANK;
             if (mem.registers().lcdstat & LCDSTAT_HBLANK_INTERRUPT) != 0 {
-                Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
+                Interrupt::LCDStatus.set(&mut mem.registers_mut().iflag);
             }
         } else if cycles_on_line == OAM_SCAN_CYCLES
             && self.current_line < VISIBLE_LINES
@@ -227,23 +227,23 @@ impl PPU {
             self.current_line,
         ) {
             trace!(target: "ppu", "LYC Interrupt");
-            Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
+            Interrupt::LCDStatus.set(&mut mem.registers_mut().iflag);
         }
         if self.current_line == VISIBLE_LINES {
             self.events.emit(VBlankEvent.into());
             trace!(target: "ppu", "VBLANK Start");
             self.phase = PPUPhase::VBlank;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_VBLANK;
-            Interrupt::VBlank.set(&mut mem.registers_mut().ie);
+            Interrupt::VBlank.set(&mut mem.registers_mut().iflag);
             if (mem.registers().lcdstat & LCDSTAT_VBLANK_INTERRUPT) != 0 {
-                Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
+                Interrupt::LCDStatus.set(&mut mem.registers_mut().iflag);
             }
         } else if self.current_line < VISIBLE_LINES {
             trace!(target: "ppu", "Object Scan");
             self.phase = PPUPhase::ObjectScan;
             mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_OAMSCAN;
             if (mem.registers().lcdstat & LCDSTAT_OAM_SCAN_INTERRUPT) != 0 {
-                Interrupt::LCDStatus.set(&mut mem.registers_mut().ie);
+                Interrupt::LCDStatus.set(&mut mem.registers_mut().iflag);
             }
         }
         mem.registers_mut().ly = self.current_line;
@@ -459,7 +459,7 @@ mod test {
         memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_OAM_SCAN_INTERRUPT;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
+            Interrupt::test(0x02, memory.registers().iflag).expect("No interrupt triggered");
         assert_eq!(lcd_active_interrupt, Interrupt::LCDStatus);
     }
 
@@ -475,7 +475,7 @@ mod test {
             MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT | LCDSTAT_MATCH_ON_EQUAL;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
+            Interrupt::test(0x02, memory.registers().iflag).expect("No interrupt triggered");
         assert_eq!(lcd_active_interrupt, Interrupt::LCDStatus);
     }
 
@@ -505,7 +505,7 @@ mod test {
         memory.registers_mut().lcdstat = MODE_HBLANK | LCDSTAT_LINE_MATCH_INTERRUPT;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
+            Interrupt::test(0x02, memory.registers().iflag).expect("No interrupt triggered");
         assert_eq!(lcd_active_interrupt, Interrupt::LCDStatus);
     }
 
@@ -548,7 +548,7 @@ mod test {
         memory.registers_mut().lcdstat = MODE_DRAWING | LCDSTAT_HBLANK_INTERRUPT;
         ppu.update_phase(&mut memory);
         let active_interrupt =
-            Interrupt::test(0x1F, memory.registers().ie).expect("No interrupt triggered");
+            Interrupt::test(0x1F, memory.registers().iflag).expect("No interrupt triggered");
         assert_eq!(active_interrupt, Interrupt::LCDStatus);
     }
 
@@ -631,10 +631,10 @@ mod test {
             | LCDSTAT_LINE_MATCH_INTERRUPT;
         ppu.update_phase(&mut memory);
         let lcd_active_interrupt =
-            Interrupt::test(0x02, memory.registers().ie).expect("No interrupt triggered");
+            Interrupt::test(0x02, memory.registers().iflag).expect("No interrupt triggered");
         assert_eq!(lcd_active_interrupt, Interrupt::LCDStatus);
         let vblank_active_interrupt =
-            Interrupt::test(0x01, memory.registers().ie).expect("No interrupt triggered");
+            Interrupt::test(0x01, memory.registers().iflag).expect("No interrupt triggered");
         assert_eq!(vblank_active_interrupt, Interrupt::VBlank);
     }
 
