@@ -2,3 +2,16 @@ textview.monospace {
     font-family: monospace;
     font-size: 16;
 }
+
+.panel-control-box {
+    margin-left: 5px;
+    margin-bottom: 5px;
+    margin-right: 5px;
+}
+
+.panel-primary-box {
+    margin-top: 2px;
+    margin-left: 2px;
+    margin-bottom: 2px;
+    margin-right: 2px;
+}

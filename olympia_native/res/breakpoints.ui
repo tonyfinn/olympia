@@ -5,14 +5,15 @@
     <property name="visible">True</property>
     <property name="can_focus">False</property>
     <property name="orientation">vertical</property>
+    <style>
+      <class name="panel-primary-box" />
+    </style>
     <property name="spacing">5</property>
     <child>
       <object class="GtkTreeView" id="BreakpointTree">
         <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="enable_grid_lines">both</property>
-        <property name="margin_end">1</property>
-        <property name="margin_start">1</property>
         <property name="model">BreakpointListStore</property>
         <property name="vexpand">true</property>
         <child>

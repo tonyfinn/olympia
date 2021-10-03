@@ -7,9 +7,6 @@
     <property name="orientation">horizontal</property>
     <property name="halign">center</property>
     <property name="valign">fill</property>
-    <property name="margin_start">5</property>
-    <property name="margin_end">5</property>
-    <property name="margin_bottom">5</property>
     <property name="spacing">5</property>
     <child>
       <object class="GtkLabel">
