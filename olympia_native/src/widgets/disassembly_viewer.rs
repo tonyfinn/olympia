@@ -139,14 +139,8 @@ impl Disassembler {
             let lines: Vec<String> = disasm_iter.take(200).collect();
             let disasm: String = lines.join("\n");
             let buffer = TextBufferBuilder::new().text(&disasm).build();
-            let start = buffer.start_iter();
-            let end = buffer.end_iter();
-            let tag = gtk::TextTag::new(None);
-            tag.set_font(Some("Fira Mono 14"));
-            buffer.apply_tag(&tag, &start, &end);
             let tv: gtk::TextView = DisassemblerInternal::from_instance(&self).text_view.get();
             tv.set_buffer(Some(&buffer));
-            tv.set_monospace(true);
         }
     }
 }
