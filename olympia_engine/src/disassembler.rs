@@ -1,4 +1,5 @@
 use crate::instructionsn::RuntimeDecoder;
+use alloc::string::String;
 
 /// Format to print disassembly in
 #[derive(Debug, PartialEq, Eq)]
@@ -106,8 +107,7 @@ pub fn disassemble(
 #[cfg(test)]
 pub mod test {
 
-    use super::*;
-
+    #[cfg(feature = "std")]
     #[test]
     fn test_disassembly_non_verbose() {
         let data = vec![
@@ -120,9 +120,9 @@ pub mod test {
             0xF3, 0x00, 0xFB, // DI, NOP, EI
         ];
 
-        let mut output: Vec<u8> = Vec::new();
+        let mut output: Vec<u8> = alloc::vec::Vec::new();
 
-        disassemble(data, DisassemblyFormat::Normal, &mut output).unwrap();
+        super::disassemble(data, super::DisassemblyFormat::Normal, &mut output).unwrap();
 
         let expected_result = concat!(
             "     0:\t\tLD H, 20h\n",
@@ -145,6 +145,7 @@ pub mod test {
         );
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn test_disassembly_verbose() {
         let data = vec![
@@ -157,9 +158,9 @@ pub mod test {
             0xF3, 0x00, 0xFB, // DI, NOP, EI
         ];
 
-        let mut output: Vec<u8> = Vec::new();
+        let mut output: Vec<u8> = alloc::vec::Vec::new();
 
-        disassemble(data, DisassemblyFormat::Verbose, &mut output).unwrap();
+        super::disassemble(data, super::DisassemblyFormat::Verbose, &mut output).unwrap();
 
         let expected_result = concat!(
             "     0:\t\t  2620\t\tLD H, 20h\n",
