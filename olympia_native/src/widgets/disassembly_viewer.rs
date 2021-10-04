@@ -130,7 +130,7 @@ impl Disassembler {
             .get()
             .expect("No emulator adapter attached to disassembler");
 
-        let query_response = emu.query_memory(address, address + 600).await;
+        let query_response = emu.query_memory(address, address.saturating_add(600)).await;
 
         if let Ok(memory_region) = query_response {
             let data = memory_region.data.iter().map(|b| b.unwrap_or(0));
