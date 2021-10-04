@@ -16,6 +16,7 @@ pub(crate) mod cpu;
 mod dma;
 pub(crate) mod memory;
 mod ppu;
+mod timer;
 
 pub use cpu::CYCLE_FREQ;
 pub use memory::{MemoryError, MemoryRegion, MemoryResult, VRAM};
@@ -38,6 +39,8 @@ use core::convert::TryFrom;
 use derive_more::Display;
 use olympia_core::address;
 
+use self::cpu::CLOCKS_PER_CYCLE;
+
 /// Primary struct for an emulated gameboy.
 ///
 /// # Example usage:
@@ -57,6 +60,7 @@ pub struct GameBoy {
     pub(crate) cpu: Cpu,
     pub(crate) mem: memory::Memory,
     pub(crate) ppu: ppu::PPU,
+    pub(crate) timer: timer::Timer,
     dma: DmaUnit,
     runtime_decoder: Rc<new_instructions::RuntimeDecoder>,
     clocks_elapsed: u64,
@@ -105,6 +109,7 @@ impl GameBoy {
             mem: memory::Memory::new(cartridge),
             dma: Default::default(),
             ppu: Default::default(),
+            timer: timer::Timer::default(),
             runtime_decoder: Rc::new(new_instructions::RuntimeDecoder::new()),
             clocks_elapsed: 0,
             time_elapsed: 0.0,
@@ -451,7 +456,12 @@ impl GameBoy {
         // but it would be useful to surface this information somewhere for ROM developers.
         let _dma_result = self.dma.run_cycle(&mut self.mem);
         self.ppu.run_cycle(&mut self.mem);
-        self.clocks_elapsed += 4;
+        self.add_clocks_elapsed(4);
+    }
+
+    pub fn add_clocks_elapsed(&mut self, count: u64) {
+        self.clocks_elapsed += u64::from(CLOCKS_PER_CYCLE);
+        self.timer.tick(&mut self.mem, count);
     }
 
     /// Query how many CPU clocks have elapsed since the emulator started

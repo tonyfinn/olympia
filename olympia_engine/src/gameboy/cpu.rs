@@ -8,6 +8,7 @@ pub use crate::registers::{ByteRegister, WordRegister};
 use crate::registers::{ByteRegister as br, WordRegister as wr};
 
 pub const CYCLE_FREQ: u32 = 1024 * 1024; // 1 Mhz
+pub const CLOCKS_PER_CYCLE: u32 = 4;
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub(crate) enum InterruptState {

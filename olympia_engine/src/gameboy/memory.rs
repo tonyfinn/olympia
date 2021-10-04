@@ -4,7 +4,13 @@ use derive_more::Display;
 
 use olympia_core::address;
 
+pub(crate) const TIMER_DIVIDER_REGISTER: u16 = 0xff04;
+pub(crate) const TIMER_COUNTER_REGISTER: u16 = 0xff05;
+pub(crate) const TIMER_MODULO_REGISTER: u16 = 0xff06;
+pub(crate) const TIMER_CONTROL_REGISTER: u16 = 0xff07;
+
 pub(crate) const DMA_REGISTER_ADDR: u16 = 0xff46;
+
 pub(crate) const LCD_CONTROL_ADDR: u16 = 0xFF40;
 pub(crate) const LCD_STATUS_ADDR: u16 = 0xFF41;
 pub(crate) const SCROLL_Y_ADDR: u16 = 0xFF42;
@@ -13,6 +19,7 @@ pub(crate) const WINDOW_Y_ADDR: u16 = 0xFF4A;
 pub(crate) const WINDOW_X_ADDR: u16 = 0xFF4B;
 pub(crate) const CURRENT_LINE_ADDR: u16 = 0xFF44;
 pub(crate) const LINE_CHECK_ADDR: u16 = 0xFF45;
+
 pub(crate) const INTERRUPT_ENABLE_ADDR: u16 = 0xffff;
 pub(crate) const INTERRUPT_FLAG_ADDR: u16 = 0xff0f;
 
@@ -122,6 +129,14 @@ pub struct MemoryRegisters {
     pub(crate) iflag: u8,
     /// Interrupts that are enabled and can cause CPU interrupts
     pub(crate) ie: u8,
+    /// Divider - Contains clock ticking at 16384 hz
+    pub(crate) div: u8,
+    /// Timer Counter - Countains click ticks at user defined rate
+    pub(crate) tima: u8,
+    /// Timer modulo - Contains value to reset timer to after overflow
+    pub(crate) tma: u8,
+    /// Timer control - Controls TIMA enabled + tick rate
+    pub(crate) tac: u8,
 }
 
 impl MemoryRegisters {
@@ -138,12 +153,22 @@ impl MemoryRegisters {
             wx: 0,
             iflag: 0,
             ie: 0,
+            div: 0x18,
+            tima: 0,
+            tma: 0,
+            tac: 0xF8,
         }
     }
 
     fn read(&self, addr: u16) -> Option<u8> {
         match addr {
+            TIMER_DIVIDER_REGISTER => Some(self.div),
+            TIMER_COUNTER_REGISTER => Some(self.tima),
+            TIMER_MODULO_REGISTER => Some(self.tma),
+            TIMER_CONTROL_REGISTER => Some(self.tac),
+
             DMA_REGISTER_ADDR => Some(self.dma),
+
             LCD_CONTROL_ADDR => Some(self.lcdc),
             LCD_STATUS_ADDR => Some(self.lcdstat),
             SCROLL_Y_ADDR => Some(self.scy),
@@ -152,15 +177,23 @@ impl MemoryRegisters {
             LINE_CHECK_ADDR => Some(self.lyc),
             WINDOW_Y_ADDR => Some(self.wy),
             WINDOW_X_ADDR => Some(self.wx),
+
             INTERRUPT_FLAG_ADDR => Some(self.iflag),
             INTERRUPT_ENABLE_ADDR => Some(self.ie),
+
             _ => None,
         }
     }
 
     fn write(&mut self, addr: u16, value: u8) {
         match addr {
+            TIMER_DIVIDER_REGISTER => self.div = 0,
+            TIMER_COUNTER_REGISTER => self.tima = value,
+            TIMER_MODULO_REGISTER => self.tma = value,
+            TIMER_CONTROL_REGISTER => masked_write(&mut self.tac, value, 0b111),
+
             DMA_REGISTER_ADDR => self.dma = value,
+
             LCD_CONTROL_ADDR => self.lcdc = value,
             // Top bit doesn't exist
             // Lower two bits are mode flag
@@ -171,8 +204,10 @@ impl MemoryRegisters {
             LINE_CHECK_ADDR => self.lyc = value,
             WINDOW_Y_ADDR => self.wy = value,
             WINDOW_X_ADDR => self.wx = value,
+
             INTERRUPT_FLAG_ADDR => masked_write(&mut self.iflag, value, 0x1F),
             INTERRUPT_ENABLE_ADDR => masked_write(&mut self.ie, value, 0x1F),
+
             _ => (),
         }
     }
