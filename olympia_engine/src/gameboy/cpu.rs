@@ -34,43 +34,42 @@ pub enum PowerSavingMode {
 }
 
 impl Interrupt {
+    pub const fn mask(&self) -> u8 {
+        match self {
+            Interrupt::VBlank => 1,
+            Interrupt::LCDStatus => 2,
+            Interrupt::Timer => 4,
+            Interrupt::Serial => 8,
+            Interrupt::Input => 16,
+        }
+    }
+
     pub(crate) fn test(ie: u8, iflag: u8) -> Option<Interrupt> {
         let pending_interrupts = ie & iflag;
-        if pending_interrupts & 1 != 0 {
-            Some(Interrupt::VBlank)
-        } else if pending_interrupts & 2 != 0 {
-            Some(Interrupt::LCDStatus)
-        } else if pending_interrupts & 4 != 0 {
-            Some(Interrupt::Timer)
-        } else if pending_interrupts & 8 != 0 {
-            Some(Interrupt::Serial)
-        } else if pending_interrupts & 16 != 0 {
-            Some(Interrupt::Input)
-        } else {
-            None
+        let priority_order = [
+            Interrupt::VBlank,
+            Interrupt::LCDStatus,
+            Interrupt::Timer,
+            Interrupt::Serial,
+            Interrupt::Input,
+        ];
+
+        for interrupt in priority_order {
+            if pending_interrupts & interrupt.mask() != 0 {
+                return Some(interrupt);
+            }
         }
+        None
     }
 
     pub(crate) fn set(&self, register: &mut u8) {
         log::trace!(target: "cpu/interrupt", "Enabled interrupt {:?}", self);
-        match self {
-            Interrupt::VBlank => *register |= 1,
-            Interrupt::LCDStatus => *register |= 2,
-            Interrupt::Timer => *register |= 4,
-            Interrupt::Serial => *register |= 8,
-            Interrupt::Input => *register |= 16,
-        }
+        *register |= self.mask();
     }
 
     pub(crate) fn clear(&self, register: &mut u8) {
         log::trace!(target: "cpu/interrupt", "Cleared interrupt {:?}", self);
-        match self {
-            Interrupt::VBlank => *register &= !1,
-            Interrupt::LCDStatus => *register &= !2,
-            Interrupt::Timer => *register &= !4,
-            Interrupt::Serial => *register &= !8,
-            Interrupt::Input => *register &= !16,
-        }
+        *register &= !self.mask();
     }
 
     pub(crate) fn handler_address(&self) -> crate::address::LiteralAddress {
