@@ -1,5 +1,7 @@
-use super::address_picker;
-use crate::utils::EmulatorHandle;
+use super::common::EMU_PROPERTY;
+use crate::subclass_widget;
+use crate::utils::{EmulatorHandle, GValueExt};
+use crate::widgets::common::{emu_param_spec, EmulatorWidget};
 use crate::widgets::AddressPicker;
 
 use gtk::subclass::prelude::*;
@@ -22,33 +24,13 @@ pub struct DisassemblerInternal {
     emu: RefCell<Option<EmulatorHandle>>,
 }
 
-#[glib::object_subclass]
-impl ObjectSubclass for DisassemblerInternal {
-    const NAME: &'static str = "OlympiaDisassembler";
-    type ParentType = gtk::Box;
-    type Type = Disassembler;
-
-    fn class_init(klass: &mut Self::Class) {
-        Self::bind_template(klass);
-    }
-
-    fn instance_init(obj: &InitializingObject<Self>) {
-        obj.init_template();
-    }
-}
-
-const EMU_PROPERTY: &'static str = "emu";
+subclass_widget!(DisassemblerInternal, gtk::Box, Disassembler);
 
 impl ObjectImpl for DisassemblerInternal {
     fn constructed(&self, obj: &Self::Type) {
-        // Call "constructed" on parent
         self.parent_constructed(obj);
-        obj.bind_property(
-            EMU_PROPERTY,
-            &*self.address_picker,
-            address_picker::EMU_PROPERTY,
-        )
-        .build();
+        obj.bind_property(EMU_PROPERTY, &*self.address_picker, EMU_PROPERTY)
+            .build();
 
         self.text_view.set_monospace(true);
 
@@ -58,15 +40,7 @@ impl ObjectImpl for DisassemblerInternal {
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
-        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
-            vec![glib::ParamSpec::new_boxed(
-                EMU_PROPERTY,
-                EMU_PROPERTY,
-                EMU_PROPERTY,
-                EmulatorHandle::static_type(),
-                glib::ParamFlags::READWRITE,
-            )]
-        });
+        static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| vec![emu_param_spec()]);
         PROPERTIES.as_ref()
     }
 
@@ -79,10 +53,7 @@ impl ObjectImpl for DisassemblerInternal {
     ) {
         match pspec.name() {
             EMU_PROPERTY => {
-                let emu = value
-                    .get()
-                    .expect("type conformity checked by `Object::set_property`");
-                self.emu.replace(Some(emu));
+                self.emu.replace(Some(value.unwrap()));
             }
             _ => unimplemented!(),
         }
@@ -114,21 +85,13 @@ glib::wrapper! {
 }
 
 impl Disassembler {
-    pub fn attach_emu(&self, emu: EmulatorHandle) {
-        self.set_property(EMU_PROPERTY, emu).unwrap();
-    }
-
     pub fn goto_address(&self, address: u16) {
         glib::MainContext::ref_thread_default()
             .spawn_local(self.clone().goto_address_internal(address));
     }
 
     async fn goto_address_internal(self, address: u16) {
-        let emu: EmulatorHandle = self
-            .property(EMU_PROPERTY)
-            .expect("Invalid emulator property name")
-            .get()
-            .expect("No emulator adapter attached to disassembler");
+        let emu = self.emu_handle();
 
         let query_response = emu.query_memory(address, address.saturating_add(600)).await;
 
@@ -144,3 +107,5 @@ impl Disassembler {
         }
     }
 }
+
+impl EmulatorWidget for Disassembler {}

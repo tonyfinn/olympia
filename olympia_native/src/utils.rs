@@ -1,4 +1,5 @@
 use derive_more::{Deref, From, Into};
+use gtk::glib::value::FromValue;
 use gtk::glib::{self, GBoxed};
 use gtk::prelude::*;
 use std::rc::Rc;
@@ -42,6 +43,16 @@ where
         show_error_dialog(e, window).await;
     }
     res
+}
+
+pub trait GValueExt {
+    fn unwrap<'a, T: FromValue<'a>>(&'a self) -> T;
+}
+
+impl GValueExt for glib::Value {
+    fn unwrap<'a, T: FromValue<'a>>(&'a self) -> T {
+        self.get().expect("Invalid type in GValue")
+    }
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 mod address_picker;
 mod breakpoint_viewer;
+pub(crate) mod common;
 mod disassembly_viewer;
 mod emulator_display;
 mod memory_viewer;

@@ -12,8 +12,8 @@ use std::rc::Rc;
 use crate::emulator::glib::glib_remote_emulator;
 use crate::utils;
 use crate::widgets::{
-    BreakpointViewer, Disassembler, EmulatorDisplay, MemoryViewer, PlaybackControls,
-    RegisterLabels, TilesetViewer,
+    common::EmulatorWidget, BreakpointViewer, Disassembler, EmulatorDisplay, MemoryViewer,
+    PlaybackControls, RegisterLabels, TilesetViewer,
 };
 
 use olympia_engine::remote::{LoadRomError, RemoteEmulator};

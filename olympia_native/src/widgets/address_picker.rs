@@ -16,7 +16,13 @@ use std::{
     sync::atomic::{AtomicU16, Ordering},
 };
 
-use crate::utils::EmulatorHandle;
+use crate::{
+    subclass_widget,
+    utils::{EmulatorHandle, GValueExt},
+    widgets::common::{emu_param_spec, EMU_PROPERTY},
+};
+
+use super::common::EmulatorWidget;
 
 #[derive(CompositeTemplate, Default)]
 #[template(file = "../../res/address_picker.ui")]
@@ -31,20 +37,7 @@ pub struct AddressPickerInternal {
     address_selected: AtomicU16,
 }
 
-#[glib::object_subclass]
-impl ObjectSubclass for AddressPickerInternal {
-    const NAME: &'static str = "OlympiaAddressPicker";
-    type ParentType = gtk::Box;
-    type Type = AddressPicker;
-
-    fn class_init(klass: &mut Self::Class) {
-        Self::bind_template(klass);
-    }
-
-    fn instance_init(obj: &InitializingObject<Self>) {
-        obj.init_template();
-    }
-}
+subclass_widget!(AddressPickerInternal, gtk::Box, AddressPicker);
 
 glib_wrapper! {
     pub struct AddressPicker(ObjectSubclass<AddressPickerInternal>)
@@ -52,19 +45,20 @@ glib_wrapper! {
         @implements gtk::Buildable, gtk::Orientable;
 }
 
+impl EmulatorWidget for AddressPicker {}
+
 impl AddressPicker {
     async fn set_target_to_pc(self) {
-        let emu: EmulatorHandle = self
-            .property(EMU_PROPERTY)
-            .expect("Invalid emulator property name")
-            .get()
-            .expect("No emulator adapter attached to address picker");
+        let emu = self.emu_handle();
         let result = emu.query_registers().await;
         if let Ok(registers) = result {
-            let pc_value = registers.read_u16(WordRegister::PC);
-            self.set_property(ADDRESS_PROPERTY, format!("0x{:04X}", pc_value))
-                .expect("Invalid address property name");
+            self.set_address(registers.read_u16(WordRegister::PC));
         }
+    }
+
+    pub fn set_address(&self, value: u16) {
+        self.set_property(ADDRESS_PROPERTY, format!("0x{:04X}", value))
+            .expect("Invalid address property name");
     }
 
     pub fn connect_goto<F>(&self, f: F)
@@ -82,7 +76,6 @@ impl AddressPicker {
 }
 
 pub const ADDRESS_PROPERTY: &'static str = "address";
-pub const EMU_PROPERTY: &'static str = "emu";
 pub const PC_CLICKED_SIGNAL: &'static str = "pc-button-clicked";
 pub const GOTO_ADDRESS_SIGNAL: &'static str = "goto-address";
 
@@ -97,13 +90,7 @@ impl ObjectImpl for AddressPickerInternal {
                     None,
                     ParamFlags::READWRITE,
                 ),
-                ParamSpec::new_boxed(
-                    EMU_PROPERTY,
-                    EMU_PROPERTY,
-                    EMU_PROPERTY,
-                    EmulatorHandle::static_type(),
-                    ParamFlags::READWRITE,
-                ),
+                emu_param_spec(),
             ]
         });
         PROPERTIES.as_ref()
@@ -136,7 +123,6 @@ impl ObjectImpl for AddressPickerInternal {
     }
 
     fn constructed(&self, obj: &Self::Type) {
-        // Call "constructed" on parent
         self.parent_constructed(obj);
 
         self.address_entry.set_text("0x100");
@@ -182,15 +168,10 @@ impl ObjectImpl for AddressPickerInternal {
     ) {
         match pspec.name() {
             EMU_PROPERTY => {
-                let emu = value
-                    .get()
-                    .expect("type conformity checked by `Object::set_property`");
-                self.emu.replace(Some(emu));
+                self.emu.replace(Some(value.unwrap()));
             }
             ADDRESS_PROPERTY => {
-                let address: &str = value
-                    .get()
-                    .expect("type conformity checked by `Object::set_property`");
+                let address: &str = value.unwrap();
                 if let Ok(numeric) = parse_number(address) {
                     self.address_selected.store(numeric, Ordering::Relaxed);
                     self.go_button.get().set_sensitive(true);

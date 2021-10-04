@@ -1,4 +1,6 @@
-use crate::utils::EmulatorHandle;
+use crate::subclass_widget;
+use crate::utils::{EmulatorHandle, GValueExt};
+use crate::widgets::common::emu_param_spec;
 
 use gtk::subclass::prelude::*;
 use gtk::CompositeTemplate;
@@ -10,6 +12,7 @@ use olympia_engine::gameboy::{GBPixel, Palette, VRAM};
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use super::common::{EmulatorWidget, EMU_PROPERTY};
 use super::emulator_display::GBDisplayBuffer;
 
 pub const SPRITES_PER_LINE: usize = 16;
@@ -49,27 +52,12 @@ impl Default for TilesetViewerInternal {
     }
 }
 
-#[glib::object_subclass]
-impl ObjectSubclass for TilesetViewerInternal {
-    const NAME: &'static str = "OlympiaTilesetViewer";
-    type ParentType = gtk::Box;
-    type Type = TilesetViewer;
-
-    fn class_init(klass: &mut Self::Class) {
-        Self::bind_template(klass);
-    }
-
-    fn instance_init(obj: &InitializingObject<Self>) {
-        obj.init_template();
-    }
-}
+subclass_widget!(TilesetViewerInternal, gtk::Box, TilesetViewer);
 
 const LARGE_SPRITES_PROPERTY: &'static str = "large-sprites";
-const EMU_PROPERTY: &'static str = "emu";
 
 impl ObjectImpl for TilesetViewerInternal {
     fn constructed(&self, obj: &Self::Type) {
-        // Call "constructed" on parent
         self.parent_constructed(obj);
 
         self.drawing_area.connect_draw(
@@ -89,13 +77,7 @@ impl ObjectImpl for TilesetViewerInternal {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
             vec![
-                glib::ParamSpec::new_boxed(
-                    EMU_PROPERTY,
-                    EMU_PROPERTY,
-                    EMU_PROPERTY,
-                    EmulatorHandle::static_type(),
-                    glib::ParamFlags::READWRITE,
-                ),
+                emu_param_spec(),
                 glib::ParamSpec::new_boolean(
                     LARGE_SPRITES_PROPERTY,
                     LARGE_SPRITES_PROPERTY,
@@ -117,16 +99,11 @@ impl ObjectImpl for TilesetViewerInternal {
     ) {
         match pspec.name() {
             EMU_PROPERTY => {
-                let emu = value
-                    .get()
-                    .expect("type conformity checked by `Object::set_property`");
-                self.emu.replace(Some(emu));
+                self.emu.replace(Some(value.unwrap()));
             }
             LARGE_SPRITES_PROPERTY => {
-                let enabled = value
-                    .get()
-                    .expect("type conformity checked by `Object::set_property`");
-                self.large_sprites_enabled.store(enabled, Ordering::Relaxed);
+                self.large_sprites_enabled
+                    .store(value.unwrap(), Ordering::Relaxed);
             }
             _ => unimplemented!(),
         }
@@ -162,10 +139,6 @@ glib::wrapper! {
 }
 
 impl TilesetViewer {
-    pub fn attach_emu(&self, emu: EmulatorHandle) {
-        self.set_property(EMU_PROPERTY, emu).unwrap();
-    }
-
     pub fn render(&self) {
         glib::MainContext::ref_thread_default().spawn_local(self.clone().render_internal());
     }
@@ -226,3 +199,5 @@ impl TilesetViewer {
         lower_byte_value | (upper_byte_value << 1)
     }
 }
+
+impl EmulatorWidget for TilesetViewer {}
