@@ -40,7 +40,7 @@ fn alu_op(gb: &mut GameBoy, op: ALOp, arg: u8) -> u8 {
             gb.set_flag_to(registers::Flag::Zero, new == 0);
             gb.set_flag_to(
                 registers::Flag::HalfCarry,
-                is_add_half_carry(current_value, arg + carry_bit),
+                is_add_half_carry(current_value, arg.wrapping_add(carry_bit)),
             );
             new
         }
@@ -64,7 +64,7 @@ fn alu_op(gb: &mut GameBoy, op: ALOp, arg: u8) -> u8 {
             gb.set_flag_to(registers::Flag::Zero, new == 0);
             gb.set_flag_to(
                 registers::Flag::HalfCarry,
-                is_sub_half_carry(current_value, arg + carry_bit),
+                is_sub_half_carry(current_value, arg.wrapping_add(carry_bit)),
             );
             new
         }
