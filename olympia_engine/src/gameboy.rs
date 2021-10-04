@@ -382,6 +382,7 @@ impl GameBoy {
                     self.cycle();
                     self.cycle();
                     self.set_interrupt_state(cpu::InterruptState::Disabled);
+                    interrupt.clear(&mut self.mem.registers_mut().iflag);
                     let addr = interrupt.handler_address();
                     self.exec_push(self.read_pc())?;
                     self.set_pc(addr);

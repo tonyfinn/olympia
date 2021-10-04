@@ -50,14 +50,25 @@ impl Interrupt {
         }
     }
 
-    pub(crate) fn set(&self, ie: &mut u8) {
+    pub(crate) fn set(&self, register: &mut u8) {
         log::trace!(target: "cpu/interrupt", "Enabled interrupt {:?}", self);
         match self {
-            Interrupt::VBlank => *ie |= 1,
-            Interrupt::LCDStatus => *ie |= 2,
-            Interrupt::Timer => *ie |= 4,
-            Interrupt::Serial => *ie |= 8,
-            Interrupt::Input => *ie |= 16,
+            Interrupt::VBlank => *register |= 1,
+            Interrupt::LCDStatus => *register |= 2,
+            Interrupt::Timer => *register |= 4,
+            Interrupt::Serial => *register |= 8,
+            Interrupt::Input => *register |= 16,
+        }
+    }
+
+    pub(crate) fn clear(&self, register: &mut u8) {
+        log::trace!(target: "cpu/interrupt", "Cleared interrupt {:?}", self);
+        match self {
+            Interrupt::VBlank => *register &= !1,
+            Interrupt::LCDStatus => *register &= !2,
+            Interrupt::Timer => *register &= !4,
+            Interrupt::Serial => *register &= !8,
+            Interrupt::Input => *register &= !16,
         }
     }
 
