@@ -199,10 +199,10 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn next_tick(context: &glib::MainContext, emu: &RemoteEmulator) {
-        wait_for_task(&context, emu.query_registers()).unwrap();
+        wait_for_task(context, emu.query_registers()).unwrap();
     }
 
-    pub(crate) fn with_context<F: Fn(&glib::MainContext) -> ()>(f: F) {
+    pub(crate) fn with_context<F: Fn(&glib::MainContext)>(f: F) {
         let context = glib::MainContext::new();
         let cguard = context.acquire();
         f(&context);

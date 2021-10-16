@@ -2,7 +2,7 @@ use gtk::{glib, prelude::StaticType};
 
 use crate::utils::EmulatorHandle;
 
-pub const EMU_PROPERTY: &'static str = "emu";
+pub const EMU_PROPERTY: &str = "emu";
 
 pub trait EmulatorWidget: glib::ObjectExt {
     fn attach_emu(&self, emulator: EmulatorHandle) {

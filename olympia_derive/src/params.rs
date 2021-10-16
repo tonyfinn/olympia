@@ -278,13 +278,14 @@ fn parse_meta_list(pb: &mut ParamBuilder, items: syn::MetaList) -> errors::Param
 }
 
 pub(crate) fn parse_param(field: &syn::Field) -> errors::ParamResult<ParamBuilder> {
-    let mut pb = ParamBuilder::default();
-    pb.name = field.ident.clone();
-    pb.declared_type = Some(field.ty.clone());
-    pb.span = Some(field.span());
+    let mut pb = ParamBuilder {
+        name: field.ident.clone(),
+        declared_type: Some(field.ty.clone()),
+        span: Some(field.span()),
+        ..Default::default()
+    };
     for attr in &field.attrs {
         let meta = attr.parse_meta()?;
-        pb.declared_type = Some(field.ty.clone());
         if !meta.path().is_ident("olympia") {
             continue;
         }

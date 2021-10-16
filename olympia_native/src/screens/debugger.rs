@@ -124,7 +124,7 @@ impl Debugger {
                 );
                 file_chooser.run();
                 if let Some(filename) = file_chooser.filename() {
-                    ctx.spawn_local(debugger.clone().load_rom(filename.into()));
+                    ctx.spawn_local(debugger.clone().load_rom(filename));
                 }
             }),
         );
@@ -133,12 +133,11 @@ impl Debugger {
     }
 
     async fn load_rom_fs(&self, path: PathBuf) -> Result<(), LoadRomError> {
-        let data =
-            std::fs::read(path).map_err(|err| LoadRomError::Io(format!("{}", err).into()))?;
+        let data = std::fs::read(path).map_err(|err| LoadRomError::Io(format!("{}", err)))?;
         self.emu.load_rom(data).await
     }
 
-    async fn load_rom(self: Rc<Self>, path: PathBuf) -> () {
+    async fn load_rom(self: Rc<Self>, path: PathBuf) {
         let res = utils::run_fallible(self.load_rom_fs(path), Some(&self.window)).await;
         if let Err(e) = res {
             log::error!("Failed to load rom: {}", e);

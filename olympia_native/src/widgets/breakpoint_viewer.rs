@@ -39,11 +39,11 @@ builder_struct!(
 #[derive(PartialEq, Eq, Clone, Debug, Display, Error)]
 pub enum BreakpointParseError {
     #[display(fmt = "Invalid Target {0:?}", _0)]
-    InvalidTarget(#[error(not(source))] String),
+    Target(#[error(not(source))] String),
     #[display(fmt = "Invalid value {0:?}", _0)]
-    InvalidValue(#[error(not(source))] String),
+    Value(#[error(not(source))] String),
     #[display(fmt = "Invalid target {0:?} and invalid value {1:?}", _0, _1)]
-    InvalidTargetAndValue(String, String),
+    TargetAndValue(String, String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, GBoxed, From, Into)]
@@ -90,10 +90,10 @@ impl BreakpointViewer {
         path: &gtk::TreePath,
         column_index: i32,
     ) -> Option<glib::Value> {
-        match self.widget.store.iter(path) {
-            Some(x) => Some(self.widget.store.value(&x, column_index)),
-            _ => None,
-        }
+        self.widget
+            .store
+            .iter(path)
+            .map(|x| self.widget.store.value(&x, column_index))
     }
 
     fn set_tree_value<T: ToValue>(
@@ -174,7 +174,7 @@ impl BreakpointViewer {
         let target: Option<RWTarget> = target_text.parse().ok();
         let value_text: String = self.widget.value_input.text().into();
         let value = if let Some(RWTarget::Cycles) = target {
-            let (num, multiplier) = if value_text.ends_with("s") {
+            let (num, multiplier) = if value_text.ends_with('s') {
                 let s = value_text.replace("s", "");
                 (String::from(s.as_str()), 1024 * 1024)
             } else {
@@ -204,11 +204,11 @@ impl BreakpointViewer {
         });
         match (target, condition) {
             (Some(t), Some(c)) => Ok(Breakpoint::new(t, c)),
-            (None, Some(_cond)) => Err(BreakpointParseError::InvalidTarget(target_text.clone())),
-            (Some(_target), None) => Err(BreakpointParseError::InvalidValue(value_text.clone())),
-            (None, None) => Err(BreakpointParseError::InvalidTargetAndValue(
-                target_text.clone(),
-                value_text.clone(),
+            (None, Some(_cond)) => Err(BreakpointParseError::Target(target_text)),
+            (Some(_target), None) => Err(BreakpointParseError::Value(value_text)),
+            (None, None) => Err(BreakpointParseError::TargetAndValue(
+                target_text,
+                value_text,
             )),
         }
     }
@@ -279,7 +279,7 @@ mod tests {
             .condition_picker
             .set_active_id(Some(condition));
         component.widget.add_button.clicked();
-        test_utils::next_tick(&context, &emu)
+        test_utils::next_tick(context, &emu)
     }
 
     #[test]
@@ -301,7 +301,7 @@ mod tests {
             add_breakpoint(
                 component.clone(),
                 &context,
-                emu.clone(),
+                emu,
                 "AF",
                 "NotEqual",
                 Some("40"),
@@ -311,7 +311,7 @@ mod tests {
             assert_eq!(count, 2);
             let iter = store.iter_first().unwrap();
             let active: bool = store.value(&iter, ACTIVE_COLUMN_INDEX).get().unwrap();
-            assert_eq!(active, true);
+            assert!(active);
             let monitor: String = store.value(&iter, MONITOR_COLUMN_INDEX).get().unwrap();
             assert_eq!(&monitor, "register PC");
             let condition: String = store.value(&iter, CONDITION_COLUMN_INDEX).get().unwrap();
@@ -355,7 +355,7 @@ mod tests {
             let iter = store.iter_first().unwrap();
             store.iter_next(&iter);
             let active: bool = store.value(&iter, ACTIVE_COLUMN_INDEX).get().unwrap();
-            assert_eq!(active, false);
+            assert!(!active);
         });
     }
 }

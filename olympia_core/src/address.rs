@@ -71,6 +71,7 @@ impl AddressOffset {
     /// gameboy instruction set is based on the PC or SP
     /// register, depending on the instruction
     #[doc(hidden)]
+    #[allow(clippy::branches_sharing_code)]
     pub fn resolve_internal(self, base: LiteralAddress) -> OffsetResolveResult {
         use core::convert::TryFrom;
         let raw_base = base.0;

@@ -5,6 +5,7 @@ use derive_more::{Display, Error, From};
 use olympia_engine::disassembler::DisassemblyFormat;
 
 use std::io;
+use std::path::Path;
 use std::path::PathBuf;
 
 use olympia_engine::gameboy;
@@ -106,7 +107,7 @@ fn find_err_out(args: &OlympiaArgs) -> Box<dyn io::Write> {
     }
 }
 
-fn parse_cartridge(rom_path: &PathBuf) -> OlympiaResult<rom::Cartridge> {
+fn parse_cartridge(rom_path: &Path) -> OlympiaResult<rom::Cartridge> {
     let data = std::fs::read(rom_path)?;
     let cartridge = rom::Cartridge::from_data(data)?;
     Ok(cartridge)

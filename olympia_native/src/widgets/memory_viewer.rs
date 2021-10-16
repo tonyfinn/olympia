@@ -61,7 +61,8 @@ impl MemoryViewerRow {
             let memory_value = result
                 .data
                 .get(address_value_index as usize)
-                .and_then(|x| x.clone());
+                .copied()
+                .flatten();
             let is_pc = offset + i == pc;
             let formatted = match memory_value {
                 Some(val) => format!("{:02X}", val),
@@ -104,7 +105,7 @@ impl MemoryViewer {
         let viewer = Rc::new(MemoryViewer {
             context,
             emu,
-            rows: rows,
+            rows,
             offset: RefCell::new(0),
             widget,
         });
@@ -128,11 +129,10 @@ impl MemoryViewer {
     }
 
     fn address_range(&self) -> (u16, u16) {
-        let start_addr = self.offset.borrow().clone();
+        let start_addr = *self.offset.borrow();
         let end_addr = self
             .offset
             .borrow()
-            .clone()
             .saturating_add(self.rows.len() as u16 * 0x10);
         (start_addr, end_addr)
     }
@@ -199,9 +199,12 @@ impl MemoryViewer {
             let cell_index = addr_value & 0xF;
             let row_index = (address_of_row - start_addr) / 0x10;
             log::trace!("Setting row {} cell {} to {}", row_index, cell_index, val);
-            self.row(usize::from(row_index))
+            if let Some(cell) = self
+                .row(usize::from(row_index))
                 .and_then(|row| row.cell(usize::from(cell_index)))
-                .map(|cell| cell.set_text(&format!("{:02X}", val)));
+            {
+                cell.set_text(&format!("{:02X}", val))
+            }
         }
     }
 
@@ -233,9 +236,8 @@ impl MemoryViewer {
     async fn refresh(self: Rc<Self>) {
         let (start_addr, end_addr) = self.address_range();
         let query_result = self.emu.query_memory(start_addr, end_addr).await;
-        match query_result {
-            Ok(mem_response) => self.render(self.emu.cached_pc(), mem_response),
-            Err(_) => {}
+        if let Ok(mem_response) = query_result {
+            self.render(self.emu.cached_pc(), mem_response)
         }
     }
 
@@ -267,14 +269,16 @@ mod test {
     fn gtk_test_initial_load() {
         test_utils::with_unloaded_emu(|context, emu| {
             let builder = gtk::Builder::from_string(include_str!("../../res/memory.ui"));
-            let component = MemoryViewer::from_builder(&builder, context.clone(), emu.clone(), 16);
+            let component = MemoryViewer::from_builder(&builder, context, emu, 16);
 
             for i in 0..16 {
-                let row = component.row(i).expect(&format!("No row found at {}", i));
+                let row = component
+                    .row(i)
+                    .unwrap_or_else(|| panic!("No row found at {}", i));
                 for j in 0..16 {
                     let col = row
                         .cell(j)
-                        .expect(&format!("No cell found at row {} column {}", i, j));
+                        .unwrap_or_else(|| panic!("No cell found at row {} column {}", i, j));
                     assert_eq!(col.text(), "--");
                 }
             }
@@ -295,11 +299,13 @@ mod test {
             test_utils::next_tick(&context, &emu);
 
             for i in 0..16 {
-                let row = component.row(i).expect(&format!("No row found at {}", i));
+                let row = component
+                    .row(i)
+                    .unwrap_or_else(|| panic!("No row found at {}", i));
                 for j in 0..16 {
                     let col = row
                         .cell(j)
-                        .expect(&format!("No cell found at row {} column {}", i, j));
+                        .unwrap_or_else(|| panic!("No cell found at row {} column {}", i, j));
                     let actual_value = memory_data.data.get((i * 0x10) + j).unwrap().unwrap();
                     assert_eq!(col.text().as_str(), format!("{:02X}", actual_value));
                 }
@@ -364,11 +370,13 @@ mod test {
             test_utils::next_tick(&context, &emu);
 
             for i in 0..16 {
-                let row = component.row(i).expect(&format!("No row found at {}", i));
+                let row = component
+                    .row(i)
+                    .unwrap_or_else(|| panic!("No row found at {}", i));
                 for j in 0..16 {
                     let col = row
                         .cell(j)
-                        .expect(&format!("No cell found at row {} column {}", i, j));
+                        .unwrap_or_else(|| panic!("No cell found at row {} column {}", i, j));
                     let col_text = col.text();
                     assert_eq!(
                         col_text.as_str(),

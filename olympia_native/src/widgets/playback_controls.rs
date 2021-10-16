@@ -52,7 +52,7 @@ impl PlaybackControls {
         PlaybackControls::from_widget(context, emu, widget)
     }
 
-    async fn step(self: Rc<Self>) -> () {
+    async fn step(self: Rc<Self>) {
         match utils::run_fallible(self.emu.step(), None).await {
             Ok(_) => {}
             Err(e) => {
@@ -61,7 +61,7 @@ impl PlaybackControls {
         };
     }
 
-    async fn set_mode(self: Rc<Self>, mode: ExecMode) -> () {
+    async fn set_mode(self: Rc<Self>, mode: ExecMode) {
         utils::run_infallible(self.emu.set_mode(mode)).await;
     }
 
@@ -130,13 +130,13 @@ mod tests {
     fn gtk_test_from_builder_config() {
         test_utils::with_unloaded_emu(|context, emu| {
             let builder = gtk::Builder::from_string(include_str!("../../res/debugger.ui"));
-            let component = PlaybackControls::from_builder(&builder, context.clone(), emu.clone());
+            let component = PlaybackControls::from_builder(&builder, context, emu);
 
-            assert_eq!(false, component.widget.play.get_sensitive());
-            assert_eq!(false, component.widget.play.is_active());
-            assert_eq!(false, component.widget.step.get_sensitive());
-            assert_eq!(false, component.widget.fast.get_sensitive());
-            assert_eq!(false, component.widget.fast.is_active());
+            assert!(!component.widget.play.get_sensitive());
+            assert!(!component.widget.play.is_active());
+            assert!(!component.widget.step.get_sensitive());
+            assert!(!component.widget.fast.get_sensitive());
+            assert!(!component.widget.fast.is_active());
         });
     }
 
@@ -151,11 +151,11 @@ mod tests {
             };
             test_utils::wait_for_task(&context, task);
 
-            assert_eq!(true, component.widget.play.get_sensitive());
-            assert_eq!(false, component.widget.play.is_active());
-            assert_eq!(true, component.widget.step.get_sensitive());
-            assert_eq!(true, component.widget.fast.get_sensitive());
-            assert_eq!(false, component.widget.fast.is_active());
+            assert!(component.widget.play.get_sensitive());
+            assert!(!component.widget.play.is_active());
+            assert!(component.widget.step.get_sensitive());
+            assert!(component.widget.fast.get_sensitive());
+            assert!(!component.widget.fast.is_active());
         });
     }
 
@@ -174,21 +174,21 @@ mod tests {
 
             test_utils::next_tick(&context, &emu);
 
-            assert_eq!(true, component.widget.play.get_sensitive());
-            assert_eq!(true, component.widget.play.is_active());
-            assert_eq!(true, component.widget.fast.get_sensitive());
-            assert_eq!(false, component.widget.fast.is_active());
-            assert_eq!(false, component.widget.step.get_sensitive());
+            assert!(component.widget.play.get_sensitive());
+            assert!(component.widget.play.is_active());
+            assert!(component.widget.fast.get_sensitive());
+            assert!(!component.widget.fast.is_active());
+            assert!(!component.widget.step.get_sensitive());
 
             component.widget.play.set_active(false);
 
             test_utils::next_tick(&context, &emu);
 
-            assert_eq!(true, component.widget.play.get_sensitive());
-            assert_eq!(false, component.widget.play.is_active());
-            assert_eq!(true, component.widget.fast.get_sensitive());
-            assert_eq!(false, component.widget.fast.is_active());
-            assert_eq!(true, component.widget.step.get_sensitive());
+            assert!(component.widget.play.get_sensitive());
+            assert!(!component.widget.play.is_active());
+            assert!(component.widget.fast.get_sensitive());
+            assert!(!component.widget.fast.is_active());
+            assert!(component.widget.step.get_sensitive());
         });
     }
 
@@ -207,20 +207,20 @@ mod tests {
 
             test_utils::next_tick(&context, &emu);
 
-            assert_eq!(true, component.widget.play.get_sensitive());
-            assert_eq!(false, component.widget.play.is_active());
-            assert_eq!(true, component.widget.fast.get_sensitive());
-            assert_eq!(true, component.widget.fast.is_active());
-            assert_eq!(false, component.widget.step.get_sensitive());
+            assert!(component.widget.play.get_sensitive());
+            assert!(!component.widget.play.is_active());
+            assert!(component.widget.fast.get_sensitive());
+            assert!(component.widget.fast.is_active());
+            assert!(!component.widget.step.get_sensitive());
 
             component.widget.fast.set_active(false);
             test_utils::next_tick(&context, &emu);
 
-            assert_eq!(true, component.widget.play.get_sensitive());
-            assert_eq!(false, component.widget.play.is_active());
-            assert_eq!(true, component.widget.fast.get_sensitive());
-            assert_eq!(false, component.widget.fast.is_active());
-            assert_eq!(true, component.widget.step.get_sensitive());
+            assert!(component.widget.play.get_sensitive());
+            assert!(!component.widget.play.is_active());
+            assert!(component.widget.fast.get_sensitive());
+            assert!(!component.widget.fast.is_active());
+            assert!(component.widget.step.get_sensitive());
         });
     }
 

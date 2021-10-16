@@ -37,7 +37,7 @@ impl EmulatorState {
 
     pub(crate) fn step(&mut self) -> remote::Result<()> {
         if let Some(gb) = self.gameboy.as_mut() {
-            gb.step().map_err(|e| remote::Error::Exec(e))
+            gb.step().map_err(remote::Error::Exec)
         } else {
             Err(remote::Error::NoRomLoaded)
         }
@@ -47,7 +47,7 @@ impl EmulatorState {
         let gb = GameBoy::new(Cartridge::from_data(data)?, GameBoyModel::GameBoy);
         gb.events.on(Box::new(
             clone!(@weak self.monitor as monitor => move |evt| {
-                monitor.borrow_mut().handle_event(&evt);
+                monitor.borrow_mut().handle_event(evt);
             }),
         ));
         self.gameboy = Some(gb);
@@ -155,8 +155,7 @@ impl EmulatorThread {
     }
 
     fn handle_commands(&mut self) -> Result<(), SenderClosed> {
-        let mut iter = self.rx.try_iter();
-        while let Some((id, cmd)) = iter.next() {
+        for (id, cmd) in self.rx.try_iter() {
             let resp: EmulatorResponse = match cmd {
                 EmulatorCommand::LoadRom(data) => {
                     let resp = EmulatorResponse::LoadRom(EmulatorThread::load_rom(
@@ -236,14 +235,14 @@ impl EmulatorThread {
         gb.step()?;
         if let BreakpointState::HitBreakpoint(bp) = monitor.borrow().state() {
             log::info!(target: "emu_thread", "Hit breakpoint: {:?}", bp);
-            return Ok(ExecMode::HitBreakpoint(bp.clone()));
+            return Ok(ExecMode::HitBreakpoint(bp));
         }
         Ok(inital_mode)
     }
 
     fn run(mut self) {
         loop {
-            if let Err(_) = self.handle_commands() {
+            if self.handle_commands().is_err() {
                 break;
             }
             if let Some(gb) = self.state.gameboy.as_mut() {

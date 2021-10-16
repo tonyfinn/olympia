@@ -103,7 +103,7 @@ impl RemoteEventListeners for GlibAdapterEventListeners {
         let map = self
             .listeners
             .entry(event_type_id)
-            .or_insert_with(|| HashMap::new());
+            .or_insert_with(HashMap::new);
         map.insert(event_handler_id, wrapped);
         self.next_listener_id += 1;
 
@@ -119,7 +119,7 @@ impl RemoteEventListeners for GlibAdapterEventListeners {
             for (id, listener) in listeners.iter_mut() {
                 let send_result = listener.send(evt.clone());
                 if send_result.is_err() {
-                    listener_ids_to_remove.push(id.clone());
+                    listener_ids_to_remove.push(*id);
                     log::warn!(target: "emu_thread", "Removing listener {:?} due to closed channel", id);
                 }
             }
@@ -132,7 +132,7 @@ impl RemoteEventListeners for GlibAdapterEventListeners {
 
 pub(crate) fn glib_remote_emulator(context: glib::MainContext) -> Rc<RemoteEmulator> {
     let channel = GlibEmulatorChannel::new(context.clone());
-    let glib_listeners = GlibAdapterEventListeners::new(context.clone());
+    let glib_listeners = GlibAdapterEventListeners::new(context);
     Rc::new(RemoteEmulator::new(
         Box::new(glib_listeners),
         Box::new(channel),
@@ -169,7 +169,7 @@ mod tests {
             let (f, events) = track_event();
             emu.on::<RomLoadedEvent, _>(f);
             let task = async { emu.load_rom(test_utils::fizzbuzz_rom()).await };
-            let resp = test_utils::wait_for_task(&context, task);
+            let resp = test_utils::wait_for_task(context, task);
             assert_eq!(resp, Ok(()));
             assert_eq!(events.borrow().clone(), vec![RomLoadedEvent]);
         })
@@ -193,7 +193,7 @@ mod tests {
             let task = async {
                 emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
             };
-            test_utils::wait_for_task(&context, task);
+            test_utils::wait_for_task(context, task);
             assert_eq!(
                 events.borrow().clone(),
                 vec![ModeChangeEvent::new(ExecMode::Unloaded, ExecMode::Paused)]
@@ -211,7 +211,7 @@ mod tests {
                 emu.load_rom(test_utils::fizzbuzz_rom()).await.unwrap();
                 emu.step().await
             };
-            let step_result = test_utils::wait_for_task(&context, task);
+            let step_result = test_utils::wait_for_task(context, task);
             assert_eq!(events.borrow().clone(), vec![ManualStepEvent]);
             assert_eq!(step_result, Ok(()))
         });
@@ -222,7 +222,7 @@ mod tests {
         test_utils::with_context(|context| {
             let emu = test_utils::get_unloaded_remote_emu(context.clone());
             let task = async { emu.step().await };
-            let step_result = test_utils::wait_for_task(&context, task);
+            let step_result = test_utils::wait_for_task(context, task);
             assert_eq!(step_result, Err(remote::Error::NoRomLoaded))
         });
     }
@@ -235,8 +235,8 @@ mod tests {
                 emu.step().await.unwrap();
                 emu.query_memory(0x00, 0x04).await
             };
-            let memory_result = test_utils::wait_for_task(&context, task);
-            let expected_data = vec![201, 0, 0, 0, 0].into_iter().map(|x| Some(x)).collect();
+            let memory_result = test_utils::wait_for_task(context, task);
+            let expected_data = vec![201, 0, 0, 0, 0].into_iter().map(Some).collect();
             assert_eq!(
                 memory_result,
                 Ok(QueryMemoryResponse {
@@ -252,7 +252,7 @@ mod tests {
         test_utils::with_context(|context| {
             let emu = test_utils::get_unloaded_remote_emu(context.clone());
             let task = async { emu.query_memory(0x00, 0x04).await };
-            let memory_result = test_utils::wait_for_task(&context, task);
+            let memory_result = test_utils::wait_for_task(context, task);
             assert_eq!(memory_result, Err(remote::Error::NoRomLoaded))
         });
     }
@@ -265,7 +265,7 @@ mod tests {
                 emu.step().await.unwrap();
                 emu.query_registers().await
             };
-            let register_result = test_utils::wait_for_task(&context, task);
+            let register_result = test_utils::wait_for_task(context, task);
             assert_eq!(
                 register_result,
                 Ok(QueryRegistersResponse {
@@ -285,7 +285,7 @@ mod tests {
         test_utils::with_context(|context| {
             let emu = test_utils::get_unloaded_remote_emu(context.clone());
             let task = async { emu.query_registers().await };
-            let register_result = test_utils::wait_for_task(&context, task);
+            let register_result = test_utils::wait_for_task(context, task);
             assert_eq!(register_result, Err(remote::Error::NoRomLoaded))
         });
     }

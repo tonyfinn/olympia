@@ -618,7 +618,7 @@ mod tests {
         );
         assert_eq!(cartridge.write(0x1234, 0x22), Ok(()));
         assert_eq!(cartridge.read(0x1234).unwrap(), 0x12);
-        assert_eq!(cartridge.controller.has_ram(), false);
+        assert!(!cartridge.controller.has_ram());
         assert_eq!(cartridge.controller.ram_size(), 0);
     }
 
@@ -640,7 +640,7 @@ mod tests {
             cartridge.read(0xA111),
             Err(CartridgeIOError::NoCartridgeRam)
         );
-        assert_eq!(cartridge.controller.has_ram(), false);
+        assert!(!cartridge.controller.has_ram());
         assert_eq!(cartridge.controller.ram_size(), 0);
     }
 
@@ -660,7 +660,7 @@ mod tests {
             cartridge.read(0xA111),
             Err(CartridgeIOError::CartridgeRamDisabled)
         );
-        assert_eq!(cartridge.controller.has_ram(), true);
+        assert!(cartridge.controller.has_ram());
         assert_eq!(cartridge.controller.ram_size(), 8192);
         Ok(())
     }
@@ -737,7 +737,7 @@ mod tests {
             0x12,
             "High select bits not used to load static ROM (bank 17)"
         );
-        assert_eq!(cartridge.controller.has_ram(), true);
+        assert!(cartridge.controller.has_ram());
         assert_eq!(cartridge.controller.ram_size(), 32 * 1024);
         Ok(())
     }
@@ -757,7 +757,7 @@ mod tests {
         assert_ne!(cartridge.read(0xA111), Ok(0x43));
         cartridge.write(0x4001, 0x0)?;
         assert_eq!(cartridge.read(0xA111), Ok(0x43));
-        assert_eq!(cartridge.controller.has_ram(), true);
+        assert!(cartridge.controller.has_ram());
         assert_eq!(cartridge.controller.ram_size(), 32 * 1024);
         Ok(())
     }
@@ -815,7 +815,7 @@ mod tests {
             Err(CartridgeIOError::CartridgeRamDisabled)
         );
         assert_eq!(cartridge.write(0x4001, 0x55), Ok(()));
-        assert_eq!(cartridge.controller.has_ram(), true);
+        assert!(cartridge.controller.has_ram());
         assert_eq!(cartridge.controller.ram_size(), 512);
     }
 
@@ -839,7 +839,7 @@ mod tests {
             cartridge.read(0xA111),
             Err(CartridgeIOError::CartridgeRamDisabled)
         );
-        assert_eq!(cartridge.controller.has_ram(), true);
+        assert!(cartridge.controller.has_ram());
         assert_eq!(cartridge.controller.ram_size(), 512);
         Ok(())
     }

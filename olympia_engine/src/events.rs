@@ -137,7 +137,7 @@ impl From<PPUEvent> for Event {
 }
 
 /// A method to handle a local event
-pub type EventHandler<T> = Box<dyn Fn(&T) -> () + 'static>;
+pub type EventHandler<T> = Box<dyn Fn(&T) + 'static>;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
 /// An identifer for a event handler
@@ -166,7 +166,7 @@ impl<'a, T> EventEmitter<T> {
     /// Listen to events of a given type
     pub fn on(&self, f: EventHandler<T>) -> EventHandlerId {
         let event_handler_id = self.next_handler_id();
-        if self.is_emitting.borrow().clone() {
+        if *self.is_emitting.borrow() {
             self.queue_handler(event_handler_id, f)
         } else {
             self.register_handler(event_handler_id, f)
@@ -176,7 +176,7 @@ impl<'a, T> EventEmitter<T> {
 
     /// Stop listening to a given event
     pub fn off(&self, id: EventHandlerId) {
-        if self.is_emitting.borrow().clone() {
+        if *self.is_emitting.borrow() {
             self.queued_removals.borrow_mut().push(id);
         } else {
             self.event_handlers.borrow_mut().remove(&id);
@@ -213,6 +213,12 @@ impl<'a, T> EventEmitter<T> {
         for id in self.queued_removals.borrow_mut().drain(..) {
             event_handlers.remove(&id);
         }
+    }
+}
+
+impl<'a, T> Default for EventEmitter<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

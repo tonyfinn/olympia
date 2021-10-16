@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 
@@ -115,7 +117,7 @@ impl Sprite {
     }
 }
 
-pub(crate) struct PPU {
+pub(crate) struct Ppu {
     framebuffer: [GBPixel; (VISIBLE_LINES as usize) * (VISIBLE_WIDTH as usize)],
     pixel_queue: VecDeque<GBPixel>,
     phase: PPUPhase,
@@ -126,9 +128,9 @@ pub(crate) struct PPU {
     pub(crate) events: EventEmitter<PPUEvent>,
 }
 
-impl PPU {
-    fn new() -> PPU {
-        PPU {
+impl Ppu {
+    fn new() -> Ppu {
+        Ppu {
             framebuffer: [GBPixel::default(); (VISIBLE_LINES as usize) * (VISIBLE_WIDTH as usize)],
             pixel_queue: VecDeque::new(),
             phase: PPUPhase::ObjectScan,
@@ -229,21 +231,27 @@ impl PPU {
             trace!(target: "ppu", "LYC Interrupt");
             Interrupt::LCDStatus.set(&mut mem.registers_mut().iflag);
         }
-        if self.current_line == VISIBLE_LINES {
-            self.events.emit(VBlankEvent.into());
-            trace!(target: "ppu", "VBLANK Start");
-            self.phase = PPUPhase::VBlank;
-            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_VBLANK;
-            Interrupt::VBlank.set(&mut mem.registers_mut().iflag);
-            if (mem.registers().lcdstat & LCDSTAT_VBLANK_INTERRUPT) != 0 {
-                Interrupt::LCDStatus.set(&mut mem.registers_mut().iflag);
+        match self.current_line.cmp(&VISIBLE_LINES) {
+            Ordering::Equal => {
+                self.events.emit(VBlankEvent.into());
+                trace!(target: "ppu", "VBLANK Start");
+                self.phase = PPUPhase::VBlank;
+                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_VBLANK;
+                Interrupt::VBlank.set(&mut mem.registers_mut().iflag);
+                if (mem.registers().lcdstat & LCDSTAT_VBLANK_INTERRUPT) != 0 {
+                    Interrupt::LCDStatus.set(&mut mem.registers_mut().iflag);
+                }
             }
-        } else if self.current_line < VISIBLE_LINES {
-            trace!(target: "ppu", "Object Scan");
-            self.phase = PPUPhase::ObjectScan;
-            mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_OAMSCAN;
-            if (mem.registers().lcdstat & LCDSTAT_OAM_SCAN_INTERRUPT) != 0 {
-                Interrupt::LCDStatus.set(&mut mem.registers_mut().iflag);
+            Ordering::Less => {
+                trace!(target: "ppu", "Object Scan");
+                self.phase = PPUPhase::ObjectScan;
+                mem.registers_mut().lcdstat = (mem.registers().lcdstat & !MODE_MASK) | MODE_OAMSCAN;
+                if (mem.registers().lcdstat & LCDSTAT_OAM_SCAN_INTERRUPT) != 0 {
+                    Interrupt::LCDStatus.set(&mut mem.registers_mut().iflag);
+                }
+            }
+            Ordering::Greater => {
+                // Vblank phase, no action
             }
         }
         mem.registers_mut().ly = self.current_line;
@@ -397,9 +405,9 @@ impl PPU {
     }
 }
 
-impl Default for PPU {
-    fn default() -> PPU {
-        PPU::new()
+impl Default for Ppu {
+    fn default() -> Ppu {
+        Ppu::new()
     }
 }
 
@@ -434,7 +442,7 @@ mod test {
 
     #[test]
     fn hblank_end_update_phase() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
@@ -451,7 +459,7 @@ mod test {
 
     #[test]
     fn hblank_end_interrupt() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
@@ -465,7 +473,7 @@ mod test {
 
     #[test]
     fn lyc_match_eq_interrupt() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
@@ -481,7 +489,7 @@ mod test {
 
     #[test]
     fn lyc_no_match_eq_no_interrupt() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 101;
@@ -496,7 +504,7 @@ mod test {
 
     #[test]
     fn lyc_match_ne_interrupt() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 101;
@@ -511,7 +519,7 @@ mod test {
 
     #[test]
     fn lyc_no_match_ne_no_interrupt() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = 100;
@@ -525,7 +533,7 @@ mod test {
 
     #[test]
     fn hblank_update_phase() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::Drawing;
         ppu.current_line = 101;
@@ -539,7 +547,7 @@ mod test {
 
     #[test]
     fn hblank_interrupt() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::Drawing;
         ppu.current_line = 101;
@@ -554,7 +562,7 @@ mod test {
 
     #[test]
     fn hblank_event() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         let expected_pixels = vec![
             GBPixel::new(Palette::Background, 0),
@@ -588,7 +596,7 @@ mod test {
 
     #[test]
     fn vblank_update_phase() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = VISIBLE_LINES - 1;
@@ -602,7 +610,7 @@ mod test {
 
     #[test]
     fn vblank_end_update_phase() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = TOTAL_LINES - 1;
@@ -619,7 +627,7 @@ mod test {
 
     #[test]
     fn vblank_interrupt() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::HBlank;
         ppu.current_line = VISIBLE_LINES - 1;
@@ -640,7 +648,7 @@ mod test {
 
     #[test]
     fn vblank_event() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         let recieved_events = Rc::new(RefCell::new(Vec::new()));
         let recvd_events_clone = recieved_events.clone();
@@ -666,7 +674,7 @@ mod test {
 
     #[test]
     fn scan_end_update_phase() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
         ppu.phase = PPUPhase::ObjectScan;
         ppu.current_line = 100;
@@ -683,7 +691,7 @@ mod test {
 
     #[test]
     fn draw_phase_basic_bg() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
 
         memory.registers_mut().lcdc = LCDC_ENABLED;
@@ -717,7 +725,7 @@ mod test {
 
     #[test]
     fn draw_phase_bg_low_tiles_no_window() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
 
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_LOW_BG_TILES;
@@ -733,7 +741,7 @@ mod test {
 
     #[test]
     fn draw_phase_bg_high_map_low_tiles_no_window() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
 
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_LOW_BG_TILES | LCDC_HIGH_BG_MAP;
@@ -749,7 +757,7 @@ mod test {
 
     #[test]
     fn draw_phase_window_transition() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
 
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_WINDOW_ENABLED | LCDC_HIGH_BG_MAP;
@@ -788,7 +796,7 @@ mod test {
 
     #[test]
     fn draw_phase_window_transition_window_high() {
-        let mut ppu = PPU::new();
+        let mut ppu = Ppu::new();
         let mut memory = create_memory();
 
         memory.registers_mut().lcdc = LCDC_ENABLED | LCDC_WINDOW_ENABLED | LCDC_HIGH_WINDOW_MAP;

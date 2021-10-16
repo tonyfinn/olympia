@@ -174,7 +174,7 @@ impl RemoteEmulator {
         let wrapper = AdapterEventWrapper::new(events);
         let adapter = InternalEmulatorAdapter::new(channel, wrapper);
         RemoteEmulator {
-            adapter: adapter,
+            adapter,
             cached_registers: RefCell::new(QueryRegistersResponse::default()),
         }
     }
@@ -197,7 +197,7 @@ impl RemoteEmulator {
     pub fn on_widget<E, F, W>(&self, widget: Rc<W>, handler: F) -> EventHandlerId
     where
         W: 'static,
-        F: Fn(Rc<W>, E) -> () + 'static,
+        F: Fn(Rc<W>, E) + 'static,
         E: TryFrom<RemoteEvent> + 'static,
     {
         let weak = Rc::downgrade(&widget);

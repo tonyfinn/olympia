@@ -1,3 +1,5 @@
+#![allow(clippy::bool_assert_comparison)]
+
 use crate::gameboy::{testutils::*, StepResult};
 use crate::registers;
 

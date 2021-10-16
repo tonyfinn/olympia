@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::io;
 use std::ops;
 
@@ -28,7 +29,7 @@ pub enum RangeParseError {
 }
 
 fn parse_bound(src: &str) -> Result<ops::Bound<u16>, RangeParseError> {
-    if src == "" {
+    if src.is_empty() {
         Ok(ops::Bound::Unbounded)
     } else {
         let num = parse_number(src);
@@ -64,16 +65,16 @@ fn parse_range(src: &str) -> Result<ByteRange, RangeParseError> {
         }
     }
     let bounds: Vec<_> = src.split(':').collect();
-    if bounds.len() > 2 {
-        Err(RangeParseError::ExtraSeperator)
-    } else if bounds.len() < 2 {
-        Err(RangeParseError::NoSeperator)
-    } else {
-        let lower_bound = parse_bound(bounds.get(0).unwrap().trim())
-            .map_err(|_| RangeParseError::LowerBoundInvalid)?;
-        let upper_bound = parse_bound(bounds.get(1).unwrap().trim())
-            .map_err(|_| RangeParseError::UpperBoundInvalid)?;
-        Ok((lower_bound, upper_bound))
+    match bounds.len().cmp(&2) {
+        Ordering::Less => Err(RangeParseError::NoSeperator),
+        Ordering::Greater => Err(RangeParseError::ExtraSeperator),
+        Ordering::Equal => {
+            let lower_bound = parse_bound(bounds.get(0).unwrap().trim())
+                .map_err(|_| RangeParseError::LowerBoundInvalid)?;
+            let upper_bound = parse_bound(bounds.get(1).unwrap().trim())
+                .map_err(|_| RangeParseError::UpperBoundInvalid)?;
+            Ok((lower_bound, upper_bound))
+        }
     }
 }
 
@@ -273,7 +274,7 @@ impl<'a> CliDebugger<'a> {
 
             let trimmed_input = input.trim();
 
-            let parsed_command = if trimmed_input == "" {
+            let parsed_command = if trimmed_input.is_empty() {
                 let empty_iter: std::slice::Iter<&str> = [].iter();
                 DebugCommand::from_iter_safe(empty_iter)
             } else {

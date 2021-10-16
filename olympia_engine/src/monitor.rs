@@ -140,12 +140,10 @@ impl FromStr for RWTarget {
         }
         parse_number(s)
             .map(|val| address::LiteralAddress(val).into())
-            .map_err(|_| ())
             .or_else(|_| {
                 s.to_uppercase()
                     .parse::<registers::WordRegister>()
                     .map(|wr| wr.into())
-                    .map_err(|_| ())
             })
             .or_else(|_| {
                 s.to_uppercase()
@@ -376,5 +374,11 @@ impl DebugMonitor {
             }
         }
         false
+    }
+}
+
+impl Default for DebugMonitor {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -33,7 +33,7 @@ impl EmulatorApp {
         });
 
         self.gtk_app.connect_activate(|app| {
-            let debugger_window = screens::Debugger::new(&app);
+            let debugger_window = screens::Debugger::new(app);
             debugger_window.show_all();
         });
     }

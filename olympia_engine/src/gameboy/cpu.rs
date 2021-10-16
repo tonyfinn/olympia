@@ -159,7 +159,7 @@ impl Registers {
             registers::WordRegister::PC => self.pc = value,
         }
         self.events
-            .emit(events::RegisterWriteEvent::new(reg, value).into());
+            .emit(events::RegisterWriteEvent::new(reg, value));
     }
 
     fn write_u16(&mut self, reg: registers::WordRegister, value: u16) {
@@ -402,7 +402,7 @@ mod tests {
         let handler_log = Rc::clone(&event_log);
 
         let handler = move |evt: &events::RegisterWriteEvent| {
-            handler_log.borrow_mut().push(evt.clone());
+            handler_log.borrow_mut().push(*evt);
         };
 
         let mut cpu = Cpu::new(GameBoyModel::GameBoy, rom::TargetConsole::GameBoyOnly);
@@ -418,8 +418,8 @@ mod tests {
         assert_eq!(
             *actual_events,
             vec![
-                events::RegisterWriteEvent::new(registers::WordRegister::BC, 0x2365).into(),
-                events::RegisterWriteEvent::new(registers::WordRegister::DE, 0x4664).into(),
+                events::RegisterWriteEvent::new(registers::WordRegister::BC, 0x2365),
+                events::RegisterWriteEvent::new(registers::WordRegister::DE, 0x4664),
             ]
         );
     }

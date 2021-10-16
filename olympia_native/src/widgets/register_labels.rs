@@ -125,7 +125,7 @@ impl RegisterLabels {
         }
     }
 
-    async fn update(self: Rc<Self>) -> () {
+    async fn update(self: Rc<Self>) {
         let register_result = self.emu.query_registers().await;
         match register_result {
             Ok(registers) => self.render(registers),
@@ -204,7 +204,7 @@ mod tests {
     fn gtk_handle_write() {
         test_utils::with_loaded_emu(|context, emu| {
             let builder = gtk::Builder::from_string(include_str!("../../res/registers.ui"));
-            let component = RegisterLabels::from_builder(&builder, context.clone(), emu.clone());
+            let component = RegisterLabels::from_builder(&builder, context, emu);
 
             component.handle_register_write(WordRegister::BC, 0x8080);
 

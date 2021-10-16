@@ -205,7 +205,7 @@ fn parse_instruction(
 ) -> errors::InstructionResult<()> {
     let meta = attribute
         .parse_meta()
-        .or_else(|err| Err(errors::InstructionError::SynError(err)))?;
+        .map_err(errors::InstructionError::SynError)?;
     match meta {
         syn::Meta::List(list) => {
             let mut errors = Vec::new();
@@ -272,7 +272,7 @@ fn build_disassemble(
             }
         })
     } else if params.len() == 1 {
-        let param_name = &params.values().nth(0).unwrap().name;
+        let param_name = &params.values().next().unwrap().name;
         Ok(quote! {
             impl ::olympia_core::derive::Disassemble for #name {
                 fn disassemble(&self) -> ::alloc::string::String {
@@ -280,29 +280,33 @@ fn build_disassemble(
                 }
             }
         })
-    } else if src.is_some() && dest.is_some() && addsrc.is_none() {
-        let src_name = &src.unwrap().name;
-        let dest_name = &dest.unwrap().name;
-        Ok(quote! {
-            impl ::olympia_core::derive::Disassemble for #name {
-                fn disassemble(&self) -> ::alloc::string::String {
-                    format!("{} {}, {}", #label, #disassemble(&self.#dest_name), #disassemble(&self.#src_name))
-                }
-            }
-        })
-    } else if src.is_some() && dest.is_some() && addsrc.is_some() {
-        let src_name = &src.unwrap().name;
-        let addsrc_name = &addsrc.unwrap().name;
-        let dest_name = &dest.unwrap().name;
-        Ok(quote! {
-            impl ::olympia_core::derive::Disassemble for #name {
-                fn disassemble(&self) -> ::alloc::string::String {
-                    format!("{} {}, {} + {}", #label, #disassemble(&self.#dest_name), #disassemble(&self.#src_name), #disassemble(&self.#addsrc_name))
-                }
-            }
-        })
     } else {
-        Err(errors::InstructionError::InvalidFieldCombination)
+        match (src, dest, addsrc) {
+            (Some(src), Some(dest), None) => {
+                let src_name = &src.name;
+                let dest_name = &dest.name;
+                Ok(quote! {
+                    impl ::olympia_core::derive::Disassemble for #name {
+                        fn disassemble(&self) -> ::alloc::string::String {
+                            format!("{} {}, {}", #label, #disassemble(&self.#dest_name), #disassemble(&self.#src_name))
+                        }
+                    }
+                })
+            }
+            (Some(src), Some(dest), Some(addsrc)) => {
+                let src_name = &src.name;
+                let dest_name = &dest.name;
+                let addsrc_name = &addsrc.name;
+                Ok(quote! {
+                    impl ::olympia_core::derive::Disassemble for #name {
+                        fn disassemble(&self) -> ::alloc::string::String {
+                            format!("{} {}, {} + {}", #label, #disassemble(&self.#dest_name), #disassemble(&self.#src_name), #disassemble(&self.#addsrc_name))
+                        }
+                    }
+                })
+            }
+            _ => Err(errors::InstructionError::InvalidFieldCombination),
+        }
     }
 }
 
@@ -328,7 +332,7 @@ fn build_opcode_struct(
 
     let field_names: Vec<&syn::Ident> = fields.iter().map(|(ident, _)| ident).collect();
 
-    let into_instruction = build_into_instruction(instruction_name, &instr);
+    let into_instruction = build_into_instruction(instruction_name, instr);
 
     quote! {
         #visibility struct #name {
@@ -382,14 +386,14 @@ fn parse_all(input: &DeriveInput) -> syn::Result<InstructionBuilder> {
         if attribute.path.is_ident("olympia") {
             instruction_builder.span = Some(attribute.span());
             instr_span = attribute.span();
-            let result = parse_instruction(&mut instruction_builder, &attribute);
+            let result = parse_instruction(&mut instruction_builder, attribute);
             if let Some(err) = result.err() {
                 errors.push(err.to_syn_error(attribute.span()));
             }
         }
     }
     instruction_builder.base_opcode = instruction_builder.opcode_mask.map(base_opcode);
-    let field_iter = parse_fields(&input).map_err(|e| syn::Error::new(instr_span, e))?;
+    let field_iter = parse_fields(input).map_err(|e| syn::Error::new(instr_span, e))?;
     let mut params = Vec::new();
     for field in field_iter {
         match params::parse_param(&field) {

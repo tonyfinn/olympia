@@ -297,7 +297,7 @@ impl Memory {
             self.data
                 .registers
                 .read(addr)
-                .ok_or_else(|| MemoryError::UnmappedAddress(addr))
+                .ok_or(MemoryError::UnmappedAddress(addr))
         } else {
             Err(MemoryError::UnmappedAddress(addr))
         }
@@ -368,7 +368,7 @@ impl Memory {
     pub(crate) fn offset_iter(&self, start: address::LiteralAddress) -> MemoryIterator {
         MemoryIterator {
             addr: start,
-            mem: &self,
+            mem: self,
         }
     }
 }
@@ -547,7 +547,7 @@ mod tests {
         let handler_log = Rc::clone(&event_log);
 
         let handler = move |evt: &events::MemoryEvent| {
-            handler_log.borrow_mut().push(evt.clone());
+            handler_log.borrow_mut().push(*evt);
         };
 
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
@@ -560,7 +560,7 @@ mod tests {
 
         assert_eq!(
             *actual_events,
-            vec![events::MemoryEvent::write(0x9000.into(), 0x26, 0x26,).into()]
+            vec![events::MemoryEvent::write(0x9000.into(), 0x26, 0x26,)]
         );
     }
 
@@ -571,7 +571,7 @@ mod tests {
         let handler_log = Rc::clone(&event_log);
 
         let handler = move |evt: &events::MemoryEvent| {
-            handler_log.borrow_mut().push(evt.clone());
+            handler_log.borrow_mut().push(*evt);
         };
 
         let cartridge = Cartridge::from_data(vec![0u8; 0x8000]).unwrap();
@@ -584,7 +584,7 @@ mod tests {
 
         assert_eq!(
             *actual_events,
-            vec![events::MemoryEvent::write(0x1000.into(), 0x26, 0x00,).into()]
+            vec![events::MemoryEvent::write(0x1000.into(), 0x26, 0x00,)]
         );
     }
 }

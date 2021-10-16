@@ -55,7 +55,7 @@ impl GBDisplayBuffer {
         if gb_y >= self.height {
             panic!("Y co-ord too large {}", gb_y);
         }
-        self.back[(gb_y * self.width) + gb_x] = pixel.clone();
+        self.back[(gb_y * self.width) + gb_x] = *pixel;
         let render_x_start = gb_x * self.scale;
         let render_y_start = gb_y * self.scale;
         for x_subpx in 0..self.scale {
@@ -64,7 +64,7 @@ impl GBDisplayBuffer {
                 let render_y_px = render_y_start + y_subpx;
                 let row_width = self.width * BPP * self.scale;
                 let idx = (render_y_px * row_width) + (render_x_px * BPP);
-                self.back_pixels[idx + 0] = color.0;
+                self.back_pixels[idx] = color.0;
                 self.back_pixels[idx + 1] = color.1;
                 self.back_pixels[idx + 2] = color.2;
             }
@@ -148,7 +148,7 @@ impl EmulatorDisplay {
 
     pub(crate) fn connect_ui_events(self: &Rc<Self>) {
         self.widget.drawing_area.connect_draw(clone!(@weak self as display => @default-return Inhibit(false), move |_drawing_area, cr| {
-            display.buffer.borrow().render_to_context(&cr);
+            display.buffer.borrow().render_to_context(cr);
             Inhibit(false)
         }));
     }
@@ -213,8 +213,8 @@ mod tests {
     #[test]
     fn test_render_buffer() {
         let mut buffer = GBDisplayBuffer::new(4, 4, 2);
-        buffer.render_line(0, &vec![bg_pixel(2), bg_pixel(1), bg_pixel(1), bg_pixel(0)]);
-        buffer.render_line(1, &vec![bg_pixel(3), bg_pixel(0), bg_pixel(3), bg_pixel(0)]);
+        buffer.render_line(0, &[bg_pixel(2), bg_pixel(1), bg_pixel(1), bg_pixel(0)]);
+        buffer.render_line(1, &[bg_pixel(3), bg_pixel(0), bg_pixel(3), bg_pixel(0)]);
         buffer.swap_buffers();
 
         let expected_colors: Vec<Vec<usize>> = vec![

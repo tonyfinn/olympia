@@ -54,7 +54,7 @@ impl Default for TilesetViewerInternal {
 
 subclass_widget!(TilesetViewerInternal, gtk::Box, TilesetViewer);
 
-const LARGE_SPRITES_PROPERTY: &'static str = "large-sprites";
+const LARGE_SPRITES_PROPERTY: &str = "large-sprites";
 
 impl ObjectImpl for TilesetViewerInternal {
     fn constructed(&self, obj: &Self::Type) {
@@ -63,7 +63,7 @@ impl ObjectImpl for TilesetViewerInternal {
         self.drawing_area.connect_draw(
             glib::clone!(@weak obj => @default-return Inhibit(false), move |_drawing_area, cr| {
                 let buffer = Self::from_instance(&obj).buffer.borrow();
-                buffer.render_to_context(&cr);
+                buffer.render_to_context(cr);
                 Inhibit(false)
             }),
         );

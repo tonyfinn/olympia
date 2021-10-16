@@ -68,7 +68,7 @@ macro_rules! rotate_instruction {
 }
 
 rotate_instruction!(
-    RLCA,
+    RotateLeftCarry,
     "RLCA",
     0x0000_0111,
     RotateDirection::Left,
@@ -77,7 +77,7 @@ rotate_instruction!(
 );
 
 rotate_instruction!(
-    RLA,
+    RotateLeft,
     "RLA",
     0x0001_0111,
     RotateDirection::Left,
@@ -86,7 +86,7 @@ rotate_instruction!(
 );
 
 rotate_instruction!(
-    RRCA,
+    RotateRightCarry,
     "RRCA",
     0x0000_1111,
     RotateDirection::Right,
@@ -95,7 +95,7 @@ rotate_instruction!(
 );
 
 rotate_instruction!(
-    RRA,
+    RotateRight,
     "RRA",
     0x0001_1111,
     RotateDirection::Right,
@@ -127,9 +127,9 @@ impl ExecutableInstruction for DisableInterrupts {
 
 #[derive(Debug, OlympiaInstruction)]
 #[olympia(opcode = 0x0000_0000, label = "NOP")]
-struct NOP {}
+struct NoOp {}
 
-impl ExecutableInstruction for NOP {
+impl ExecutableInstruction for NoOp {
     fn execute(&self, _gb: &mut GameBoy) -> StepResult<()> {
         Ok(())
     }
@@ -239,14 +239,12 @@ impl AToBCD {
             } else {
                 (0, carry)
             }
+        } else if top_nibble <= 9 && bottom_nibble <= 9 && !half_carry {
+            (0, false)
+        } else if top_nibble <= 8 && bottom_nibble >= 6 && half_carry {
+            (0xFA, false)
         } else {
-            if top_nibble <= 9 && bottom_nibble <= 9 && !half_carry {
-                (0, false)
-            } else if top_nibble <= 8 && bottom_nibble >= 6 && half_carry {
-                (0xFA, false)
-            } else {
-                (0, carry)
-            }
+            (0, carry)
         }
     }
 }
@@ -300,15 +298,15 @@ pub(crate) fn opcodes() -> Vec<(u8, Box<dyn RuntimeOpcode>)> {
     vec![
         EnableInterruptsOpcode::all(),
         DisableInterruptsOpcode::all(),
-        NOPOpcode::all(),
+        NoOpOpcode::all(),
         InvertCarryOpcode::all(),
         SetCarryOpcode::all(),
         InvertAOpcode::all(),
         AToBCDOpcode::all(),
-        RRCAOpcode::all(),
-        RRAOpcode::all(),
-        RLCAOpcode::all(),
-        RLAOpcode::all(),
+        RotateRightCarryOpcode::all(),
+        RotateRightOpcode::all(),
+        RotateLeftCarryOpcode::all(),
+        RotateLeftOpcode::all(),
         HaltOpcode::all(),
         StopOpcode::all(),
     ]

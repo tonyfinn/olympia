@@ -59,7 +59,7 @@ use self::cpu::CLOCKS_PER_CYCLE;
 pub struct GameBoy {
     pub(crate) cpu: Cpu,
     pub(crate) mem: memory::Memory,
-    pub(crate) ppu: ppu::PPU,
+    pub(crate) ppu: ppu::Ppu,
     pub(crate) timer: timer::Timer,
     dma: DmaUnit,
     runtime_decoder: Rc<new_instructions::RuntimeDecoder>,

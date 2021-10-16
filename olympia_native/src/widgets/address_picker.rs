@@ -63,7 +63,7 @@ impl AddressPicker {
 
     pub fn connect_goto<F>(&self, f: F)
     where
-        F: Fn(u16) -> () + 'static,
+        F: Fn(u16) + 'static,
     {
         self.connect_local(GOTO_ADDRESS_SIGNAL, false, move |v| {
             let unwrapped: u32 = v[1].get().expect("Wrong type sent for goto signal");
@@ -75,9 +75,9 @@ impl AddressPicker {
     }
 }
 
-pub const ADDRESS_PROPERTY: &'static str = "address";
-pub const PC_CLICKED_SIGNAL: &'static str = "pc-button-clicked";
-pub const GOTO_ADDRESS_SIGNAL: &'static str = "goto-address";
+pub const ADDRESS_PROPERTY: &str = "address";
+pub const PC_CLICKED_SIGNAL: &str = "pc-button-clicked";
+pub const GOTO_ADDRESS_SIGNAL: &str = "goto-address";
 
 impl ObjectImpl for AddressPickerInternal {
     fn properties() -> &'static [ParamSpec] {
